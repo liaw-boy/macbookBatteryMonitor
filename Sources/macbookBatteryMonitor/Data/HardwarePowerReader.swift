@@ -3,6 +3,8 @@ import Foundation
 final class HardwarePowerReader {
     private let report = IOReportReader()
     private let smc = SMC()
+    /// 有沒有螢幕背光功率感測器（例如 M1 MacBook Air 沒有 PDBR／PBwo）；沒有就不顯示背光，其他功耗改為包含螢幕
+    private lazy var backlightAvailable = smc.map { $0.hasKey("PDBR") || $0.hasKey("PBwo") } ?? false
     private var delta = EnergyDelta()
     private var previousSystem: Double?
     private var previousBacklight: Double?
@@ -24,9 +26,9 @@ final class HardwarePowerReader {
         let backlight = valid(smc?.read("PDBR")) ?? valid(smc?.read("PBwo"))
         let windowValid = interval.map { $0 > 0 && $0 <= EnergyDelta.maxWindow } ?? false
         let estimated = windowValid && system != nil && previousSystem != nil
-            && backlight != nil && previousBacklight != nil
+            && (!backlightAvailable || (backlight != nil && previousBacklight != nil))
         let systemAverage = estimated ? (system! + previousSystem!) / 2 : system
-        let backlightAverage = estimated ? (backlight! + previousBacklight!) / 2 : backlight
+        let backlightAverage = estimated && backlightAvailable ? (backlight! + previousBacklight!) / 2 : backlight
         previousSystem = system
         previousBacklight = backlight
         // 在背景執行緒，只讀需要的那一個值；BatteryReader.read 會動到主執行緒共用的快取
@@ -37,7 +39,8 @@ final class HardwarePowerReader {
             systemWatts: systemAverage ?? valid(fallback), systemWindowEstimated: estimated,
             systemPowerSource: system != nil ? "SMC PSTR" : "Battery SystemLoad",
             sampling: interval == nil && !energy.isEmpty,
-            aneAvailable: report?.components.contains("ane") ?? false)
+            aneAvailable: report?.components.contains("ane") ?? false,
+            backlightAvailable: backlightAvailable)
     }
 }
 

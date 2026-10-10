@@ -19,9 +19,21 @@ struct ComponentPowerFlowView: View {
         ] : [
             ComponentRow(item: .backlight, name: "螢幕背光", symbol: "display", watts: breakdown.backlightWatts),
             ComponentRow(item: .chip, name: "晶片運算", symbol: "cpu", watts: breakdown.chipWatts),
-            ComponentRow(item: .other, name: breakdown.otherIncludesMissing ? "未分類（估算）" : "其他（估算）", symbol: "ellipsis", watts: breakdown.otherWatts),
+            ComponentRow(item: .other, name: otherName, symbol: "ellipsis", watts: breakdown.otherWatts),
         ]
-        return all.filter { ($0.item != .ane || breakdown.aneAvailable) && settings.isVisible($0.item) }
+        return all.filter { available($0.item) && settings.isVisible($0.item) }
+    }
+    /// 這台機器讀不到的項目（沒有 ANE 通道、沒有背光感測器）直接不顯示
+    private func available(_ item: FlowItem) -> Bool {
+        switch item {
+        case .ane: return breakdown.aneAvailable
+        case .backlight: return breakdown.backlightAvailable
+        default: return true
+        }
+    }
+    private var otherName: String {
+        if breakdown.otherIncludesMissing { return "未分類（估算）" }
+        return breakdown.backlightAvailable ? "其他（估算）" : "其他（含螢幕）"
     }
     private var chipComplete: Bool {
         breakdown.cpuWatts != nil && breakdown.gpuWatts != nil && (breakdown.aneWatts != nil || !breakdown.aneAvailable)

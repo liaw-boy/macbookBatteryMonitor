@@ -12,6 +12,8 @@ struct PowerBreakdown: Equatable {
     var otherIncludesMissing = false
     /// 這台機器有沒有 ANE 通道；沒有就不顯示、也不算缺值
     var aneAvailable = true
+    /// 這台機器有沒有螢幕背光感測器；沒有就不顯示背光，「其他」改為包含螢幕
+    var backlightAvailable = true
     var status: Status
 
     /// 晶片細項應該有幾項
@@ -27,7 +29,8 @@ struct PowerBreakdown: Equatable {
             result.status = .stale
             return result
         }
-        result.backlightWatts = valid(components.backlightWatts)
+        result.backlightAvailable = components.backlightAvailable
+        result.backlightWatts = components.backlightAvailable ? valid(components.backlightWatts) : nil
         result.cpuWatts = valid(components.cpuWatts)
         result.gpuWatts = valid(components.gpuWatts)
         result.aneAvailable = components.aneAvailable
@@ -35,7 +38,8 @@ struct PowerBreakdown: Equatable {
         let chips = [result.cpuWatts, result.gpuWatts, result.aneWatts].compactMap { $0 }
         result.chipWatts = chips.isEmpty ? nil : chips.reduce(0, +)
         guard !components.sampling else { result.status = .sampling; return result }
-        guard let system = result.systemWatts, let backlight = result.backlightWatts,
+        // 沒有背光感測器時背光算在「其他」裡
+        guard let system = result.systemWatts, let backlight = result.backlightAvailable ? result.backlightWatts : 0,
               let chip = result.chipWatts else { return result }
         let expected = result.expectedChips
         guard components.systemWindowAligned || components.systemWindowEstimated else {

@@ -28,7 +28,7 @@ struct DisplayItemsView: View {
                     checkboxes(FlowItem.chipLevel)
                         .disabled(!settings.isVisible(.chip))
                     Text(settings.isVisible(.chip)
-                         ? "沒有 ANE 通道的機型（例如 M1 MacBook Air）會自動隱藏 ANE。"
+                         ? "讀不到的項目會自動隱藏：例如 M1 MacBook Air 沒有 ANE 通道與螢幕背光感測器，背光改算在「其他」裡。"
                          : "隱藏晶片運算後無法展開 CPU、GPU、ANE。")
                         .font(.caption)
                         .foregroundStyle(.secondary)

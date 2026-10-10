@@ -70,6 +70,8 @@ struct ComponentPowerSample: Equatable, Codable {
     var sampling = false
     /// 沒有 ANE 通道的機型（例如 M1 MacBook Air）不把 ANE 當成缺值
     var aneAvailable = true
+    /// 沒有背光感測器的機型：不顯示背光，其他功耗包含螢幕
+    var backlightAvailable = true
     var chipComplete: Bool { cpuWatts != nil && gpuWatts != nil && (aneWatts != nil || !aneAvailable) }
     var chipWatts: Double? {
         let values = [cpuWatts, gpuWatts, aneWatts].compactMap { $0 }

@@ -51,6 +51,17 @@ final class SMC {
         return values.reduce(0, +) / Double(values.count)
     }
 
+    /// 這台機器有沒有這個 key（沒有就是機型不支援，不是暫時讀不到）
+    func hasKey(_ key: String) -> Bool {
+        var input = KeyData()
+        input.key = Self.fourCC(key)
+        if keyInfoCache[input.key] != nil { return true }
+        input.data8 = Self.getKeyInfo
+        guard let info = call(&input) else { return false }
+        keyInfoCache[input.key] = info.keyInfo
+        return true
+    }
+
     func read(_ key: String) -> Double? {
         var input = KeyData()
         input.key = Self.fourCC(key)
