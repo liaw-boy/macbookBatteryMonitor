@@ -1,9 +1,10 @@
 import Foundation
 
 /// powermetrics 的文字串流可能在任意位元組位置分段。
-struct CPUPowerStream {
+public struct CPUPowerStream {
+    public init() {}
     private var pending = ""
-    mutating func append(_ text: String) -> Double? {
+    public mutating func append(_ text: String) -> Double? {
         pending += text
         let lines = pending.components(separatedBy: "\n")
         pending = String(lines.last?.suffix(4096) ?? "")

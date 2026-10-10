@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p build/tests
-models=(Sources/macbookBatteryMonitor/Model/ComponentPower.swift Sources/macbookBatteryMonitor/Model/CPUPowerStream.swift)
+models=(Sources/macbookBatteryMonitor/Model/ComponentPower.swift Sources/CPUPowerShared/CPUPowerStream.swift Sources/CPUPowerShared/CPUPowerModels.swift)
 if [[ -f Sources/macbookBatteryMonitor/Model/PowerBreakdown.swift ]]; then
     models+=(Sources/macbookBatteryMonitor/Model/PowerBreakdown.swift)
 fi

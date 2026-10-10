@@ -124,11 +124,13 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 ## 管理員 CPU 取樣（Full）
 
-設定 → CPU 功耗 →「管理員 CPU 取樣」，預設關閉。啟用後返回主面板，透過 macOS 系統視窗授權，只執行內建 `powermetrics`，每秒取得 CPU 功耗。App 本身仍以一般權限執行，不安裝常駐服務。
+設定 → CPU 功耗 →「管理員 CPU 取樣」，預設關閉。首次啟用時透過 macOS 系統視窗授權，安裝只讀取 CPU 功耗的系統輔助服務。之後開關面板、重新啟動 App 或重新開機都保留授權，不儲存密碼。App 本身仍以一般權限執行；主面板開啟時才執行內建 `powermetrics`，每秒取得 CPU 功耗。
 
 部分 macOS 版本的 CPU 能量計數不更新，此選項可改用 `powermetrics` 的 CPU 讀值。等待授權、尚未取得資料或資料逾時時不顯示舊值。取消或失敗後，關閉再開啟此選項可重試。
 
-關閉主面板、進入設定、睡眠或退出即停止取樣；背景程序最多約一秒結束。另有 5 秒心跳與 30 分鐘上限保護，逾時後需重新啟用。此模式會增加 CPU 使用量與耗電，關閉面板時不取樣；系統功耗與 CPU 取樣時間窗僅近似同步。
+關閉主面板、進入設定、睡眠或退出會停止取樣，保留服務。App 意外退出或無回應時，連線中斷或 5 秒租約到期也會停止取樣。沒有取樣時服務不執行 `powermetrics`、不啟動輪詢計時器。此模式取樣時會增加 CPU 使用量與耗電；系統功耗與 CPU 取樣時間窗僅近似同步。
+
+關閉「管理員 CPU 取樣」會停止取樣並移除服務，下次啟用才重新授權。服務只接受安裝時使用者的要求；不接受任意指令、路徑、PID 或取樣頻率。輔助程式位於 `/Library/PrivilegedHelperTools/com.kuan.batterymonitor.cpu/`，啟動設定為 `/Library/LaunchDaemons/com.kuan.batterymonitor.cpu.plist`。
 
 ## 電力總覽與硬體功耗（v1.2 起）
 
@@ -191,7 +193,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異，讀�
 | 電量、電壓、原始電流、容量、循環次數 | IORegistry `AppleSmartBattery` |
 | 外部輸入、系統功耗、背光 | SMC（唯讀，`PDTR`、`PSTR`、`PDBR`／`PBwo`） |
 | 電池功率 | 由「外部輸入 − 系統功耗」推算；缺少任一路時改用 IORegistry 電壓 × 電流（不使用 `PPBR`） |
-| CPU／GPU／ANE 功耗 | IOReport Energy Model 的能量差與實際取樣時間 |
+| CPU／GPU／ANE 功耗 | IOReport Energy Model 的能量差與實際取樣時間；管理員模式的 CPU 改用 `powermetrics` |
 | 系統預估時間、充電狀態 | IOKit Power Sources |
 | 健康度（最大容量）、電池狀況 | `system_profiler SPPowerDataType` |
 | 溫度 | SMC（唯讀，`TB0T`～`TB2T`） |
@@ -215,8 +217,8 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異，讀�
 
 ## 解除安裝
 
-1. 在 App 設定裡關閉「開機時自動啟動」，然後結束 App
-2. 刪除 `/Applications/macbookBatteryMonitor.app`
+1. 在 App 設定裡關閉「管理員 CPU 取樣」以移除輔助服務，再關閉「開機時自動啟動」，然後結束 App
+2. 刪除 `/Applications/macbookBatteryMonitor.app`；若先刪除了 App，可重新安裝後關閉「管理員 CPU 取樣」以移除服務
 3. （選擇性）清除資料：
    ```bash
    rm -rf ~/Library/Application\ Support/BatteryMonitor

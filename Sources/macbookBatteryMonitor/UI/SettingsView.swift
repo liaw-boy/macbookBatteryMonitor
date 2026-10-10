@@ -64,7 +64,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("CPU 功耗", systemImage: "cpu")
                     SwitchRow("管理員 CPU 取樣", isOn: binding(\.adminCPUSampling))
-                    Text("返回主面板後要求系統授權，每秒讀取 CPU 功耗。離開主面板即停止；會增加取樣耗電。")
+                    Text("首次啟用需系統授權，之後開關面板與重新開機都會保留。主面板開啟時每秒取樣，關閉此選項會移除服務。")
                         .font(.caption).foregroundStyle(.secondary)
                     Text(adminCPU.status).font(.caption).foregroundStyle(.secondary)
                 }

@@ -22,8 +22,10 @@ swift build -c release
 BIN="$(swift build -c release --show-bin-path)/$APP_NAME"
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Library/Helpers"
 cp "$BIN" "$APP/Contents/MacOS/$APP_NAME"
+cp "$(dirname "$BIN")/CPUPowerHelper" "$APP/Contents/Library/Helpers/CPUPowerHelper"
+codesign --force --sign - --timestamp=none "$APP/Contents/Library/Helpers/CPUPowerHelper"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 plutil -replace MBMEdition -string "$EDITION" "$APP/Contents/Info.plist"
 if [[ -f Resources/AppIcon.icns ]]; then
