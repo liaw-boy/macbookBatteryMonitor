@@ -30,7 +30,7 @@ if [[ -f Resources/AppIcon.icns ]]; then
     cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi
 codesign --force --sign - --timestamp=none "$APP"
-echo "✅ 已產生 $APP（$([[ $EDITION == battery ]] && echo 電池版 || echo 系統監控版)）"
+echo "✅ 已產生 ${APP}（$([[ $EDITION == battery ]] && echo 電池版 || echo 系統監控版)）"
 
 if [[ $INSTALL == 1 ]]; then
     pkill -x "$APP_NAME" || true
