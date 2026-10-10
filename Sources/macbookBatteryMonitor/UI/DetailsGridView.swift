@@ -35,6 +35,10 @@ struct DetailsGridView: View {
         case .discharging:
             return e.systemToEmpty.map { Format.duration($0) } ?? "計算中…"
         case .charging:
+            // 與右上角相同的目標：有充電上限時是充到上限，否則是充滿
+            if let limit = s.chargeLimit?.limit {
+                return e.toLimit.map { "到 \(limit)% \(Format.clock($0) ?? "")" } ?? "計算中…"
+            }
             return e.toFull.map { "充滿 \(Format.clock($0) ?? "")" } ?? "計算中…"
         case .pluggedIdle, .full, .limitReached:
             return "接電中"

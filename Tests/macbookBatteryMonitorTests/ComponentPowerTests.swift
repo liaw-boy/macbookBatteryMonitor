@@ -1,7 +1,12 @@
 import Foundation
-func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T) { precondition(a == b, "Expected \(b), got \(a)") }
-func XCTAssertNil<T>(_ a: T?) { precondition(a == nil, "Expected nil, got \(String(describing: a))") }
-func XCTAssertTrue(_ a: Bool) { precondition(a) }
+// 失敗時印出呼叫端的檔案與行號
+func XCTAssertEqual<T: Equatable>(_ a: T, _ b: T, file: StaticString = #file, line: UInt = #line) {
+    precondition(a == b, "Expected \(b), got \(a)", file: file, line: line)
+}
+func XCTAssertNil<T>(_ a: T?, file: StaticString = #file, line: UInt = #line) {
+    precondition(a == nil, "Expected nil, got \(String(describing: a))", file: file, line: line)
+}
+func XCTAssertTrue(_ a: Bool, file: StaticString = #file, line: UInt = #line) { precondition(a, file: file, line: line) }
 
 final class ComponentPowerTests {
     func testUnchangedCPUCounterIsZero() {

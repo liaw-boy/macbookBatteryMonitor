@@ -44,7 +44,7 @@ enum Estimator {
 
     static func state(_ s: BatterySnapshot) -> PowerState {
         guard s.externalConnected else { return .discharging }
-        if s.isCharging { return .charging }
+        if s.chargingNow { return .charging }
         if let limit = s.chargeLimit?.limit, s.percent >= limit - 1 { return .limitReached }
         if s.effectiveAmperage_mA < -50 { return .pluggedIdle }
         if s.fullyCharged || s.percent >= 100 { return .full }

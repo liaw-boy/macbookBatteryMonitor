@@ -52,6 +52,22 @@ struct BatterySnapshot: Codable, Equatable {
         return input - system
     }
 
+    /// 是否正在充電。電池晶片的 IsCharging 會停在舊值：實測 M1 接著電源、SMC 顯示約 14 W 充入電池、電量持續上升時，
+    /// 仍有十幾秒回報「未充電、電流 0」。有 SMC 即時功率時以功率為準，只有數值落在模糊區間才看晶片旗標。
+    var chargingNow: Bool {
+        guard externalConnected else { return false }
+        guard let watts = liveBatteryWatts else { return isCharging }
+        if watts >= 3 { return true }
+        if watts < 0.5 { return false }
+        return isCharging
+    }
+
+    /// 電量高於充電上限、電池正在放電到上限（與「供電不足」相同，以 -50 mA 為門檻，避免雜訊）
+    var drainingAboveLimit: Bool {
+        guard let limit = chargeLimit?.limit else { return false }
+        return percent > limit && effectiveAmperage_mA < -50
+    }
+
     /// 電量高於系統充電上限、macOS 暫停變壓器供電讓電池放電到上限（生效中的策略只在接電時存在）
     var drainingToChargeLimit: Bool {
         guard let limit = chargeLimit, limit.active else { return false }

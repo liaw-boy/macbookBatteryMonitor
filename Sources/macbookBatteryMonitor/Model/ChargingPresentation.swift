@@ -20,21 +20,21 @@ struct ChargingPresentation {
             self = ChargingPresentation()
             lastLimit = limit
         }
-        // 系統充電上限與降到上限的策略優先，不套用 100% 滿電緩衝。
-        if limit != nil {
-            fullLatched = false; pending = nil; displayed = raw
-            return raw
+        var candidate = raw
+        // 有系統充電上限時由上限判定，不套用 100% 滿電緩衝；但接電中的狀態變化一樣要確認 10 秒，
+        // 否則充到上限附近時 macOS 反覆暫停／恢復充電，圖示會跟著跳
+        if limit == nil {
+            if snapshot.percent >= 100 || (snapshot.fullyCharged && snapshot.percent >= 98) {
+                fullLatched = true; pending = nil; displayed = .full
+                return .full
+            }
+            if fullLatched && snapshot.percent < 98 {
+                fullLatched = false; pending = nil; displayed = raw
+                return raw
+            }
+            candidate = fullLatched && !snapshot.chargingNow ? .full : raw
         }
-        if snapshot.percent >= 100 || (snapshot.fullyCharged && snapshot.percent >= 98) {
-            fullLatched = true; pending = nil; displayed = .full
-            return .full
-        }
-        if fullLatched && snapshot.percent < 98 {
-            fullLatched = false; pending = nil; displayed = raw
-            return raw
-        }
-        let candidate: PowerState = fullLatched && !snapshot.isCharging  ? .full : raw
-        // 第一次讀取、實際插拔電源立即顯示；接電中的旗標變化才確認 10 秒。
+        // 第一次讀取、實際插拔電源立即顯示；接電中的狀態變化才確認 10 秒。
         guard let previous = displayed, previous != .discharging else {
             displayed = candidate; pending = nil
             return candidate
@@ -56,26 +56,27 @@ struct ChargingPresentation {
 
 enum PowerFlowKind: String, Codable { case battery, adapter, charging, mixed }
 
-/// 電量狀態與供電方向分開：滿電時的小幅電池補電不改變圖的拓樸。
+/// 電量狀態與供電方向分開：沒在充電時的小幅電池補電不改變圖的拓樸。
 struct PowerFlowPresentation {
     private var displayed: PowerFlowKind?
     private var pending: (kind: PowerFlowKind, since: TimeInterval)?
 
-    static func rawKind(connected: Bool, watts: Double, nearFull: Bool) -> PowerFlowKind {
+    /// holding：接著電源但沒在充電（滿電、到達上限、暫停），±2 W 內視為由變壓器直接供電
+    static func rawKind(connected: Bool, watts: Double, holding: Bool) -> PowerFlowKind {
         guard connected else { return .battery }
-        let threshold = nearFull ? 2.0 : 0.05
+        let threshold = holding ? 2.0 : 0.05
         if watts > threshold { return .charging }
         if watts < -threshold { return .mixed }
         return .adapter
     }
 
-    mutating func kind(connected: Bool, watts: Double, nearFull: Bool, uptime: TimeInterval) -> PowerFlowKind {
-        let candidate = Self.rawKind(connected: connected, watts: watts, nearFull: nearFull)
-        guard nearFull, connected else {
+    mutating func kind(connected: Bool, watts: Double, holding: Bool, uptime: TimeInterval) -> PowerFlowKind {
+        let candidate = Self.rawKind(connected: connected, watts: watts, holding: holding)
+        guard holding, connected else {
             displayed = candidate; pending = nil
             return candidate
         }
-        // 初次開啟或滿電重新插電也先確認，避免第一筆功率差尖峰切換圖形。
+        // 初次開啟或重新插電也先確認，避免第一筆功率差尖峰切換圖形。
         let previous = displayed == .battery ? .adapter : (displayed ?? .adapter)
         displayed = previous
         guard previous != candidate else {
@@ -93,7 +94,7 @@ struct PowerFlowPresentation {
 
 extension Estimates {
     var flowKind: PowerFlowKind {
-        displayFlow ?? PowerFlowPresentation.rawKind(connected: state != .discharging,
-                                                    watts: batteryWatts, nearFull: state == .full)
+        displayFlow ?? PowerFlowPresentation.rawKind(connected: state != .discharging, watts: batteryWatts,
+                                                    holding: [.full, .limitReached, .pluggedIdle].contains(state) && !drainingOnAC)
     }
 }

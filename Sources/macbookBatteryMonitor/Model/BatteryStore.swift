@@ -101,8 +101,10 @@ final class BatteryStore {
 
         snapshot = s
         var computed = Estimator.estimates(s, avgDischarge_mA: avgDischarge, avgCharge_mA: avgCharge, displayState: state)
+        // 接著電源但沒在充電（滿電、到達上限、暫停）時，電池功率的小幅波動不改變流向圖，與上方的狀態文字一致
+        let holding = [.full, .limitReached, .pluggedIdle].contains(state) && !computed.drainingOnAC && !s.drainingAboveLimit
         computed.displayFlow = flowPresentation.kind(connected: s.externalConnected, watts: computed.batteryWatts,
-            nearFull: chargingPresentation.hasReachedFull, uptime: ProcessInfo.processInfo.systemUptime)
+            holding: holding, uptime: ProcessInfo.processInfo.systemUptime)
         estimates = computed
     }
 
@@ -113,7 +115,7 @@ final class BatteryStore {
             pct: s.percent,
             watts: e.systemWatts ?? max(0, -e.batteryWatts),
             plugged: s.externalConnected,
-            charging: s.isCharging
+            charging: e.state == .charging
         ))
     }
 

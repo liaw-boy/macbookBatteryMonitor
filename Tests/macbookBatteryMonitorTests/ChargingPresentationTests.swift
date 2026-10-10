@@ -63,9 +63,9 @@ final class ChargingPresentationTests {
         XCTAssertEqual(filter.state(s, uptime: 1), .full)
         XCTAssertEqual(filter.state(s, uptime: 11), .full)
         var flow = PowerFlowPresentation()
-        XCTAssertEqual(flow.kind(connected: true, watts: 0, nearFull: true, uptime: 0), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -12, nearFull: true, uptime: 1), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -12, nearFull: true, uptime: 11), .mixed)
+        XCTAssertEqual(flow.kind(connected: true, watts: 0, holding: true, uptime: 0), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -12, holding: true, uptime: 1), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -12, holding: true, uptime: 11), .mixed)
         var e = Estimator.estimates(s, avgDischarge_mA: nil, avgCharge_mA: nil, displayState: .full)
         e.displayFlow = .mixed
         XCTAssertEqual(e.state, .full)
@@ -74,29 +74,29 @@ final class ChargingPresentationTests {
     }
     func testInitialNearFullSpikeAlsoNeedsConfirmation() {
         var flow = PowerFlowPresentation()
-        XCTAssertEqual(flow.kind(connected: true, watts: 7, nearFull: true, uptime: 0), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -5, nearFull: true, uptime: 1), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: 0.2, nearFull: true, uptime: 2), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -12, nearFull: true, uptime: 3), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -12, nearFull: true, uptime: 13), .mixed)
+        XCTAssertEqual(flow.kind(connected: true, watts: 7, holding: true, uptime: 0), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -5, holding: true, uptime: 1), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: 0.2, holding: true, uptime: 2), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -12, holding: true, uptime: 3), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -12, holding: true, uptime: 13), .mixed)
     }
     func testMinorAssistAndFlowConfirmation() {
         var flow = PowerFlowPresentation()
-        XCTAssertEqual(flow.kind(connected: true, watts: 0, nearFull: true, uptime: 0), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: 0, holding: true, uptime: 0), .adapter)
         for t in 1...20 {
             XCTAssertEqual(flow.kind(connected: true, watts: t % 2 == 0 ? 1.9 : -1.9,
-                                     nearFull: true, uptime: Double(t)), .adapter)
+                                     holding: true, uptime: Double(t)), .adapter)
         }
-        XCTAssertEqual(flow.kind(connected: true, watts: -3, nearFull: true, uptime: 21), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -3, nearFull: true, uptime: 30), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -3, nearFull: true, uptime: 31), .mixed)
-        XCTAssertEqual(flow.kind(connected: true, watts: 4, nearFull: true, uptime: 32), .mixed)
-        XCTAssertEqual(flow.kind(connected: true, watts: 4, nearFull: true, uptime: 42), .charging)
-        XCTAssertEqual(flow.kind(connected: true, watts: -1, nearFull: true, uptime: 43), .charging)
-        XCTAssertEqual(flow.kind(connected: true, watts: -1, nearFull: true, uptime: 53), .adapter)
-        XCTAssertEqual(flow.kind(connected: false, watts: -1, nearFull: true, uptime: 53.1), .battery)
-        XCTAssertEqual(flow.kind(connected: true, watts: -1, nearFull: true, uptime: 53.2), .adapter)
-        XCTAssertEqual(flow.kind(connected: true, watts: -1, nearFull: false, uptime: 53.3), .mixed)
+        XCTAssertEqual(flow.kind(connected: true, watts: -3, holding: true, uptime: 21), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -3, holding: true, uptime: 30), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -3, holding: true, uptime: 31), .mixed)
+        XCTAssertEqual(flow.kind(connected: true, watts: 4, holding: true, uptime: 32), .mixed)
+        XCTAssertEqual(flow.kind(connected: true, watts: 4, holding: true, uptime: 42), .charging)
+        XCTAssertEqual(flow.kind(connected: true, watts: -1, holding: true, uptime: 43), .charging)
+        XCTAssertEqual(flow.kind(connected: true, watts: -1, holding: true, uptime: 53), .adapter)
+        XCTAssertEqual(flow.kind(connected: false, watts: -1, holding: true, uptime: 53.1), .battery)
+        XCTAssertEqual(flow.kind(connected: true, watts: -1, holding: true, uptime: 53.2), .adapter)
+        XCTAssertEqual(flow.kind(connected: true, watts: -1, holding: false, uptime: 53.3), .mixed)
         var filter = ChargingPresentation()
         var s = BatterySnapshot(percent: 100, externalConnected: true, fullyCharged: true,
             voltage_mV: 12000, amperage_mA: -100)
@@ -118,5 +118,66 @@ final class ChargingPresentationTests {
         s.isCharging = true
         XCTAssertEqual(filter.state(s, uptime: 3), .pluggedIdle)
         XCTAssertEqual(filter.state(s, uptime: 13), .charging)
+    }
+
+    /// 實測情境：充電上限 95%、電量 90%，晶片回報「未充電、電流 0」，SMC 卻顯示約 14 W 充入電池
+    func testStaleRegistryFlagUsesLivePower() {
+        var s = BatterySnapshot(percent: 90, externalConnected: true, voltage_mV: 12600, amperage_mA: 0)
+        s.fullCharge_mAh = 4700
+        s.chargeLimit = ChargeLimit(limit: 95, reason: "manualChargeLimit")
+        s.applyLivePower(battery: nil, adapter: 20.7, system: 6.3)
+        XCTAssertTrue(s.chargingNow)
+        XCTAssertEqual(Estimator.state(s), .charging)
+        let e = Estimator.estimates(s, avgDischarge_mA: nil, avgCharge_mA: 1100)
+        XCTAssertEqual(e.state, .charging)
+        XCTAssertEqual(e.flowKind, .charging)
+        XCTAssertTrue(e.toLimit != nil)
+        // 晶片說在充電，但 SMC 幾乎沒有電流進電池：以功率為準，視為暫停
+        s.isCharging = true
+        s.applyLivePower(battery: nil, adapter: 6.5, system: 6.3)
+        XCTAssertTrue(!s.chargingNow)
+        XCTAssertEqual(Estimator.state(s), .pluggedIdle)
+        // 0.5～3 W 模糊區間才看晶片旗標
+        s.applyLivePower(battery: nil, adapter: 8.0, system: 6.3)
+        XCTAssertTrue(s.chargingNow)
+        s.isCharging = false
+        XCTAssertTrue(!s.chargingNow)
+    }
+
+    /// 充到上限附近 macOS 反覆暫停／恢復充電：狀態要持續 10 秒才切換，流向圖跟著狀態
+    func testChargeLimitFlappingIsConfirmed() {
+        var filter = ChargingPresentation()
+        var flow = PowerFlowPresentation()
+        var s = BatterySnapshot(percent: 94, externalConnected: true, voltage_mV: 12600, amperage_mA: 0)
+        s.chargeLimit = ChargeLimit(limit: 95, reason: "manualChargeLimit")
+        s.applyLivePower(battery: nil, adapter: 7, system: 6.5)
+        XCTAssertEqual(filter.state(s, uptime: 0), .limitReached)
+        XCTAssertEqual(flow.kind(connected: true, watts: 0.5, holding: true, uptime: 0), .adapter)
+        for t in 1...9 {
+            s.applyLivePower(battery: nil, adapter: t % 3 == 0 ? 7 : 20, system: 6.5)
+            XCTAssertEqual(filter.state(s, uptime: Double(t)), .limitReached)
+        }
+        // 持續充電 10 秒以上才顯示充電中
+        s.applyLivePower(battery: nil, adapter: 20, system: 6.5)
+        XCTAssertEqual(filter.state(s, uptime: 10), .limitReached)
+        XCTAssertEqual(filter.state(s, uptime: 20), .charging)
+        // 拔掉電源立即切換
+        s.externalConnected = false
+        XCTAssertEqual(filter.state(s, uptime: 20.5), .discharging)
+    }
+
+    /// 電量高於上限、macOS 讓電池放電到上限時，流向圖要畫出電池一起供電，與狀態文字一致
+    func testDrainingAboveLimitIsNotHeld() {
+        var s = BatterySnapshot(percent: 97, externalConnected: true, voltage_mV: 12600, amperage_mA: 0)
+        s.chargeLimit = ChargeLimit(limit: 95, reason: "manualChargeLimit")
+        s.applyLivePower(battery: nil, adapter: 4, system: 6.5)
+        XCTAssertEqual(Estimator.state(s), .limitReached)
+        XCTAssertTrue(s.drainingAboveLimit)
+        // 小於 50 mA 的雜訊不算在放電
+        s.applyLivePower(battery: nil, adapter: 6.2, system: 6.5)
+        XCTAssertTrue(!s.drainingAboveLimit)
+        s.percent = 95
+        s.applyLivePower(battery: nil, adapter: 4, system: 6.5)
+        XCTAssertTrue(!s.drainingAboveLimit)
     }
 }
