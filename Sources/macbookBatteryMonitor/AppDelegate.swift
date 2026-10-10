@@ -97,6 +97,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 14) { [weak self] in
                     print("selftest: hardware sampling resumed \(self?.store.componentPower != nil)")
+                    // 管理員 CPU 取樣開著時，確認讀得到 powermetrics 的 CPU 功耗
+                    let cpu = self?.store.componentPower?.cpuWatts.map { String(format: "%.2f W", $0) } ?? "—"
+                    print("selftest: cpu \(cpu)（管理員 CPU 取樣：\(self?.store.adminCPU.status ?? "")）")
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 22) { [weak self] in
                     print("selftest: closed sampling stopped \(self?.store.componentPower == nil)")

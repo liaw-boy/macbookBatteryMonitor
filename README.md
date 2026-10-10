@@ -132,7 +132,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 - **開啟**：只有在設定裡親手打開時才會跳出 macOS 的管理員授權視窗，安裝一個只讀取 CPU 功耗的系統服務；不儲存密碼、不修改 sudoers。授權取消或失敗時選項會自動關回去，開 App 或開機時不會跳出密碼視窗
 - **取樣**：只在主面板開著時連線，間隔與其他資訊相同（每秒，省電模式每 2 秒）。關閉面板、進入設定頁、睡眠或結束 App 就斷線，`powermetrics` 立即停止，之後完全不通訊；服務閒置 30 秒後自行結束，不常駐，下次打開面板時由系統再啟動
 - **關閉**：關掉選項就停止並移除服務。開 App 時若發現選項關著卻留有服務檔案，或服務版本與 App 不符，也會自動移除（不需要密碼）
-- **耗電**：只有主面板開著時 `powermetrics` 才會執行，這段時間 CPU 使用量會增加；面板關閉時與沒開這個選項相同
+- **耗電**：只有主面板開著時 `powermetrics` 才會執行。M1 MacBook Air 實測，面板開著時服務與 `powermetrics` 合計另佔 CPU 約 1%（省電模式約 0.3%）；面板關閉時與沒開這個選項相同
 - **安全**：服務只接受安裝時那位使用者的連線，只能開始／停止固定參數的 `powermetrics`（間隔只能是 1 或 2 秒）或移除自己，不接受任意指令、路徑或 PID
 - **位置**：服務程式在 `/Library/PrivilegedHelperTools/com.kuan.batterymonitor.cpu/`，啟動設定在 `/Library/LaunchDaemons/com.kuan.batterymonitor.cpu.plist`
 
@@ -272,7 +272,7 @@ $APP --dump              # 目前讀到的資料印成 JSON
 $APP --dump-hardware     # 每秒輸出硬體功耗，共五筆 JSON
 $APP --snapshot <資料夾>  # 在螢幕外把面板各分頁畫成 PNG
 $APP --selftest-panel    # 自動開面板 20 秒再關，量測耗電用
-$APP --selftest-hardware # 展開晶片、切換設定頁，確認取樣會停止與恢復
+$APP --selftest-hardware # 展開晶片、切換設定頁，確認取樣會停止與恢復，並印出 CPU 讀值（含管理員 CPU 取樣狀態）
 $APP --dump-monitors     # 系統監控模組的讀數（間隔 1 秒取樣兩次）印成 JSON
 $APP --selftest-monitors # 依序打開 CPU、記憶體模組面板各 10 秒再關，量測耗電用
 $APP --screenshots <資料夾> # 用示範數據畫出兩個版本與省電模式的介紹圖（docs/screenshots）
