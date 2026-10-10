@@ -22,7 +22,10 @@ struct PowerFlowView: View {
                         }
                         .buttonStyle(.plain)
                     } else {
-                        Text("電力流向").foregroundStyle(.secondary)
+                        // 滿電時流向圖可能維持待命拓樸，即時帶正負號的電池功率放在標題列，面板高度不變
+                        Text(e.state == .full ? "電力流向・電池 \(Format.watts(e.batteryWatts))" : "電力流向")
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
                     }
                     Spacer()
                     if ui.powerFlowLevel == .overview {
@@ -48,8 +51,7 @@ struct PowerFlowView: View {
     }
 
     private var diagram: some View {
-        VStack(spacing: 2) {
-            Group {
+        Group {
             if powerSaving {
                 StaticPowerFlowView(s: s, e: e)
             } else {
@@ -57,14 +59,9 @@ struct PowerFlowView: View {
                     .frame(height: 126)
             }
         }
-            if e.state == .full {
-                Text("電池功率 \(Format.watts(e.batteryWatts))")
-                    .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
-            }
-        }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("電力流向")
-            .accessibilityValue("\(e.state.title)，系統耗電 \(Format.watts(e.systemWatts))，電池功率 \(Format.watts(e.batteryWatts))")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("電力流向")
+        .accessibilityValue("\(e.state.title)，系統耗電 \(Format.watts(e.systemWatts))，電池功率 \(Format.watts(e.batteryWatts))")
     }
 }
 

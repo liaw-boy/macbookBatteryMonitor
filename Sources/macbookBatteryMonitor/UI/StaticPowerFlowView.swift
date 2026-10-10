@@ -11,7 +11,7 @@ struct StaticPowerFlowView: View {
             arrow(pointingRight: true, active: s.externalConnected)
             node(symbol: "laptopcomputer", title: "系統耗電", value: Format.watts(e.systemWatts), active: true, tint: .blue)
             arrow(pointingRight: batteryCharging, active: batteryActive)
-            node(symbol: batterySymbol, title: batteryTitle, value: Format.watts(e.batteryWatts), active: batteryActive,
+            node(symbol: batterySymbol, title: batteryTitle, value: Format.watts(batteryValue), active: batteryActive,
                  tint: batteryCharging ? .green : .orange)
         }
         .padding(.vertical, 12)
@@ -20,6 +20,13 @@ struct StaticPowerFlowView: View {
 
     private var batteryActive: Bool { e.flowKind != .adapter }
     private var batteryCharging: Bool { e.flowKind == .charging }
+    /// 與動畫流向圖相同：沿箭頭方向為正值；方向確認中的短暫反向才會出現負號
+    private var batteryValue: Double {
+        switch e.flowKind {
+        case .mixed, .battery: return -e.batteryWatts
+        case .charging, .adapter: return e.batteryWatts
+        }
+    }
     private var batteryTitle: String {
         guard batteryActive else { return "電池閒置" }
         return batteryCharging ? "充入電池" : "電池放電"
