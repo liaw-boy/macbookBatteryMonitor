@@ -131,13 +131,16 @@ final class PowerSourceTests {
     }
     /// PSTR 比 PDTR 慢一次更新：用 0.5～1.6 秒前的 PDTR 配對現在的 PSTR
     func testAdapterInputPairsWithLaggingSystemPower() {
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 20, now: 100), 20)
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 21, now: 101), 20)
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 22, now: 102.2), 21)
+        func input(_ watts: Double?) -> BatteryReader.AdapterReading? { watts.map { .init(watts: $0, volts: 20, amps: $0 / 20) } }
+        func aligned(_ watts: Double?, _ now: TimeInterval) -> Double? { BatteryReader.alignedAdapterInput(current: input(watts), now: now)?.watts }
+        XCTAssertEqual(aligned(20, 100), 20)
+        XCTAssertEqual(aligned(21, 101), 20)
+        // 電壓、電流跟著同一筆功率配對
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: input(22), now: 102.2)?.amps, 21.0 / 20)
         // 太久以前（更新頻率較慢又沒有預先讀）或太近（插拔後的連續重讀）就用現在的值
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 23, now: 105), 23)
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 24, now: 105.2), 24)
-        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: nil, now: 106.2), 24)
+        XCTAssertEqual(aligned(23, 105), 23)
+        XCTAssertEqual(aligned(24, 105.2), 24)
+        XCTAssertEqual(aligned(nil, 106.2), 24)
     }
 
     func testIdleFullAndMissingTelemetryKeepAC() {

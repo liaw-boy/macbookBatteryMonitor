@@ -41,6 +41,11 @@ struct BatterySnapshot: Codable, Equatable {
 
     var smcBatteryWatts: Double?
     var smcAdapterWatts: Double?
+    /// 變壓器即時輸入電壓（V）與電流（A），SMC VD0R／ID0R，與 smcAdapterWatts 同一次讀取
+    var smcAdapterVolts: Double?
+    var smcAdapterAmps: Double?
+    /// 電池晶片回報的輸入電流（mA），沒有 SMC 讀值時備援
+    var systemCurrentIn_mA: Int?
     var smcSystemWatts: Double?
 
     /// 電池功率（W，正值充入、負值放出），用同次 SMC 輸入與系統功率推算。
@@ -107,6 +112,9 @@ struct BatterySnapshot: Codable, Equatable {
             isCharging = false
             adapter = nil
             systemPowerIn_mW = nil
+            smcAdapterVolts = nil
+            smcAdapterAmps = nil
+            systemCurrentIn_mA = nil
         }
     }
 }
@@ -117,18 +125,30 @@ enum BatteryReader {
     /// SMC 的 PSTR（系統功率）比 PDTR（變壓器輸入）慢一次更新：實測兩者都每秒更新一次，
     /// PSTR 幾乎等於 1 秒前的 PDTR（平均差 0.01 W），同時讀的兩個值直接相減會有約 ±4 W 的雜訊，
     /// 面板上系統耗電也會看起來慢變壓器一秒。記住上一筆 PDTR，配對同一次更新的系統功率。只在主執行緒使用。
-    private static var previousAdapterInput: (watts: Double, uptime: TimeInterval)?
+    private static var previousAdapterInput: (reading: AdapterReading, uptime: TimeInterval)?
 
-    /// 更新頻率慢於每秒時，在下一次更新前 1 秒先讀一次 PDTR，讓下一次更新有可以配對的輸入
-    static func recordAdapterInput() {
-        guard let watts = smc?.read("PDTR") else { return }
-        previousAdapterInput = (watts, ProcessInfo.processInfo.systemUptime)
+    /// 變壓器輸入的一次讀取：功率 PDTR，以及電壓 VD0R、電流 ID0R（三者同一次更新，功率約等於電壓 × 電流）
+    struct AdapterReading: Equatable {
+        var watts: Double
+        var volts: Double? = nil
+        var amps: Double? = nil
     }
 
-    /// 0.5～1.6 秒前讀到的 PDTR 與現在的 PSTR 是同一次更新；沒有就退回現在的值
-    static func alignedAdapterInput(current: Double?, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Double? {
+    private static func readAdapterInput() -> AdapterReading? {
+        guard let smc, let watts = smc.read("PDTR") else { return nil }
+        return AdapterReading(watts: watts, volts: smc.read("VD0R"), amps: smc.read("ID0R"))
+    }
+
+    /// 更新頻率慢於每秒時，在下一次更新前 1 秒先讀一次變壓器輸入，讓下一次更新有可以配對的值
+    static func recordAdapterInput() {
+        guard let reading = readAdapterInput() else { return }
+        previousAdapterInput = (reading, ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 0.5～1.6 秒前讀到的變壓器輸入與現在的 PSTR 是同一次更新；沒有就退回現在的值
+    static func alignedAdapterInput(current: AdapterReading?, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> AdapterReading? {
         defer { if let current { previousAdapterInput = (current, now) } }
-        if let previous = previousAdapterInput, (0.5...1.6).contains(now - previous.uptime) { return previous.watts }
+        if let previous = previousAdapterInput, (0.5...1.6).contains(now - previous.uptime) { return previous.reading }
         return current
     }
 
@@ -177,9 +197,13 @@ enum BatteryReader {
         s.notChargingReason = int(charger["NotChargingReason"]) ?? int(reg["NotChargingReason"])
         s.systemLoad_mW = positive(int(telemetry["SystemLoad"]))
         s.systemPowerIn_mW = positive(int(telemetry["SystemPowerIn"]))
+        s.systemCurrentIn_mA = positive(int(telemetry["SystemCurrentIn"]))
         if includeLivePower {
             // 電池功率由 PDTR − PSTR 推算，不使用 PPBR（見 liveBatteryWatts），所以不必讀
-            s.applyLivePower(battery: nil, adapter: alignedAdapterInput(current: smc?.read("PDTR")), system: smc?.read("PSTR"))
+            let input = alignedAdapterInput(current: readAdapterInput())
+            s.smcAdapterVolts = input?.volts.flatMap { $0.isFinite && $0 >= 0 && $0 < 60 ? $0 : nil }
+            s.smcAdapterAmps = input?.amps.flatMap { $0.isFinite && $0 >= 0 && $0 < 15 ? $0 : nil }
+            s.applyLivePower(battery: nil, adapter: input?.watts, system: smc?.read("PSTR"))
         }
         s.chargeLimit = ChargeLimitReader.current()
         s.reconcilePowerSource(inputMilliwatts: int(telemetry["SystemPowerIn"]))

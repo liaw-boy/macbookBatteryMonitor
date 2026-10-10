@@ -45,6 +45,13 @@ struct DetailsGridView: View {
         case .lowPower: return s.lowPowerMode ? "開啟" : "關閉"
         case .adapter: return adapterText
         case .chargeLimit: return s.chargeLimit.map { "\($0.limit)%" } ?? "未設定"
+        case .adapterVoltage:
+            guard s.externalConnected else { return "未連接" }
+            return s.smcAdapterVolts.map { String(format: "%.2f V", $0) } ?? "—"
+        case .adapterCurrent:
+            guard s.externalConnected else { return "未連接" }
+            let milliamps = s.smcAdapterAmps.map { Int(($0 * 1000).rounded()) } ?? s.systemCurrentIn_mA
+            return milliamps.map { "\($0.formatted()) mA" } ?? "—"
         }
     }
 

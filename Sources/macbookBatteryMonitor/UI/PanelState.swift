@@ -44,6 +44,8 @@ final class PanelState {
     var page: PanelPage = .main
     var tab: BottomTab = .details
     var historyRange: HistoryRange = .day
+    /// 設定頁等可捲動頁面量到的內容高度，下次打開直接用，面板不必先撐到最高再縮回來
+    var pageHeights: [PanelPage: CGFloat] = [:]
     var loginStatus: LoginItem.Status = .disabled
     var loginError: String?
 

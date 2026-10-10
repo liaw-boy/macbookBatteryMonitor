@@ -31,17 +31,18 @@ enum DetailField: String, CaseIterable, Identifiable {
     case systemEstimate, temperature, health, computedHealth
     case cycles, condition, remaining, fullCharge
     case design, lowPower, adapter, chargeLimit
+    case adapterVoltage, adapterCurrent
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .voltage: return "電壓"
-        case .current: return "電流"
+        case .voltage: return "電池電壓"
+        case .current: return "電池電流"
         case .batteryPower: return "電池功率"
         case .systemPower: return "系統耗電"
         case .systemEstimate: return "系統預估"
-        case .temperature: return "溫度"
+        case .temperature: return "電池溫度"
         case .health: return "健康度"
         case .computedHealth: return "容量推算"
         case .cycles: return "循環次數"
@@ -52,6 +53,8 @@ enum DetailField: String, CaseIterable, Identifiable {
         case .lowPower: return "低耗電模式"
         case .adapter: return "變壓器"
         case .chargeLimit: return "充電上限"
+        case .adapterVoltage: return "變壓器電壓"
+        case .adapterCurrent: return "變壓器電流"
         }
     }
 }

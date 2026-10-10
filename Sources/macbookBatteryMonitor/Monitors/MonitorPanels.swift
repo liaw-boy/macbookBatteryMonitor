@@ -125,7 +125,8 @@ private struct MonitorChart: View {
     var showsLegend = true
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // 「最近 2 分鐘」與 Y 軸最上方的刻度都靠右，間距要夠才不會擠在一起
+        VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 10) {
                 if showsLegend {
                     legend(a.name, a.color)
@@ -176,6 +177,8 @@ private struct MonitorChart: View {
                 AxisValueLabel {
                     if let v = value.as(Double.self) {
                         Text(percent ? ByteFormat.percent(v) : ByteFormat.compactRate(v))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }

@@ -12,8 +12,8 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU)
-                case .displayItems: DisplayItemsView(settings: settings, ui: ui)
+                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU) }
+                case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui) }
                 }
             }
         }
@@ -261,4 +261,34 @@ private struct TimeCard: View {
     private func to10(_ minutes: Int?) -> String {
         s.percent <= Estimator.reservePercent ? "已低於 10%" : Format.duration(minutes)
     }
+}
+
+/// 內容比螢幕高時（例如設定頁）改成可捲動，面板最高到螢幕可用高度；放得下時維持內容原本的高度。
+/// 否則 macOS 會把超出螢幕的上半部（返回按鈕與第一張卡片）直接切掉
+struct ScrollingPage<Content: View>: View {
+    let page: PanelPage
+    let ui: PanelState
+    @ViewBuilder var content: Content
+
+    /// 扣掉選單列與 popover 箭頭、邊緣的空間
+    private var maxHeight: CGFloat { max(300, (NSScreen.main?.visibleFrame.height ?? 800) - 40) }
+
+    var body: some View {
+        ScrollView {
+            content
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                })
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(ui.pageHeights[page] ?? maxHeight, maxHeight))
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            if height > 0, ui.pageHeights[page] != height { ui.pageHeights[page] = height }
+        }
+    }
+}
+
+private struct ContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
