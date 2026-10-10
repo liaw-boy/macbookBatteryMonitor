@@ -13,6 +13,7 @@ struct RootView: View {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
                 case .settings: SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU)
+                case .displayItems: DisplayItemsView(settings: settings, ui: ui)
                 }
             }
         }
@@ -41,6 +42,7 @@ struct PanelView: View {
                     case .details: DetailsGridView(s: s, e: e, health: store.systemHealth)
                     case .history: HistoryChartView(history: store.history, ui: ui)
                     case .processes: TopProcessesView(store: store)
+                    case .peripherals: PeripheralsView(store: store.peripherals, settings: settings)
                     }
                 }
                 .frame(height: 222, alignment: .top)

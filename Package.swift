@@ -16,6 +16,7 @@ let package = Package(
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("UserNotifications"),
                 .linkedFramework("SystemConfiguration"),
+                .linkedFramework("CoreAudio"),
             ]
         )
     ]

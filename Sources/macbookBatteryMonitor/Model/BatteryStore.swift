@@ -13,6 +13,8 @@ final class BatteryStore {
     private(set) var unpluggedAt: Date?
     let history = HistoryStore()
     let adminCPU = AdminCPUSampler()
+    /// 周邊設備電量（鍵盤、滑鼠、耳機等）
+    let peripherals = PeripheralStore()
     private(set) var componentPower: ComponentPowerSample?
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()

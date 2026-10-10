@@ -72,6 +72,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    /// 周邊設備降到自己的門檻（是否通知、門檻由 PeripheralAlerts 判斷）
+    func notifyPeripheralLow(_ device: PeripheralBattery, threshold: Int) {
+        guard let level = device.lowest else { return }
+        let detail = device.detailText.map { "（\($0)）" } ?? ""
+        post(title: "\(device.name) 電量偏低：\(level)%", body: "已低於你設定的 \(threshold)%\(detail)，建議充電。")
+    }
+
     func sendTest() {
         post(title: "電池監控", body: "通知功能正常 👍")
     }

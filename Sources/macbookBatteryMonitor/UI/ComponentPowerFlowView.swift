@@ -9,17 +9,24 @@ struct ComponentPowerFlowView: View {
     @Environment(\.colorScheme) private var scheme
 
     private var chip: Bool { ui.powerFlowLevel == .chip }
+    private var settings: AppSettings { .shared }
+    /// 依設定隱藏的項目不顯示；沒有 ANE 通道的機型直接拿掉 ANE
     private var rows: [ComponentRow] {
-        chip ? [
-            ComponentRow(name: "CPU", symbol: "cpu", watts: breakdown.cpuWatts),
-            ComponentRow(name: "GPU", symbol: "square.stack.3d.up", watts: breakdown.gpuWatts),
-            ComponentRow(name: "ANE", symbol: "brain", watts: breakdown.aneWatts),
+        let all: [ComponentRow] = chip ? [
+            ComponentRow(item: .cpu, name: "CPU", symbol: "cpu", watts: breakdown.cpuWatts),
+            ComponentRow(item: .gpu, name: "GPU", symbol: "square.stack.3d.up", watts: breakdown.gpuWatts),
+            ComponentRow(item: .ane, name: "ANE", symbol: "brain", watts: breakdown.aneWatts),
         ] : [
-            ComponentRow(name: "螢幕背光", symbol: "display", watts: breakdown.backlightWatts),
-            ComponentRow(name: "晶片運算", symbol: "cpu", watts: breakdown.chipWatts),
-            ComponentRow(name: breakdown.otherIncludesMissing ? "未分類（估算）" : "其他（估算）", symbol: "ellipsis", watts: breakdown.otherWatts),
+            ComponentRow(item: .backlight, name: "螢幕背光", symbol: "display", watts: breakdown.backlightWatts),
+            ComponentRow(item: .chip, name: "晶片運算", symbol: "cpu", watts: breakdown.chipWatts),
+            ComponentRow(item: .other, name: breakdown.otherIncludesMissing ? "未分類（估算）" : "其他（估算）", symbol: "ellipsis", watts: breakdown.otherWatts),
         ]
+        return all.filter { ($0.item != .ane || breakdown.aneAvailable) && settings.isVisible($0.item) }
     }
+    private var chipComplete: Bool {
+        breakdown.cpuWatts != nil && breakdown.gpuWatts != nil && (breakdown.aneWatts != nil || !breakdown.aneAvailable)
+    }
+    private var chipItemsText: String { breakdown.aneAvailable ? "CPU、GPU 與 ANE" : "CPU 與 GPU" }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -28,7 +35,7 @@ struct ComponentPowerFlowView: View {
                     Image(systemName: chip ? "cpu" : "laptopcomputer").font(.system(size: 21))
                     Text(Format.watts(chip ? breakdown.chipWatts : breakdown.systemWatts))
                         .font(.system(size: 10, weight: .semibold)).monospacedDigit()
-                    Text(chip ? (breakdown.cpuWatts != nil && breakdown.gpuWatts != nil && breakdown.aneWatts != nil ? "晶片合計" : "已取得合計") : "系統負載").font(.system(size: 9)).foregroundStyle(.secondary)
+                    Text(chip ? (chipComplete ? "晶片合計" : "已取得合計") : "系統負載").font(.system(size: 9)).foregroundStyle(.secondary)
                 }
                 .frame(width: 58, height: 92)
                 .background(Color.primary.opacity(0.055), in: UnevenRoundedRectangle(topLeadingRadius: 13, bottomLeadingRadius: 13))
@@ -37,13 +44,17 @@ struct ComponentPowerFlowView: View {
                     .frame(maxWidth: .infinity).frame(height: 126)
                     .accessibilityHidden(true)
                 VStack(spacing: 6) {
-                    ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                        if !chip && index == 1 {
+                    if rows.isEmpty {
+                        Text("項目都已隱藏\n可在設定 → 顯示項目調整")
+                            .font(.system(size: 9)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }
+                    ForEach(rows, id: \.item) { row in
+                        if row.item == .chip {
                             Button { ui.powerFlowLevel = .chip } label: {
                                 endpoint(row, expandable: true)
                             }
                             .buttonStyle(.plain)
-                            .help("展開 CPU、GPU 與 ANE 功耗")
+                            .help("展開 \(chipItemsText) 功耗")
                             .accessibilityLabel("晶片運算，\(Format.watts(row.watts))，展開細項")
                         } else {
                             endpoint(row, expandable: false)
@@ -58,7 +69,7 @@ struct ComponentPowerFlowView: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .help("總功耗及背光來自 SMC 感測器；差值只作近似估算，未分類包含缺值項目。CPU、GPU、ANE 來自系統能量模型估算。晶片合計不是完整 SoC 電源軌功耗。")
+                .help("總功耗及背光來自 SMC 感測器；差值只作近似估算，未分類包含缺值項目。\(chipItemsText)來自系統能量模型估算。晶片合計不是完整 SoC 電源軌功耗。")
         }
     }
 
@@ -77,6 +88,7 @@ struct ComponentPowerFlowView: View {
 }
 
 private struct ComponentRow {
+    var item: FlowItem
     var name: String
     var symbol: String
     var watts: Double?
@@ -120,11 +132,13 @@ private final class ComponentRibbonView: NSView {
         let count = active.filter { $0 }.count
         let sourceWidth: CGFloat = count > 0 ? 92 / CGFloat(count) : 0
         var source: CGFloat = (bounds.height - 92) / 2
+        // 右側卡片（高 38、間距 6）垂直置中；項目被隱藏時卡片變少，流帶終點跟著卡片位置
+        let top = max(0, (bounds.height - (CGFloat(c.values.count) * 44 - 6)) / 2)
         let start: CGFloat = 4
         let end = bounds.width - 4
         let ink = c.dark ? NSColor(white: 0.95, alpha: 1) : NSColor(white: 0.24, alpha: 1)
         for index in c.values.indices {
-            let center = CGFloat(index) * 44 + 19
+            let center = top + CGFloat(index) * 44 + 19
             let width: CGFloat = 38
             if active[index] {
                 let path = CGMutablePath()

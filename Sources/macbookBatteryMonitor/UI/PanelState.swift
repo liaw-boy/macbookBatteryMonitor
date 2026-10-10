@@ -6,12 +6,15 @@ enum PowerFlowLevel { case overview, components, chip }
 enum PanelPage {
     case main
     case settings
+    /// 設定 → 顯示項目
+    case displayItems
 }
 
 enum BottomTab: String, CaseIterable {
     case details = "詳細資訊"
     case history = "電量歷史"
     case processes = "耗電排行"
+    case peripherals = "周邊設備"
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {

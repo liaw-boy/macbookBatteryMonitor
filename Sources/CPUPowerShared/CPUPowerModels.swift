@@ -14,13 +14,14 @@ public struct CPUPowerReading: Codable {
 
 /// 每個連線只擁有自己的取樣租約；暫停一個連線不會打斷其他連線。
 public struct CPUSamplingLeases {
-    private var clients: [UUID: TimeInterval] = [:]
+    private var clients: [UUID: (start: TimeInterval, duration: TimeInterval)] = [:]
     public init() {}
-    public mutating func set(_ client: UUID, active: Bool, at now: TimeInterval) {
-        if active { clients[client] = now } else { clients.removeValue(forKey: client) }
+    /// duration：租約有效時間，更新頻率較慢時要拉長（見 CPUHelperConstants.leaseDuration）
+    public mutating func set(_ client: UUID, active: Bool, at now: TimeInterval, duration: TimeInterval = 5) {
+        if active { clients[client] = (now, duration) } else { clients.removeValue(forKey: client) }
     }
     public mutating func remove(_ client: UUID) { clients.removeValue(forKey: client) }
     public func isActive(at now: TimeInterval) -> Bool {
-        clients.values.contains { (0..<5).contains(now - $0) }
+        clients.values.contains { (0..<$0.duration).contains(now - $0.start) }
     }
 }

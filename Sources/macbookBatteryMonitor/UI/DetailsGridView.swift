@@ -5,27 +5,46 @@ struct DetailsGridView: View {
     let e: Estimates
     let health: SystemHealth?
 
+    private var settings: AppSettings { .shared }
+
     var body: some View {
         Card(expand: true) {
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
-                row("電壓", String(format: "%.2f V", Double(s.voltage_mV) / 1000),
-                    "電流", "\(s.effectiveAmperage_mA.formatted()) mA")
-                row("電池功率", Format.watts(abs(e.batteryWatts)),
-                    "系統耗電", Format.watts(e.systemWatts))
-                row("系統預估", systemEstimateText,
-                    "溫度", s.temperature_C.map { String(format: "%.1f °C", $0) } ?? "—")
-                row("健康度", health?.maxCapacityPercent.map { "\($0)%" } ?? "—",
-                    "容量推算", e.healthComputed.map { String(format: "%.1f%%", $0) } ?? "—")
-                row("循環次數", cycleText,
-                    "電池狀況", health?.conditionText ?? "—")
-                row("剩餘容量", Format.mAh(s.remaining_mAh),
-                    "滿充容量", Format.mAh(s.fullCharge_mAh))
-                row("設計容量", Format.mAh(s.design_mAh),
-                    "低耗電模式", s.lowPowerMode ? "開啟" : "關閉")
-                row("變壓器", adapterText,
-                    "充電上限", s.chargeLimit.map { "\($0.limit)%" } ?? "未設定")
+            // 只顯示設定裡勾選的欄位，依序每列兩欄
+            let fields = DetailField.allCases.filter { settings.isVisible($0) }
+            if fields.isEmpty {
+                Text("所有欄位都已隱藏，可在設定 → 顯示項目調整。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 9) {
+                    ForEach(Array(stride(from: 0, to: fields.count, by: 2)), id: \.self) { index in
+                        row(fields[index], index + 1 < fields.count ? fields[index + 1] : nil)
+                    }
+                }
+                .font(.callout)
             }
-            .font(.callout)
+        }
+    }
+
+    private func value(_ field: DetailField) -> String {
+        switch field {
+        case .voltage: return String(format: "%.2f V", Double(s.voltage_mV) / 1000)
+        case .current: return "\(s.effectiveAmperage_mA.formatted()) mA"
+        case .batteryPower: return Format.watts(abs(e.batteryWatts))
+        case .systemPower: return Format.watts(e.systemWatts)
+        case .systemEstimate: return systemEstimateText
+        case .temperature: return s.temperature_C.map { String(format: "%.1f °C", $0) } ?? "—"
+        case .health: return health?.maxCapacityPercent.map { "\($0)%" } ?? "—"
+        case .computedHealth: return e.healthComputed.map { String(format: "%.1f%%", $0) } ?? "—"
+        case .cycles: return cycleText
+        case .condition: return health?.conditionText ?? "—"
+        case .remaining: return Format.mAh(s.remaining_mAh)
+        case .fullCharge: return Format.mAh(s.fullCharge_mAh)
+        case .design: return Format.mAh(s.design_mAh)
+        case .lowPower: return s.lowPowerMode ? "開啟" : "關閉"
+        case .adapter: return adapterText
+        case .chargeLimit: return s.chargeLimit.map { "\($0.limit)%" } ?? "未設定"
         }
     }
 
@@ -56,12 +75,17 @@ struct DetailsGridView: View {
         return "已連接"
     }
 
-    private func row(_ l1: String, _ v1: String, _ l2: String, _ v2: String) -> some View {
+    private func row(_ first: DetailField, _ second: DetailField?) -> some View {
         GridRow {
-            Text(l1).foregroundStyle(.secondary)
-            Text(v1).monospacedDigit().frame(maxWidth: .infinity, alignment: .leading)
-            Text(l2).foregroundStyle(.secondary)
-            Text(v2).monospacedDigit().frame(maxWidth: .infinity, alignment: .leading)
+            Text(first.title).foregroundStyle(.secondary)
+            Text(value(first)).monospacedDigit().frame(maxWidth: .infinity, alignment: .leading)
+            if let second {
+                Text(second.title).foregroundStyle(.secondary)
+                Text(value(second)).monospacedDigit().frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+            }
         }
         .lineLimit(1)
     }

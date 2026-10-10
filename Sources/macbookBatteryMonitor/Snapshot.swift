@@ -25,7 +25,10 @@ enum SnapshotCommand {
             ("details", { ui.page = .main; ui.tab = .details }),
             ("history", { ui.page = .main; ui.tab = .history }),
             ("processes", { ui.page = .main; ui.tab = .processes }),
+            // 周邊設備用示範數據，才看得到有設備時的版面
+            ("peripherals", { ui.page = .main; ui.tab = .peripherals; store.peripherals.loadPreview() }),
             ("settings", { ui.page = .settings }),
+            ("display-items", { ui.page = .displayItems }),
         ]
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let suffix = appearance == .aqua ? "light" : "dark"

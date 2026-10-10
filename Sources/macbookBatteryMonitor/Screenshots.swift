@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `--screenshots <資料夾>`：用示範數據畫出兩個版本與省電模式的介紹圖（README 與版本說明用），不含使用者的真實資料
+/// `--screenshots <資料夾>`：用示範數據畫出兩個版本、省電模式與周邊設備的介紹圖（README 與版本說明用），不含使用者的真實資料
 @MainActor
 enum ScreenshotCommand {
     static func run(directory: String) {
@@ -44,6 +44,15 @@ enum ScreenshotCommand {
         }
         SnapshotCommand.render(powerSaving, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("power-saving.png"))
         settings.powerSaving = previous
+
+        // 周邊設備分頁（示範設備）
+        store.peripherals.loadPreview(now: now)
+        ui.tab = .peripherals
+        let peripherals = Showcase(menuItems: [battery]) {
+            Popover { RootView(store: store, settings: settings, ui: ui) }
+        }
+        SnapshotCommand.render(peripherals, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("peripherals.png"))
+        ui.tab = .details
         print("已輸出到 \(dir.path)")
     }
 

@@ -81,7 +81,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         updateTimer()
     }
 
-    /// 切換省電模式後，計時器與 top 改用新的間隔
+    /// 更新頻率或省電模式改變後，計時器與 top 改用新的間隔
     func applySampleInterval() {
         timer?.invalidate()
         timer = nil
@@ -89,7 +89,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         if topStream != nil { startTop() }
     }
 
-    // MARK: - 定時取樣（每秒，省電模式每 2 秒）
+    // MARK: - 定時取樣（依設定的更新頻率）
 
     private func updateTimer() {
         let shouldRun = !items.isEmpty && !sleeping

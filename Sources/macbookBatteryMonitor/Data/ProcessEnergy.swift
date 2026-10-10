@@ -59,7 +59,7 @@ enum ProcessEnergy {
     }
 }
 
-/// 面板停在耗電排行時持續跑一個 top，每秒（省電模式每 2 秒）輸出一次。
+/// 面板停在耗電排行時持續跑一個 top，依更新頻率輸出。
 /// 比每次重新啟動 top 省資源（每次啟動要等兩次取樣，約 1 秒），也才能真的每秒更新。
 final class ProcessEnergyStream {
     private static let marker = Data("Processes:".utf8)

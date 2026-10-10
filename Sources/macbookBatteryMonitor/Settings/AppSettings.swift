@@ -31,19 +31,29 @@ final class AppSettings {
     @ObservationIgnored var onChange: (() -> Void)?
     /// 系統監控模組開關改變時呼叫
     @ObservationIgnored var onMonitorsChange: (() -> Void)?
-    /// 省電模式切換時呼叫（重設所有取樣間隔）
-    @ObservationIgnored var onPowerSavingChange: (() -> Void)?
+    /// 更新頻率或省電模式改變時呼叫（重設所有取樣間隔）
+    @ObservationIgnored var onIntervalChange: (() -> Void)?
 
-    /// 省電模式：所有資訊改為每 2 秒取樣一次，電力流向改用靜態圖示、不播放動畫
+    /// 可選的更新頻率（秒）
+    static let updateIntervals = [1, 2, 5, 10]
+
+    /// 更新頻率（秒），預設每秒
+    var updateInterval: Int {
+        didSet { defaults.set(updateInterval, forKey: Keys.updateInterval); onIntervalChange?() }
+    }
+
+    /// 省電模式：電力流向改用靜態圖示、不播放動畫，更新頻率至少每 2 秒
     var powerSaving: Bool {
-        didSet { defaults.set(powerSaving, forKey: Keys.powerSaving); onPowerSavingChange?() }
+        didSet { defaults.set(powerSaving, forKey: Keys.powerSaving); onIntervalChange?() }
     }
 
     /// 電池、系統監控、耗電排行共用的取樣間隔（秒）
-    var sampleInterval: TimeInterval { powerSaving ? 2 : 1 }
+    var sampleInterval: TimeInterval { TimeInterval(powerSaving ? max(2, updateInterval) : updateInterval) }
 
     /// 介面上顯示的更新頻率
-    var updateText: String { powerSaving ? "每 2 秒更新" : "每秒更新" }
+    var updateText: String { Self.updateText(seconds: Int(sampleInterval)) }
+
+    static func updateText(seconds: Int) -> String { seconds <= 1 ? "每秒更新" : "每 \(seconds) 秒更新" }
 
     /// 每個系統監控模組是否在選單列顯示（並依取樣間隔更新）
     var monitorCPU: Bool {
@@ -73,6 +83,32 @@ final class AppSettings {
         didSet { defaults.set(adminCPUSampling, forKey: Keys.adminCPUSampling) }
     }
 
+    /// 電力流向細項中隱藏的項目（FlowItem.rawValue）
+    var hiddenFlowItems: Set<String> {
+        didSet { defaults.set(hiddenFlowItems.sorted(), forKey: Keys.hiddenFlowItems) }
+    }
+    /// 詳細資訊分頁中隱藏的欄位（DetailField.rawValue）
+    var hiddenDetailFields: Set<String> {
+        didSet { defaults.set(hiddenDetailFields.sorted(), forKey: Keys.hiddenDetailFields) }
+    }
+    /// 每個周邊設備的低電量通知門檻（設備 id → %，0 表示關閉）；沒設定過的設備用預設值
+    var peripheralThresholds: [String: Int] {
+        didSet { defaults.set(peripheralThresholds, forKey: Keys.peripheralThresholds) }
+    }
+    static let defaultPeripheralThreshold = 20
+    static let peripheralThresholdChoices = [0, 10, 15, 20, 30, 50]
+
+    func isVisible(_ item: FlowItem) -> Bool { !hiddenFlowItems.contains(item.rawValue) }
+    func isVisible(_ field: DetailField) -> Bool { !hiddenDetailFields.contains(field.rawValue) }
+    func setVisible(_ item: FlowItem, _ visible: Bool) {
+        if visible { hiddenFlowItems.remove(item.rawValue) } else { hiddenFlowItems.insert(item.rawValue) }
+    }
+    func setVisible(_ field: DetailField, _ visible: Bool) {
+        if visible { hiddenDetailFields.remove(field.rawValue) } else { hiddenDetailFields.insert(field.rawValue) }
+    }
+    func peripheralThreshold(for id: String) -> Int { peripheralThresholds[id] ?? Self.defaultPeripheralThreshold }
+    func setPeripheralThreshold(_ value: Int, for id: String) { peripheralThresholds[id] = value }
+
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
     }
@@ -100,6 +136,10 @@ final class AppSettings {
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
         static let powerSaving = "powerSaving"
+        static let updateInterval = "updateInterval"
+        static let hiddenFlowItems = "hiddenFlowItems"
+        static let hiddenDetailFields = "hiddenDetailFields"
+        static let peripheralThresholds = "peripheralThresholds"
         static let adminCPUSampling = "adminCPUSampling"
     }
 
@@ -115,6 +155,7 @@ final class AppSettings {
             Keys.monitorDisk: true,
             Keys.monitorNetwork: true,
             Keys.powerSaving: false,
+            Keys.updateInterval: 1,
             Keys.adminCPUSampling: false,
         ])
         adminCPUSampling = defaults.bool(forKey: Keys.adminCPUSampling)
@@ -128,5 +169,10 @@ final class AppSettings {
         monitorDisk = defaults.bool(forKey: Keys.monitorDisk)
         monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
         powerSaving = defaults.bool(forKey: Keys.powerSaving)
+        let interval = defaults.integer(forKey: Keys.updateInterval)
+        updateInterval = Self.updateIntervals.contains(interval) ? interval : 1
+        hiddenFlowItems = Set(defaults.stringArray(forKey: Keys.hiddenFlowItems) ?? [])
+        hiddenDetailFields = Set(defaults.stringArray(forKey: Keys.hiddenDetailFields) ?? [])
+        peripheralThresholds = defaults.dictionary(forKey: Keys.peripheralThresholds) as? [String: Int] ?? [:]
     }
 }

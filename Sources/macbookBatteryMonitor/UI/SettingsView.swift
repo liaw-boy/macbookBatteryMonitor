@@ -26,14 +26,21 @@ struct SettingsView: View {
                     Picker("顯示方式", selection: binding(\.display)) {
                         ForEach(MenuBarDisplay.allCases) { Text($0.title).tag($0) }
                     }
+                    Button("選擇面板顯示的項目…") { ui.page = .displayItems }
+                        .help("電力流向細項（螢幕背光、晶片、CPU／GPU／ANE）與詳細資訊欄位")
                 }
             }
 
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("省電", systemImage: "leaf")
+                    CardTitle("更新頻率與省電", systemImage: "leaf")
+                    Picker("更新頻率", selection: binding(\.updateInterval)) {
+                        ForEach(AppSettings.updateIntervals, id: \.self) { Text(AppSettings.updateText(seconds: $0)).tag($0) }
+                    }
                     SwitchRow("省電模式", isOn: binding(\.powerSaving))
-                    Text("所有資訊改為每 2 秒更新，電力流向改用靜態圖示、不播放動畫。")
+                    Text(settings.powerSaving && settings.updateInterval < 2
+                         ? "省電模式：電力流向改用靜態圖示、不播放動畫，更新頻率至少每 2 秒（目前\(settings.updateText)）。"
+                         : "省電模式：電力流向改用靜態圖示、不播放動畫，更新頻率至少每 2 秒。更新越慢越省電。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

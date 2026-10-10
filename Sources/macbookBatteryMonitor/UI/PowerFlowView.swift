@@ -35,7 +35,7 @@ struct PowerFlowView: View {
                         .buttonStyle(.plain)
                         .help("展開螢幕背光、晶片運算與其他功耗")
                     } else {
-                        Text(powerSaving ? "每 2 秒更新" : "每秒更新").foregroundStyle(.secondary)
+                        Text(AppSettings.shared.updateText).foregroundStyle(.secondary)
                     }
                 }
                 .font(.caption)

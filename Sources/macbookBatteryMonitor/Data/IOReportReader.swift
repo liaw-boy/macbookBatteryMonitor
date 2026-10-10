@@ -15,6 +15,8 @@ final class IOReportReader {
     private let name: Label
     private let unit: Label
     private let value: Value
+    /// 這台機器的 Energy Model 有哪些晶片通道（cpu、gpu、ane）；沒有的項目介面上直接不顯示
+    let components: Set<String>
 
     init?() {
         guard let library = Self.library else { return nil }
@@ -43,6 +45,21 @@ final class IOReportReader {
         self.name = name
         self.unit = unit
         self.value = value
+        var found = Set<String>()
+        for raw in (self.channels as NSDictionary)["IOReportChannels"] as? NSArray ?? [] {
+            guard let dictionary = raw as? NSDictionary,
+                  let label = name(unsafeBitCast(dictionary, to: CFDictionary.self))?.takeUnretainedValue() as String?,
+                  let component = Self.component(for: label) else { continue }
+            found.insert(component)
+        }
+        components = found
+    }
+
+    static func component(for label: String) -> String? {
+        if label.hasSuffix("CPU Energy") { return "cpu" }
+        if label.hasSuffix("GPU Energy") { return "gpu" }
+        if label.hasPrefix("ANE") { return "ane" }
+        return nil
     }
 
     // 系統 library 保持載入，CF 訂閱釋放時仍可執行其析構函數。
@@ -56,13 +73,7 @@ final class IOReportReader {
             let channel = unsafeBitCast(dictionary, to: CFDictionary.self)
             guard let label = name(channel)?.takeUnretainedValue() as String?,
                   let unit = unit(channel)?.takeUnretainedValue() as String? else { continue }
-            let component: String
-            switch label {
-            case let label where label.hasSuffix("CPU Energy"): component = "cpu"
-            case let label where label.hasSuffix("GPU Energy"): component = "gpu"
-            case let label where label.hasPrefix("ANE"): component = "ane"
-            default: continue
-            }
+            guard let component = Self.component(for: label) else { continue }
             if let joules = EnergyCounter.joules(Double(value(channel, nil)), unit: unit) {
                 pairs.append((component, joules))
             }

@@ -181,7 +181,7 @@ struct MonitorPoint: Identifiable, Equatable {
     let b: Double
 }
 
-/// 保留最近 2 分鐘、最多 n 個點的歷史（省電模式每 2 秒一點，只會留 60 個）
+/// 保留最近 2 分鐘、最多 n 個點的歷史（更新頻率較慢時點數較少，例如每 2 秒只會留 60 個）
 struct MonitorHistory: Equatable {
     static let capacity = 120
     /// 圖表標示「最近 2 分鐘」

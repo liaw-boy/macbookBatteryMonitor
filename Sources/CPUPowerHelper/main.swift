@@ -15,7 +15,7 @@ final class CPUSampler {
     private var disabled = false
     private var stopping = false
     private var token = UUID()
-    /// powermetrics 的取樣間隔（秒），只會是 1 或 2
+    /// powermetrics 的取樣間隔（秒），只會是 1、2、5、10
     private var interval = 1
     private var idleExit: DispatchWorkItem?
 
@@ -23,7 +23,8 @@ final class CPUSampler {
         queue.async {
             let now = ProcessInfo.processInfo.systemUptime
             if active && !self.disabled { self.setInterval(CPUHelperConstants.samplingInterval(requested)) }
-            self.leases.set(client, active: active && !self.disabled, at: now)
+            self.leases.set(client, active: active && !self.disabled, at: now,
+                            duration: CPUHelperConstants.leaseDuration(interval: requested))
             self.reconcile()
             let value = active && !self.disabled ? self.reading : nil
             let payload = CPUHelperReply(reading: value, error: self.disabled ? "服務已停用" : self.error)
@@ -35,7 +36,7 @@ final class CPUSampler {
         queue.async { self.leases.remove(client); self.reconcile() }
     }
 
-    /// 間隔改變（切換省電模式）時重新啟動 powermetrics；結束後由 terminationHandler 依新間隔啟動
+    /// 間隔改變（更新頻率或省電模式）時重新啟動 powermetrics；結束後由 terminationHandler 依新間隔啟動
     private func setInterval(_ seconds: Int) {
         guard seconds != interval else { return }
         interval = seconds

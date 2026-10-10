@@ -22,7 +22,7 @@ final class HardwarePowerReader {
         }
         let system = valid(smc?.read("PSTR"))
         let backlight = valid(smc?.read("PDBR")) ?? valid(smc?.read("PBwo"))
-        let windowValid = interval.map { $0 > 0 && $0 <= 3 } ?? false
+        let windowValid = interval.map { $0 > 0 && $0 <= EnergyDelta.maxWindow } ?? false
         let estimated = windowValid && system != nil && previousSystem != nil
             && backlight != nil && previousBacklight != nil
         let systemAverage = estimated ? (system! + previousSystem!) / 2 : system
@@ -36,7 +36,8 @@ final class HardwarePowerReader {
             cpuWatts: EnergyCounter.updatedCPUWatts(watts["cpu"]), gpuWatts: watts["gpu"], aneWatts: watts["ane"],
             systemWatts: systemAverage ?? valid(fallback), systemWindowEstimated: estimated,
             systemPowerSource: system != nil ? "SMC PSTR" : "Battery SystemLoad",
-            sampling: interval == nil && !energy.isEmpty)
+            sampling: interval == nil && !energy.isEmpty,
+            aneAvailable: report?.components.contains("ane") ?? false)
     }
 }
 

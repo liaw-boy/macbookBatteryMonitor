@@ -4,7 +4,7 @@ import CPUPowerShared
 
 /// 選用的管理員 CPU 取樣：選項開著才有系統服務，關掉就移除。
 /// - 只有使用者在設定裡打開時才要求授權；授權取消或失敗會自動關回選項，開 App 時不會跳出密碼視窗
-/// - 只在主面板開啟時連線取樣（每秒，省電模式每 2 秒）；面板關閉立即斷線、不再通訊，服務閒置後自行結束
+/// - 只在主面板開啟時連線取樣（與更新頻率相同）；面板關閉立即斷線、不再通訊，服務閒置後自行結束
 @MainActor @Observable
 final class AdminCPUSampler {
     private(set) var status = "未開啟"
@@ -29,14 +29,23 @@ final class AdminCPUSampler {
 
     private static let idleStatus = "已授權，主面板開啟時才取樣"
 
-    init(bundle: Bundle = .main) { helperBundle = bundle }
+    /// 只有正式打包的 App 才會安裝、連線或移除系統服務；開發用的指令（--snapshot 等）與未打包的執行檔
+    /// 讀的是另一組設定，絕不能動到使用者已安裝的服務
+    private let enabledInThisProcess: Bool
+
+    init(bundle: Bundle = .main) {
+        helperBundle = bundle
+        enabledInThisProcess = bundle.bundleIdentifier == "com.kuan.batterymonitor"
+            && !CommandLine.arguments.contains { $0.hasPrefix("--snapshot") || $0.hasPrefix("--screenshots") }
+    }
 
     private var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
-    /// 與其他資訊相同的取樣間隔
+    /// 與其他資訊相同的取樣間隔（服務只接受 1、2、5、10 秒）
     private var interval: TimeInterval { AppSettings.shared.sampleInterval }
 
-    /// 每次更新時呼叫（每秒，省電模式每 2 秒）
+    /// 每次更新時呼叫（依更新頻率）
     func update(active: Bool, enabled: Bool) {
+        guard enabledInThisProcess else { return }
         let launching = desiredEnabled == nil
         let changed = desiredEnabled != enabled
         desiredEnabled = enabled
@@ -47,8 +56,8 @@ final class AdminCPUSampler {
         else if !wasActive { lastFresh = now }
 
         if !enabled {
-            // 啟動時也檢查一次：選項關著卻留有服務（例如上次移除失敗）就順便移除
-            if changed { disable() }
+            // 只有使用者在這次執行中親手關掉選項才移除服務；開 App 時選項本來就關著，不去動系統裡的任何東西
+            if changed && !launching { disable() }
             return
         }
         guard !removing, !failed, process == nil else { return }
@@ -161,9 +170,10 @@ final class AdminCPUSampler {
                 self.reading = payload.reading
                 if self.watts != nil {
                     self.lastFresh = self.now
-                    self.status = self.interval >= 2 ? "每 2 秒取樣中" : "每秒取樣中"
-                } else if let lastFresh = self.lastFresh, self.now - lastFresh > 6 {
-                    // 切換省電模式時服務會重啟 powermetrics，空檔約 2～3 秒，不算逾時
+                    let seconds = CPUHelperConstants.samplingInterval(Int(self.interval))
+                    self.status = seconds <= 1 ? "每秒取樣中" : "每 \(seconds) 秒取樣中"
+                } else if let lastFresh = self.lastFresh, self.now - lastFresh > max(6, self.interval * 2 + 2) {
+                    // 更新頻率改變時服務會重啟 powermetrics，空檔約一個取樣間隔，不算逾時
                     self.fail("CPU 資料已逾時，請關閉再開啟此選項以重試。")
                 } else {
                     self.status = "等待 CPU 資料"

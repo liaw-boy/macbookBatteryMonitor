@@ -5,6 +5,20 @@ if CommandLine.arguments.contains("--dump-monitors") {
     exit(0)
 }
 
+/// 開發用：讀一次周邊設備電量（含所有藍牙設備）並印出
+if CommandLine.arguments.contains("--dump-peripherals") {
+    let start = Date()
+    let services = PeripheralReader.hidServices()
+    let audio = PeripheralReader.bluetoothAudioConnected()
+    let devices = PeripheralReader.read(includeAllBluetooth: true)
+    print("HID 電量服務 \(services.count) 個・藍牙音訊裝置連線中：\(audio)・耗時 \(Int(Date().timeIntervalSince(start) * 1000)) ms")
+    for device in devices {
+        print("\(device.name)（\(device.kind.rawValue)）\(device.lowest.map { "\($0)%" } ?? "—") \(device.detailText ?? "")")
+    }
+    if devices.isEmpty { print("沒有連線中、會回報電量的周邊設備") }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--dump-hardware") {
     DumpCommand.runHardware()
     exit(0)

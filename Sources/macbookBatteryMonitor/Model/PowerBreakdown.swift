@@ -10,7 +10,12 @@ struct PowerBreakdown: Equatable {
     var chipWatts: Double?
     var otherWatts: Double?
     var otherIncludesMissing = false
+    /// 這台機器有沒有 ANE 通道；沒有就不顯示、也不算缺值
+    var aneAvailable = true
     var status: Status
+
+    /// 晶片細項應該有幾項
+    var expectedChips: Int { aneAvailable ? 3 : 2 }
 
     static func make(systemWatts: Double?, components: ComponentPowerSample, now: TimeInterval) -> Self {
         func valid(_ value: Double?) -> Double? {
@@ -25,21 +30,23 @@ struct PowerBreakdown: Equatable {
         result.backlightWatts = valid(components.backlightWatts)
         result.cpuWatts = valid(components.cpuWatts)
         result.gpuWatts = valid(components.gpuWatts)
-        result.aneWatts = valid(components.aneWatts)
+        result.aneAvailable = components.aneAvailable
+        result.aneWatts = components.aneAvailable ? valid(components.aneWatts) : nil
         let chips = [result.cpuWatts, result.gpuWatts, result.aneWatts].compactMap { $0 }
         result.chipWatts = chips.isEmpty ? nil : chips.reduce(0, +)
         guard !components.sampling else { result.status = .sampling; return result }
         guard let system = result.systemWatts, let backlight = result.backlightWatts,
               let chip = result.chipWatts else { return result }
+        let expected = result.expectedChips
         guard components.systemWindowAligned || components.systemWindowEstimated else {
-            if chips.count == 3 { result.status = .inconsistent }
+            if chips.count == expected { result.status = .inconsistent }
             return result
         }
-        guard chips.count == 3 || components.systemWindowEstimated else { return result }
+        guard chips.count == expected || components.systemWindowEstimated else { return result }
         let residual = system - backlight - chip
         guard residual >= 0 else { result.status = .inconsistent; return result }
         result.otherWatts = residual
-        result.otherIncludesMissing = chips.count != 3
+        result.otherIncludesMissing = chips.count != expected
         result.status = result.otherIncludesMissing ? .incomplete : .available
         return result
     }

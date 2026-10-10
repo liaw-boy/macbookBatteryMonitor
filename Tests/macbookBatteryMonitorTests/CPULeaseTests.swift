@@ -22,13 +22,22 @@ final class CPULeaseTests {
         XCTAssertNil(CPUPowerReading(watts: -1, uptime: 10).freshWatts(at: 11))
     }
 
-    /// 服務只接受 1 或 2 秒；省電模式（2 秒）時資料有效期限放寬到 4 秒
+    /// 服務只接受 1、2、5、10 秒；更新頻率較慢時租約與資料有效期限跟著拉長
     func testIntervalAndPowerSavingFreshness() {
         XCTAssertEqual(CPUHelperConstants.samplingInterval(1), 1)
         XCTAssertEqual(CPUHelperConstants.samplingInterval(2), 2)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(3), 2)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(7), 5)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(60), 10)
         XCTAssertEqual(CPUHelperConstants.samplingInterval(0), 1)
         XCTAssertEqual(CPUHelperConstants.samplingInterval(-5), 1)
-        XCTAssertEqual(CPUHelperConstants.samplingInterval(60), 2)
+        XCTAssertEqual(CPUHelperConstants.leaseDuration(interval: 1), 5)
+        XCTAssertEqual(CPUHelperConstants.leaseDuration(interval: 10), 21)
+        var leases = CPUSamplingLeases()
+        let client = UUID()
+        leases.set(client, active: true, at: 100, duration: CPUHelperConstants.leaseDuration(interval: 10))
+        XCTAssertTrue(leases.isActive(at: 115))
+        XCTAssertTrue(!leases.isActive(at: 121))
         let reading = CPUPowerReading(watts: 4.2, uptime: 10)
         XCTAssertNil(reading.freshWatts(at: 13.5))
         XCTAssertEqual(reading.freshWatts(at: 13.5, maxAge: 4), 4.2)

@@ -34,13 +34,15 @@ enum EnergyCounter {
 }
 
 struct EnergyDelta {
+    /// 可接受的最長取樣窗：更新頻率最慢 10 秒，再留一點計時誤差
+    static let maxWindow: TimeInterval = 12
     private var previous: (energy: [String: Double], uptime: TimeInterval)?
     mutating func reset() { previous = nil }
     mutating func watts(energy: [String: Double], uptime: TimeInterval) -> [String: Double] {
         defer { previous = (energy, uptime) }
         guard let previous else { return [:] }
         let elapsed = uptime - previous.uptime
-        guard elapsed > 0, elapsed <= 3 else { return [:] }
+        guard elapsed > 0, elapsed <= Self.maxWindow else { return [:] }
         var output: [String: Double] = [:]
         for (key, current) in energy {
             guard let prior = previous.energy[key], current >= prior,
@@ -66,7 +68,9 @@ struct ComponentPowerSample: Equatable, Codable {
     var systemWindowEstimated = false
     var systemPowerSource: String?
     var sampling = false
-    var chipComplete: Bool { cpuWatts != nil && gpuWatts != nil && aneWatts != nil }
+    /// 沒有 ANE 通道的機型（例如 M1 MacBook Air）不把 ANE 當成缺值
+    var aneAvailable = true
+    var chipComplete: Bool { cpuWatts != nil && gpuWatts != nil && (aneWatts != nil || !aneAvailable) }
     var chipWatts: Double? {
         let values = [cpuWatts, gpuWatts, aneWatts].compactMap { $0 }
         return values.isEmpty ? nil : values.reduce(0, +)
