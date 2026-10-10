@@ -48,7 +48,8 @@ struct PowerFlowView: View {
     }
 
     private var diagram: some View {
-        Group {
+        VStack(spacing: 2) {
+            Group {
             if powerSaving {
                 StaticPowerFlowView(s: s, e: e)
             } else {
@@ -56,9 +57,14 @@ struct PowerFlowView: View {
                     .frame(height: 126)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("電力流向")
-        .accessibilityValue("系統耗電 \(Format.watts(e.systemWatts))，電池\(e.batteryWatts >= 0.05 ? "充電" : "放電") \(Format.watts(abs(e.batteryWatts)))")
+            if e.state == .full {
+                Text("電池功率 \(Format.watts(e.batteryWatts))")
+                    .font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+            }
+        }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("電力流向")
+            .accessibilityValue("\(e.state.title)，系統耗電 \(Format.watts(e.systemWatts))，電池功率 \(Format.watts(e.batteryWatts))")
     }
 }
 
@@ -71,7 +77,7 @@ private struct PowerFlowDiagram: NSViewRepresentable {
     func makeNSView(context: Context) -> DiagramView { DiagramView() }
     func updateNSView(_ view: DiagramView, context: Context) {
         let configuration = DiagramView.Configuration(
-            connected: snapshot.externalConnected, batteryWatts: estimates.batteryWatts,
+            connected: snapshot.externalConnected, flowKind: estimates.flowKind, batteryWatts: estimates.batteryWatts,
             systemWatts: estimates.systemWatts, adapterWatts: estimates.adapterInputWatts,
             ratedWatts: snapshot.adapter?.watts, animated: animated, dark: dark)
         if view.configuration != configuration {
@@ -85,6 +91,7 @@ private struct PowerFlowDiagram: NSViewRepresentable {
 private final class DiagramView: NSView {
     struct Configuration: Equatable {
         var connected: Bool
+        var flowKind: PowerFlowKind
         var batteryWatts: Double
         var systemWatts: Double?
         var adapterWatts: Double?
@@ -121,8 +128,8 @@ private final class DiagramView: NSView {
         let sinkX = w - 44
         let x1 = sourceWidth + 4
         let x2 = sinkX - 4
-        let charging = c.connected && c.batteryWatts >= 0.05
-        let mixed = c.connected && c.batteryWatts <= -0.05
+        let charging = c.connected && c.flowKind == .charging
+        let mixed = c.connected && c.flowKind == .mixed
         let active = c.connected || abs(c.batteryWatts) >= 0.05
         let adapterText: String = c.adapterWatts.map { Format.watts($0) }
             ?? c.ratedWatts.map { "\($0) W*" } ?? "—"
@@ -145,14 +152,14 @@ private final class DiagramView: NSView {
             node(CGRect(x: 0, y: 0, width: sourceWidth, height: split - 5),
                  symbol: "bolt.fill", value: adapterText, bolt: true)
             node(CGRect(x: 0, y: split + 5, width: sourceWidth, height: split - 5),
-                 symbol: "battery.75percent", value: Format.watts(abs(c.batteryWatts)))
+                 symbol: "battery.75percent", value: Format.watts(-c.batteryWatts))
             node(CGRect(x: sinkX, y: 12, width: 44, height: h - 24), symbol: "laptopcomputer")
             let share = max(0.25, min(0.75, abs(c.batteryWatts) / max(0.1, c.systemWatts ?? 0)))
             let join = h - 12 - (h - 24) * CGFloat(share)
             ribbon(x1: x1, x2: x2, sourceTop: 0, sourceBottom: split - 5,
                    sinkTop: 12, sinkBottom: join, value: Format.watts(c.adapterWatts), watts: c.adapterWatts, active: true)
             ribbon(x1: x1, x2: x2, sourceTop: split + 5, sourceBottom: h,
-                   sinkTop: join, sinkBottom: h - 12, value: Format.watts(abs(c.batteryWatts)), watts: abs(c.batteryWatts), active: true)
+                   sinkTop: join, sinkBottom: h - 12, value: Format.watts(-c.batteryWatts), watts: -c.batteryWatts, active: true)
         } else {
             let rect = CGRect(x: 0, y: 12, width: sourceWidth, height: h - 24)
             node(rect, symbol: c.connected ? "bolt.fill" : "battery.75percent",

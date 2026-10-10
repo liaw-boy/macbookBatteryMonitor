@@ -68,6 +68,10 @@ final class AppSettings {
         }
     }
 
+    var adminCPUSampling: Bool {
+        didSet { defaults.set(adminCPUSampling, forKey: "adminCPUSampling"); onChange?() }
+    }
+
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
     }
@@ -110,6 +114,7 @@ final class AppSettings {
             Keys.monitorNetwork: true,
             Keys.powerSaving: false,
         ])
+        adminCPUSampling = defaults.bool(forKey: "adminCPUSampling")
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
         lowAlertEnabled = defaults.bool(forKey: Keys.lowAlertEnabled)
         lowThreshold = defaults.integer(forKey: Keys.lowThreshold)

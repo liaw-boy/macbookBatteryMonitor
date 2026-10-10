@@ -12,7 +12,7 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: SettingsView(settings: settings, ui: ui)
+                case .settings: SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU)
                 }
             }
         }

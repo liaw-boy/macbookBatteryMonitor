@@ -47,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
             monitors.start()
         }
+        store.adminCPU.authorizationChanged = { [weak self] pending in
+            self?.popover?.behavior = pending ? .applicationDefined : .transient
+        }
         Notifier.shared.setup()
 
         refresh()
@@ -108,6 +111,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        store.adminCPU.stop()
         store.history.save()
     }
 
@@ -272,7 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let hosting = NSHostingController(rootView: RootView(store: store, settings: settings, ui: ui))
         hosting.sizingOptions = [.preferredContentSize]
         let popover = NSPopover()
-        popover.behavior = .transient
+        popover.behavior = store.adminCPU.authorizing ? .applicationDefined : .transient
         popover.delegate = self
         popover.contentViewController = hosting
         // 先算好尺寸再顯示，避免面板從 0 大小長出來

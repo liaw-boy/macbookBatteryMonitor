@@ -13,6 +13,8 @@ enum PowerState: String, Codable {
 /// 由快照和平滑後的電流算出來的衍生值。時間單位為分鐘。
 struct Estimates: Codable, Equatable {
     var state: PowerState
+    /// 僅供畫面使用的穩定流向，不修改實際瓦數。
+    var displayFlow: PowerFlowKind? = nil
     /// macOS 自己的預估（和系統選單列顯示的一致）
     var systemToEmpty: Int?
     var systemTo10: Int?
@@ -49,8 +51,8 @@ enum Estimator {
         return .pluggedIdle
     }
 
-    static func estimates(_ s: BatterySnapshot, avgDischarge_mA: Double?, avgCharge_mA: Double?) -> Estimates {
-        let state = state(s)
+    static func estimates(_ s: BatterySnapshot, avgDischarge_mA: Double?, avgCharge_mA: Double?, displayState: PowerState? = nil) -> Estimates {
+        let state = s.externalConnected ? (displayState ?? state(s)) : .discharging
         let registryWatts = Double(s.voltage_mV) * Double(s.amperage_mA) / 1_000_000
         let measuredWatts = s.liveBatteryWatts ?? registryWatts
         let batteryWatts = s.externalConnected ? measuredWatts : min(0, measuredWatts)

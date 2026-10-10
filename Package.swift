@@ -5,8 +5,11 @@ let package = Package(
     name: "macbookBatteryMonitor",
     platforms: [.macOS(.v14)],
     targets: [
+        .target(name: "CPUPowerShared", path: "Sources/CPUPowerShared"),
+        .executableTarget(name: "CPUPowerHelper", dependencies: ["CPUPowerShared"], path: "Sources/CPUPowerHelper"),
         .executableTarget(
             name: "macbookBatteryMonitor",
+            dependencies: ["CPUPowerShared"],
             path: "Sources/macbookBatteryMonitor",
             linkerSettings: [
                 .linkedFramework("IOKit"),

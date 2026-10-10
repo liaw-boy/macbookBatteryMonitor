@@ -12,12 +12,14 @@ final class BatteryStore {
     /// 這次拔掉電源的時間，用來算「已使用電池多久」
     private(set) var unpluggedAt: Date?
     let history = HistoryStore()
+    let adminCPU = AdminCPUSampler()
     private(set) var componentPower: ComponentPowerSample?
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()
     @ObservationIgnored private var samplingGate = SamplingGate()
 
     func setHardwareSampling(active: Bool) {
+        adminCPU.update(active: active, enabled: AppSettings.shared.adminCPUSampling)
         let changed = samplingGate.active != active
         samplingGate.setActive(active)
         if !active {
@@ -32,7 +34,8 @@ final class BatteryStore {
         guard let ticket = samplingGate.begin() else { return }
         Task {
             let result = await hardwareWorker.sample(generation: ticket)
-            guard samplingGate.finish(ticket), let result else { return }
+            guard samplingGate.finish(ticket), var result else { return }
+            if AppSettings.shared.adminCPUSampling { result.cpuWatts = adminCPU.watts }
             componentPower = result
             breakdown = PowerBreakdown.make(systemWatts: result.systemWatts,
                 components: result, now: ProcessInfo.processInfo.systemUptime)
@@ -46,6 +49,8 @@ final class BatteryStore {
     @ObservationIgnored private var avgCharge: Double?
     @ObservationIgnored private var lastDate: Date?
     @ObservationIgnored private var lastState: PowerState?
+    @ObservationIgnored private var chargingPresentation = ChargingPresentation()
+    @ObservationIgnored private var flowPresentation = PowerFlowPresentation()
     /// 這次接上電源的時間（判斷充電上限是否已被關掉用）
     @ObservationIgnored private var pluggedSince: Date?
     @ObservationIgnored private var processStream: ProcessEnergyStream?
@@ -61,6 +66,8 @@ final class BatteryStore {
         guard var s = BatteryReader.read(includeTemperature: panelVisible) else {
             snapshot = nil
             estimates = nil
+            chargingPresentation = ChargingPresentation()
+            flowPresentation = PowerFlowPresentation()
             return
         }
         if s.externalConnected {
@@ -69,7 +76,7 @@ final class BatteryStore {
             pluggedSince = nil
         }
         s.chargeLimit = ChargeLimitReader.resolve(externalConnected: s.externalConnected, pluggedSince: pluggedSince)
-        let state = Estimator.state(s)
+        let state = chargingPresentation.state(s, uptime: ProcessInfo.processInfo.systemUptime)
         let dt = lastDate.map { s.date.timeIntervalSince($0) } ?? 0
 
         if state != lastState {
@@ -93,7 +100,10 @@ final class BatteryStore {
         lastState = state
 
         snapshot = s
-        estimates = Estimator.estimates(s, avgDischarge_mA: avgDischarge, avgCharge_mA: avgCharge)
+        var computed = Estimator.estimates(s, avgDischarge_mA: avgDischarge, avgCharge_mA: avgCharge, displayState: state)
+        computed.displayFlow = flowPresentation.kind(connected: s.externalConnected, watts: computed.batteryWatts,
+            nearFull: chargingPresentation.hasReachedFull, uptime: ProcessInfo.processInfo.systemUptime)
+        estimates = computed
     }
 
     func recordHistory() {
