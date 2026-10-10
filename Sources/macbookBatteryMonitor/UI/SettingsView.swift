@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     let settings: AppSettings
     let ui: PanelState
+    let adminCPU: AdminCPUSampler
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -56,6 +57,16 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
+                }
+            }
+
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("CPU 功耗", systemImage: "cpu")
+                    SwitchRow("管理員 CPU 取樣", isOn: binding(\.adminCPUSampling))
+                    Text("返回主面板後要求系統授權，每秒讀取 CPU 功耗。離開主面板即停止；會增加取樣耗電。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text(adminCPU.status).font(.caption).foregroundStyle(.secondary)
                 }
             }
 
