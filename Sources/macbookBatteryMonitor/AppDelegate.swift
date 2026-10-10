@@ -20,11 +20,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var sleeping = false
     private var powerTransitionTask: Task<Void, Never>?
 
-    /// 所有資訊每秒更新；面板關著時也一樣（插拔電源另由 IOPS 通知立即更新）
-    private static let idleInterval: TimeInterval = 1
-    private static let openInterval: TimeInterval = 1
-    /// 檢查耗電排行分頁是否顯示中，以決定要不要持續取樣
-    private static let processInterval: TimeInterval = 1
+    /// 所有資訊每秒更新（省電模式每 2 秒）；面板關著時也一樣（插拔電源另由 IOPS 通知立即更新）。
+    /// 同一個間隔也用來檢查耗電排行分頁是否顯示中，以決定要不要持續取樣
+    private var interval: TimeInterval { settings.sampleInterval }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // 已經有一個在執行（例如登入項目與舊的 LaunchAgent 同時啟動）就直接結束，避免兩個圖示、兩份通知
@@ -42,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         settings.onChange = { [weak self] in self?.updateStatusItem() }
+        settings.onPowerSavingChange = { [weak self] in self?.applySampleInterval() }
         // 電池版不建立任何系統監控圖示與計時器
         if AppEdition.current.hasSystemMonitors {
             settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
@@ -55,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.refreshHealth()
         store.resolveUnpluggedDateIfNeeded()
         store.backfillHistory()
-        scheduleRefresh(every: Self.idleInterval)
+        scheduleRefresh(every: interval)
         timers.append(repeating(every: 60) { $0.store.recordHistory() })
         timers.append(repeating(every: 6 * 3600) { $0.store.refreshHealth() })
 
@@ -121,6 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if let s = store.snapshot, let e = store.estimates {
             Notifier.shared.evaluate(s, state: e.state, settings: settings)
         }
+    }
+
+    /// 切換省電模式後，所有計時器與 top 改用新的間隔
+    private func applySampleInterval() {
+        scheduleRefresh(every: interval)
+        if processTimer != nil { scheduleProcessCheck() }
+        if AppEdition.current.hasSystemMonitors { monitors.applySampleInterval() }
     }
 
     private func scheduleRefresh(every interval: TimeInterval) {
@@ -299,9 +305,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // MARK: - NSPopoverDelegate
 
     func popoverWillShow(_ notification: Notification) {
-        scheduleRefresh(every: Self.openInterval)
+        scheduleRefresh(every: interval)
+        scheduleProcessCheck()
+    }
+
+    private func scheduleProcessCheck() {
         processTimer?.invalidate()
-        processTimer = repeating(every: Self.processInterval) { delegate in
+        processTimer = repeating(every: interval) { delegate in
             delegate.store.setProcessSampling(active: !delegate.sleeping && delegate.ui.page == .main && delegate.ui.tab == .processes)
         }
     }
@@ -313,7 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.setProcessSampling(active: false)
         processTimer?.invalidate()
         processTimer = nil
-        scheduleRefresh(every: Self.idleInterval)
+        scheduleRefresh(every: interval)
         ui.page = .main
         ui.isVisible = false
         // 等這次 delegate 回呼結束再釋放；這段時間若又打開新面板，不要動到它

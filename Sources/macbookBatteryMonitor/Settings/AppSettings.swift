@@ -31,8 +31,21 @@ final class AppSettings {
     @ObservationIgnored var onChange: (() -> Void)?
     /// 系統監控模組開關改變時呼叫
     @ObservationIgnored var onMonitorsChange: (() -> Void)?
+    /// 省電模式切換時呼叫（重設所有取樣間隔）
+    @ObservationIgnored var onPowerSavingChange: (() -> Void)?
 
-    /// 每個系統監控模組是否在選單列顯示（並每秒更新）
+    /// 省電模式：所有資訊改為每 2 秒取樣一次，電力流向改用靜態圖示、不播放動畫
+    var powerSaving: Bool {
+        didSet { defaults.set(powerSaving, forKey: Keys.powerSaving); onPowerSavingChange?() }
+    }
+
+    /// 電池、系統監控、耗電排行共用的取樣間隔（秒）
+    var sampleInterval: TimeInterval { powerSaving ? 2 : 1 }
+
+    /// 介面上顯示的更新頻率
+    var updateText: String { powerSaving ? "每 2 秒更新" : "每秒更新" }
+
+    /// 每個系統監控模組是否在選單列顯示（並依取樣間隔更新）
     var monitorCPU: Bool {
         didSet { defaults.set(monitorCPU, forKey: Keys.monitorCPU); onMonitorsChange?() }
     }
@@ -81,6 +94,7 @@ final class AppSettings {
         static let monitorMemory = "monitorMemory"
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
+        static let powerSaving = "powerSaving"
     }
 
     private init() {
@@ -94,6 +108,7 @@ final class AppSettings {
             Keys.monitorMemory: true,
             Keys.monitorDisk: true,
             Keys.monitorNetwork: true,
+            Keys.powerSaving: false,
         ])
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
         lowAlertEnabled = defaults.bool(forKey: Keys.lowAlertEnabled)
@@ -104,5 +119,6 @@ final class AppSettings {
         monitorMemory = defaults.bool(forKey: Keys.monitorMemory)
         monitorDisk = defaults.bool(forKey: Keys.monitorDisk)
         monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
+        powerSaving = defaults.bool(forKey: Keys.powerSaving)
     }
 }

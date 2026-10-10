@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// 各模組每秒由 ModuleCoordinator 呼叫 sample()；面板打開時另外接收 top 的程序排行
+/// 各模組由 ModuleCoordinator 定時呼叫 sample()（每秒，省電模式每 2 秒）；面板打開時另外接收 top 的程序排行
 
 @MainActor
 @Observable

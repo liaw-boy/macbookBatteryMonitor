@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `--screenshots <資料夾>`：用示範數據畫出兩個版本的介紹圖（README 與版本說明用），不含使用者的真實資料
+/// `--screenshots <資料夾>`：用示範數據畫出兩個版本與省電模式的介紹圖（README 與版本說明用），不含使用者的真實資料
 @MainActor
 enum ScreenshotCommand {
     static func run(directory: String) {
@@ -34,6 +34,16 @@ enum ScreenshotCommand {
             }
         }
         SnapshotCommand.render(statusEdition, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("edition-status.png"))
+
+        // 省電模式：主面板改用靜態電力流向；畫完還原使用者原本的設定
+        let settings = AppSettings.shared
+        let previous = settings.powerSaving
+        settings.powerSaving = true
+        let powerSaving = Showcase(menuItems: [battery]) {
+            Popover { RootView(store: store, settings: settings, ui: ui) }
+        }
+        SnapshotCommand.render(powerSaving, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("power-saving.png"))
+        settings.powerSaving = previous
         print("已輸出到 \(dir.path)")
     }
 

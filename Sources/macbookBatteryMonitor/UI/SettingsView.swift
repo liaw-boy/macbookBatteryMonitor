@@ -28,6 +28,16 @@ struct SettingsView: View {
                 }
             }
 
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("省電", systemImage: "leaf")
+                    SwitchRow("省電模式", isOn: binding(\.powerSaving))
+                    Text("所有資訊改為每 2 秒更新，電力流向改用靜態圖示、不播放動畫。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if AppEdition.current.hasSystemMonitors {
                 Card {
                     VStack(alignment: .leading, spacing: 8) {
@@ -42,7 +52,7 @@ struct SettingsView: View {
                                 SwitchRow("網路", isOn: binding(\.monitorNetwork))
                             }
                         }
-                        Text("開啟的模組在選單列各有一個圖示，每秒更新。")
+                        Text("開啟的模組在選單列各有一個圖示，\(settings.updateText)。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

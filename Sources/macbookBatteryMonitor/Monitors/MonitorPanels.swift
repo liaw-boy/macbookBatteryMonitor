@@ -37,7 +37,7 @@ struct MonitorPanel: View {
     private var footer: some View {
         HStack(spacing: 12) {
             if let updated {
-                Text("每秒更新・\(updated.formatted(date: .omitted, time: .standard))")
+                Text("\(AppSettings.shared.updateText)・\(updated.formatted(date: .omitted, time: .standard))")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// 系統監控模組的選單列圖示、每秒取樣與面板
+/// 系統監控模組的選單列圖示、定時取樣與面板
 @MainActor
 final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     let cpu = CPUMonitor()
@@ -81,15 +81,24 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         updateTimer()
     }
 
-    // MARK: - 每秒取樣
+    /// 切換省電模式後，計時器與 top 改用新的間隔
+    func applySampleInterval() {
+        timer?.invalidate()
+        timer = nil
+        updateTimer()
+        if topStream != nil { startTop() }
+    }
+
+    // MARK: - 定時取樣（每秒，省電模式每 2 秒）
 
     private func updateTimer() {
         let shouldRun = !items.isEmpty && !sleeping
         if shouldRun, timer == nil {
-            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            let interval = settings.sampleInterval
+            let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }
-            timer.tolerance = 0.1
+            timer.tolerance = interval * 0.1
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
         } else if !shouldRun {
@@ -198,7 +207,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         startTop()
     }
 
-    /// CPU 與記憶體面板開著時，持續跑一個 top 每秒更新程序排行
+    /// CPU 與記憶體面板開著時，持續跑一個 top 更新程序排行（間隔同設定）
     private func startTop() {
         topStream?.stop()
         topStream = nil
@@ -214,7 +223,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         case .disk, .network:
             return
         }
-        let stream = TopStream(arguments: ["-l", "0", "-s", "1", "-o", column, "-stats", "pid,command,\(column)", "-n", "15"]) { [weak self] text in
+        let stream = TopStream(arguments: ["-l", "0", "-s", "\(Int(settings.sampleInterval))", "-o", column, "-stats", "pid,command,\(column)", "-n", "15"]) { [weak self] text in
             MainActor.assumeIsolated {
                 guard let self else { return }
                 if openKind == .cpu { self.cpu.receiveTop(text) } else { self.memory.receiveTop(text) }

@@ -5,6 +5,8 @@ struct PowerFlowView: View {
     let e: Estimates
     var breakdown: PowerBreakdown? = nil
     var ui: PanelState? = nil
+    /// 省電模式：改用靜態圖示，不跑動畫
+    var powerSaving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
 
@@ -30,14 +32,14 @@ struct PowerFlowView: View {
                         .buttonStyle(.plain)
                         .help("展開螢幕背光、晶片運算與其他功耗")
                     } else {
-                        Text("每秒更新").foregroundStyle(.secondary)
+                        Text(powerSaving ? "每 2 秒更新" : "每秒更新").foregroundStyle(.secondary)
                     }
                 }
                 .font(.caption)
                 if ui.powerFlowLevel == .overview {
                     diagram
                 } else {
-                    ComponentPowerFlowView(breakdown: breakdown, ui: ui)
+                    ComponentPowerFlowView(breakdown: breakdown, ui: ui, animated: !powerSaving)
                 }
             } else {
                 diagram
@@ -46,11 +48,17 @@ struct PowerFlowView: View {
     }
 
     private var diagram: some View {
-        PowerFlowDiagram(snapshot: s, estimates: e, animated: !reduceMotion, dark: colorScheme == .dark)
-            .frame(height: 126)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("電力流向")
-            .accessibilityValue("系統耗電 \(Format.watts(e.systemWatts))，電池\(e.batteryWatts >= 0.05 ? "充電" : "放電") \(Format.watts(abs(e.batteryWatts)))")
+        Group {
+            if powerSaving {
+                StaticPowerFlowView(s: s, e: e)
+            } else {
+                PowerFlowDiagram(snapshot: s, estimates: e, animated: !reduceMotion, dark: colorScheme == .dark)
+                    .frame(height: 126)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("電力流向")
+        .accessibilityValue("系統耗電 \(Format.watts(e.systemWatts))，電池\(e.batteryWatts >= 0.05 ? "充電" : "放電") \(Format.watts(abs(e.batteryWatts)))")
     }
 }
 

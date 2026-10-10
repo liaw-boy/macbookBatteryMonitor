@@ -37,13 +37,13 @@ struct TopProcessesView: View {
                     }
                 }
                 Spacer(minLength: 0)
-                Text("數值為「能源影響」指標（相對值，不是瓦數），每秒更新")
+                Text("數值為「能源影響」指標（相對值，不是瓦數），\(AppSettings.shared.updateText)")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
         }
         .onAppear {
-            // 持續每秒取樣；切換分頁或關閉面板時由 AppDelegate 停掉
+            // 持續取樣；切換分頁或關閉面板時由 AppDelegate 停掉
             store.setProcessSampling(active: true)
         }
     }

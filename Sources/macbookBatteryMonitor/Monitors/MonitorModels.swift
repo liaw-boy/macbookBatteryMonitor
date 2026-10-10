@@ -181,9 +181,11 @@ struct MonitorPoint: Identifiable, Equatable {
     let b: Double
 }
 
-/// 保留最近 n 個點的歷史
+/// 保留最近 2 分鐘、最多 n 個點的歷史（省電模式每 2 秒一點，只會留 60 個）
 struct MonitorHistory: Equatable {
     static let capacity = 120
+    /// 圖表標示「最近 2 分鐘」
+    static let window: TimeInterval = 120
     private(set) var points: [MonitorPoint] = []
     private var nextID = 0
 
@@ -191,6 +193,8 @@ struct MonitorHistory: Equatable {
         points.append(MonitorPoint(id: nextID, t: t, a: a, b: b))
         nextID += 1
         if points.count > Self.capacity { points.removeFirst(points.count - Self.capacity) }
+        let cutoff = t.addingTimeInterval(-Self.window)
+        if let keep = points.firstIndex(where: { $0.t >= cutoff }), keep > 0 { points.removeFirst(keep) }
     }
 }
 

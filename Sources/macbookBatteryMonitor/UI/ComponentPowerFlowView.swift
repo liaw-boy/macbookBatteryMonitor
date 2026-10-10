@@ -3,6 +3,8 @@ import SwiftUI
 struct ComponentPowerFlowView: View {
     let breakdown: PowerBreakdown
     let ui: PanelState
+    /// 省電模式關掉流動動畫
+    var animated = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
@@ -31,7 +33,7 @@ struct ComponentPowerFlowView: View {
                 .frame(width: 58, height: 92)
                 .background(Color.primary.opacity(0.055), in: UnevenRoundedRectangle(topLeadingRadius: 13, bottomLeadingRadius: 13))
                 ComponentRibbons(values: rows.map(\.watts), total: chip ? breakdown.chipWatts : breakdown.systemWatts,
-                                 animated: !reduceMotion, dark: scheme == .dark)
+                                 animated: animated && !reduceMotion, dark: scheme == .dark)
                     .frame(maxWidth: .infinity).frame(height: 126)
                     .accessibilityHidden(true)
                 VStack(spacing: 6) {

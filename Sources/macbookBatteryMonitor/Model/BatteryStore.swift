@@ -131,14 +131,20 @@ final class BatteryStore {
         }
     }
 
-    /// 面板開著且停在耗電排行時，持續以 top 每秒取樣；其他時候停掉
+    /// 面板開著且停在耗電排行時，持續以 top 取樣（間隔同設定）；其他時候停掉
     func setProcessSampling(active: Bool) {
         guard active, panelVisible else {
             processStream?.stop()
             return
         }
+        let interval = Int(AppSettings.shared.sampleInterval)
+        // 切換省電模式後，用新的間隔重新啟動 top
+        if let stream = processStream, stream.interval != interval {
+            stream.stop()
+            processStream = nil
+        }
         if processStream == nil {
-            processStream = ProcessEnergyStream { [weak self] result in
+            processStream = ProcessEnergyStream(interval: interval) { [weak self] result in
                 MainActor.assumeIsolated {
                     self?.topProcesses = result
                     self?.processesLoaded = true

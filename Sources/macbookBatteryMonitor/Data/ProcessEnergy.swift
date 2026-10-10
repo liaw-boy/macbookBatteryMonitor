@@ -59,15 +59,18 @@ enum ProcessEnergy {
     }
 }
 
-/// 面板停在耗電排行時持續跑一個 top，每秒輸出一次。
-/// 比每秒重新啟動 top 省資源（每次啟動要等兩次取樣，約 1 秒），也才能真的每秒更新。
+/// 面板停在耗電排行時持續跑一個 top，每秒（省電模式每 2 秒）輸出一次。
+/// 比每次重新啟動 top 省資源（每次啟動要等兩次取樣，約 1 秒），也才能真的每秒更新。
 final class ProcessEnergyStream {
     private static let marker = Data("Processes:".utf8)
+    /// top 的取樣間隔（秒）
+    let interval: Int
     private var process: Process?
     private var buffer = Data()
     private let onUpdate: ([EnergyProcess]) -> Void
 
-    init(onUpdate: @escaping ([EnergyProcess]) -> Void) {
+    init(interval: Int = 1, onUpdate: @escaping ([EnergyProcess]) -> Void) {
+        self.interval = max(1, interval)
         self.onUpdate = onUpdate
     }
 
@@ -75,7 +78,7 @@ final class ProcessEnergyStream {
         guard process == nil else { return }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/top")
-        process.arguments = ["-l", "0", "-s", "1", "-o", "power", "-stats", "pid,command,power", "-n", "20"]
+        process.arguments = ["-l", "0", "-s", "\(interval)", "-o", "power", "-stats", "pid,command,power", "-n", "20"]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice

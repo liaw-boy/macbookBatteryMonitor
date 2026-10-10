@@ -74,4 +74,17 @@ final class MonitorTests {
         XCTAssertEqual(history.points.count, MonitorHistory.capacity)
         XCTAssertEqual(history.points.first?.a, 30)
     }
+
+    func testHistoryKeepsTwoMinutesInPowerSaving() {
+        // 省電模式每 2 秒一點：只保留最近 2 分鐘，圖表的「最近 2 分鐘」才正確
+        let start = Date(timeIntervalSince1970: 1_000_000)
+        var history = MonitorHistory()
+        for i in 0..<100 { history.append(Double(i), at: start.addingTimeInterval(Double(i) * 2)) }
+        XCTAssertEqual(history.points.count, 61)
+        XCTAssertEqual(history.points.first?.a, 39)
+        // 每秒一點時仍以 120 個為上限
+        var everySecond = MonitorHistory()
+        for i in 0..<200 { everySecond.append(Double(i), at: start.addingTimeInterval(Double(i))) }
+        XCTAssertEqual(everySecond.points.count, MonitorHistory.capacity)
+    }
 }
