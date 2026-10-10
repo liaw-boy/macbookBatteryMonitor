@@ -15,29 +15,29 @@ enum MonitorDebug {
             RunLoop.main.run(until: Date().addingTimeInterval(1))
         }
         let m = memory.usage
-        let output: [String: Any] = [
-            "cpu": [
-                "total": cpu.usage?.total ?? -1, "user": cpu.usage?.user ?? -1, "system": cpu.usage?.system ?? -1,
-                "cores": cpu.cores.map { ($0.total * 1000).rounded() / 1000 },
-                "efficiencyCores": cpu.layout.efficiency, "performanceCores": cpu.layout.performance,
-                "gpu": cpu.gpu ?? -1, "gpuMemory": cpu.gpuMemory ?? 0, "load": cpu.load,
-            ],
-            "memory": [
-                "total": m?.total ?? 0, "used": m?.used ?? 0, "app": m?.app ?? 0, "wired": m?.wired ?? 0,
-                "compressed": m?.compressed ?? 0, "cached": m?.cached ?? 0, "free": m?.free ?? 0,
-                "swapUsed": m?.swapUsed ?? 0, "pressure": m?.pressure.rawValue ?? 0,
-            ],
-            "disk": [
-                "name": disk.volume?.name ?? "", "total": disk.volume?.total ?? 0, "available": disk.volume?.available ?? 0,
-                "readRate": disk.readRate, "writeRate": disk.writeRate,
-                "totalRead": disk.totalRead, "totalWritten": disk.totalWritten,
-            ],
-            "network": [
-                "interface": network.interface ?? "", "kind": network.kind ?? "", "address": network.address ?? "",
-                "downloadRate": network.downloadRate, "uploadRate": network.uploadRate,
-                "totalReceived": network.totalReceived, "totalSent": network.totalSent,
-            ],
+        // 分成幾個有型別標註的字典，避免單一大型字面值讓編譯器型別推斷逾時
+        let cpuInfo: [String: Any] = [
+            "total": cpu.usage?.total ?? -1, "user": cpu.usage?.user ?? -1, "system": cpu.usage?.system ?? -1,
+            "cores": cpu.cores.map { ($0.total * 1000).rounded() / 1000 },
+            "efficiencyCores": cpu.layout.efficiency, "performanceCores": cpu.layout.performance,
+            "gpu": cpu.gpu ?? -1, "gpuMemory": cpu.gpuMemory ?? 0, "load": cpu.load,
         ]
+        let memoryInfo: [String: Any] = [
+            "total": m?.total ?? 0, "used": m?.used ?? 0, "app": m?.app ?? 0, "wired": m?.wired ?? 0,
+            "compressed": m?.compressed ?? 0, "cached": m?.cached ?? 0, "free": m?.free ?? 0,
+            "swapUsed": m?.swapUsed ?? 0, "pressure": m?.pressure.rawValue ?? 0,
+        ]
+        let diskInfo: [String: Any] = [
+            "name": disk.volume?.name ?? "", "total": disk.volume?.total ?? 0, "available": disk.volume?.available ?? 0,
+            "readRate": disk.readRate, "writeRate": disk.writeRate,
+            "totalRead": disk.totalRead, "totalWritten": disk.totalWritten,
+        ]
+        let networkInfo: [String: Any] = [
+            "interface": network.interface ?? "", "kind": network.kind ?? "", "address": network.address ?? "",
+            "downloadRate": network.downloadRate, "uploadRate": network.uploadRate,
+            "totalReceived": network.totalReceived, "totalSent": network.totalSent,
+        ]
+        let output: [String: Any] = ["cpu": cpuInfo, "memory": memoryInfo, "disk": diskInfo, "network": networkInfo]
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]),
            let text = String(data: data, encoding: .utf8) {
             print(text)
