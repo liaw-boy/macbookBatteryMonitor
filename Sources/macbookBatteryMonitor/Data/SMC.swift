@@ -30,6 +30,8 @@ final class SMC {
     private static let readKey: UInt8 = 5
     private static let getKeyInfo: UInt8 = 9
     private var connection: io_connect_t = 0
+    /// key 的格式（大小、型別）不會變，查過一次就記住，之後每次只需呼叫一次 SMC
+    private var keyInfoCache: [UInt32: KeyData.KeyInfo] = [:]
 
     init?() {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
@@ -52,16 +54,23 @@ final class SMC {
     func read(_ key: String) -> Double? {
         var input = KeyData()
         input.key = Self.fourCC(key)
-        input.data8 = Self.getKeyInfo
-        guard let info = call(&input) else { return nil }
+        let keyInfo: KeyData.KeyInfo
+        if let cached = keyInfoCache[input.key] {
+            keyInfo = cached
+        } else {
+            input.data8 = Self.getKeyInfo
+            guard let info = call(&input) else { return nil }
+            keyInfo = info.keyInfo
+            keyInfoCache[input.key] = keyInfo
+        }
 
-        input.keyInfo.dataSize = info.keyInfo.dataSize
+        input.keyInfo.dataSize = keyInfo.dataSize
         input.data8 = Self.readKey
         guard let output = call(&input) else { return nil }
 
-        let size = Int(info.keyInfo.dataSize)
+        let size = Int(keyInfo.dataSize)
         let bytes = withUnsafeBytes(of: output.bytes) { Array($0.prefix(size)) }
-        switch Self.string(info.keyInfo.dataType) {
+        switch Self.string(keyInfo.dataType) {
         case "flt " where size == 4:
             return Double(bytes.withUnsafeBytes { $0.loadUnaligned(as: Float.self) })
         case "sp78" where size == 2:

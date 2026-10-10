@@ -145,7 +145,9 @@ enum BatteryReader {
         s.systemLoad_mW = positive(int(telemetry["SystemLoad"]))
         s.systemPowerIn_mW = positive(int(telemetry["SystemPowerIn"]))
         if includeLivePower {
-            s.applyLivePower(battery: smc?.read("PPBR"), adapter: smc?.read("PDTR"), system: smc?.read("PSTR"))
+            // PPBR 只在讀不到 PSTR 時備援（見 liveBatteryWatts），平常不必讀
+            let system = smc?.read("PSTR")
+            s.applyLivePower(battery: system == nil ? smc?.read("PPBR") : nil, adapter: smc?.read("PDTR"), system: system)
         }
         s.chargeLimit = ChargeLimitReader.current()
         s.reconcilePowerSource(inputMilliwatts: int(telemetry["SystemPowerIn"]))
@@ -158,15 +160,30 @@ enum BatteryReader {
             s.temperature_C = smc?.batteryTemperature()
         }
 
-        if s.externalConnected, let details = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] {
-            s.adapter = AdapterInfo(
+        if s.externalConnected {
+            s.adapter = adapterInfo()
+        } else {
+            adapterCache = nil
+        }
+        return s
+    }
+
+    /// 變壓器規格（額定瓦數等）不會每秒變；接上電源後先查一次，之後每 30 秒更新
+    private static var adapterCache: (info: AdapterInfo?, date: Date)?
+
+    private static func adapterInfo() -> AdapterInfo? {
+        if let cache = adapterCache, Date().timeIntervalSince(cache.date) < 30 { return cache.info }
+        var info: AdapterInfo?
+        if let details = IOPSCopyExternalPowerAdapterDetails()?.takeRetainedValue() as? [String: Any] {
+            info = AdapterInfo(
                 watts: int(details["Watts"]),
                 voltage_mV: int(details["AdapterVoltage"]) ?? int(details["Voltage"]),
                 current_mA: int(details["Current"]),
                 name: (details["Name"] as? String) ?? (details["Description"] as? String)
             )
         }
-        return s
+        adapterCache = (info, Date())
+        return info
     }
 
     private static func registryProperties() -> [String: Any]? {

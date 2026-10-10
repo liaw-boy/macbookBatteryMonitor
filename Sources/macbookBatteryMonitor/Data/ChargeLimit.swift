@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 
 /// 系統設定「電池健康度與充電」裡的充電上限。
@@ -56,14 +57,17 @@ enum ChargeLimitReader {
     static func lastKnown() -> ChargeLimit? {
         resolve(externalConnected: false, pluggedSince: nil)
     }
-    private static var cachedDate: Date?
+    /// 上次讀到的檔案修改時間（秒、奈秒）
+    private static var cachedModified: (Int, Int)?
     private static var cached: ChargeLimit?
 
     /// 檔案沒變就用上次的結果，不重複解析
+    /// 每秒都會呼叫，用 stat() 只讀修改時間（FileManager.attributesOfItem 會建整個屬性字典，慢很多）
     static func current() -> ChargeLimit? {
-        let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if let modified, modified == cachedDate { return cached }
-        cachedDate = modified
+        var info = stat()
+        let modified = stat(url.path, &info) == 0 ? (info.st_mtimespec.tv_sec, info.st_mtimespec.tv_nsec) : nil
+        if let modified, let cachedModified, modified == cachedModified { return cached }
+        cachedModified = modified
         cached = read()
         return cached
     }

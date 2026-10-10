@@ -22,7 +22,7 @@ enum ProcessEnergy {
 
     /// top 會印兩次取樣，第一次的 POWER 都是 0，只用最後一段。
     /// 同一個 App 的 helper 程序（例如瀏覽器分頁）會合併到 App 名下。
-    private static func parse(_ output: String?, limit: Int) -> [EnergyProcess] {
+    static func parse(_ output: String?, limit: Int) -> [EnergyProcess] {
         guard let output else { return [] }
         let lines = output.components(separatedBy: "\n")
         guard let header = lines.lastIndex(where: { $0.hasPrefix("PID") }) else { return [] }
@@ -56,5 +56,65 @@ enum ProcessEnergy {
         guard proc_name(pid, &buffer, UInt32(buffer.count)) > 0 else { return nil }
         let name = String(cString: buffer)
         return name.isEmpty ? nil : name
+    }
+}
+
+/// 面板停在耗電排行時持續跑一個 top，每秒輸出一次。
+/// 比每秒重新啟動 top 省資源（每次啟動要等兩次取樣，約 1 秒），也才能真的每秒更新。
+final class ProcessEnergyStream {
+    private static let marker = Data("Processes:".utf8)
+    private var process: Process?
+    private var buffer = Data()
+    private let onUpdate: ([EnergyProcess]) -> Void
+
+    init(onUpdate: @escaping ([EnergyProcess]) -> Void) {
+        self.onUpdate = onUpdate
+    }
+
+    func start() {
+        guard process == nil else { return }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/top")
+        process.arguments = ["-l", "0", "-s", "1", "-o", "power", "-stats", "pid,command,power", "-n", "20"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+            let data = handle.availableData
+            guard !data.isEmpty else { return }
+            DispatchQueue.main.async { self?.append(data) }
+        }
+        do {
+            try process.run()
+            self.process = process
+        } catch {
+            pipe.fileHandleForReading.readabilityHandler = nil
+        }
+    }
+
+    func stop() {
+        guard let process else { return }
+        (process.standardOutput as? Pipe)?.fileHandleForReading.readabilityHandler = nil
+        if process.isRunning { process.terminate() }
+        self.process = nil
+        buffer = Data()
+    }
+
+    /// 每段取樣以「Processes:」開頭；看到下一段的開頭時，上一段就完整了。
+    /// 第一段的 POWER 全是 0（還沒有差值），解析結果為空時保留上一次的排行。
+    private func append(_ data: Data) {
+        guard process != nil else { return }
+        buffer.append(data)
+        var markers: [Data.Index] = []
+        var from = buffer.startIndex
+        while let range = buffer.range(of: Self.marker, in: from..<buffer.endIndex) {
+            markers.append(range.lowerBound)
+            from = range.upperBound
+        }
+        guard markers.count >= 2 else { return }
+        let complete = buffer[markers[markers.count - 2]..<markers[markers.count - 1]]
+        buffer = Data(buffer[markers[markers.count - 1]...])
+        let result = ProcessEnergy.parse(String(decoding: complete, as: UTF8.self), limit: 5)
+        if !result.isEmpty { onUpdate(result) }
     }
 }

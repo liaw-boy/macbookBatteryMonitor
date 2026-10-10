@@ -48,7 +48,7 @@ final class BatteryStore {
     @ObservationIgnored private var lastState: PowerState?
     /// 這次接上電源的時間（判斷充電上限是否已被關掉用）
     @ObservationIgnored private var pluggedSince: Date?
-    @ObservationIgnored private var loadingProcesses = false
+    @ObservationIgnored private var processStream: ProcessEnergyStream?
     /// 面板開著才允許跑 top，避免關掉後還在背景取樣
     @ObservationIgnored var panelVisible = false
 
@@ -131,13 +131,21 @@ final class BatteryStore {
         }
     }
 
-    func refreshProcesses() async {
-        guard panelVisible, !loadingProcesses else { return }
-        loadingProcesses = true
-        let result = await ProcessEnergy.sample()
-        topProcesses = result
-        processesLoaded = true
-        loadingProcesses = false
+    /// 面板開著且停在耗電排行時，持續以 top 每秒取樣；其他時候停掉
+    func setProcessSampling(active: Bool) {
+        guard active, panelVisible else {
+            processStream?.stop()
+            return
+        }
+        if processStream == nil {
+            processStream = ProcessEnergyStream { [weak self] result in
+                MainActor.assumeIsolated {
+                    self?.topProcesses = result
+                    self?.processesLoaded = true
+                }
+            }
+        }
+        processStream?.start()
     }
 
     private func ema(_ previous: Double?, _ value: Double, _ dt: Double) -> Double {

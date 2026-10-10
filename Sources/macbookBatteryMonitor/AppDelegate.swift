@@ -18,10 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var sleeping = false
     private var powerTransitionTask: Task<Void, Never>?
 
-    /// 面板關著時的更新間隔。插拔電源由 IOPS 通知即時更新，不靠這個計時器
-    private static let idleInterval: TimeInterval = 30
+    /// 所有資訊每秒更新；面板關著時也一樣（插拔電源另由 IOPS 通知立即更新）
+    private static let idleInterval: TimeInterval = 1
     private static let openInterval: TimeInterval = 1
-    private static let processInterval: TimeInterval = 5
+    /// 檢查耗電排行分頁是否顯示中，以決定要不要持續取樣
+    private static let processInterval: TimeInterval = 1
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -153,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         sleeping = true
         powerTransitionTask?.cancel()
         store.setHardwareSampling(active: false)
+        store.setProcessSampling(active: false)
         store.history.save()
     }
 
@@ -283,14 +285,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         scheduleRefresh(every: Self.openInterval)
         processTimer?.invalidate()
         processTimer = repeating(every: Self.processInterval) { delegate in
-            guard delegate.ui.page == .main, delegate.ui.tab == .processes else { return }
-            Task { await delegate.store.refreshProcesses() }
+            delegate.store.setProcessSampling(active: delegate.ui.page == .main && delegate.ui.tab == .processes)
         }
     }
 
     func popoverDidClose(_ notification: Notification) {
         store.panelVisible = false
         store.setHardwareSampling(active: false)
+        store.setProcessSampling(active: false)
         processTimer?.invalidate()
         processTimer = nil
         scheduleRefresh(every: Self.idleInterval)
