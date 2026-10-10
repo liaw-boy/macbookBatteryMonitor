@@ -57,6 +57,8 @@ struct BatterySnapshot: Codable, Equatable {
     var chargingNow: Bool {
         guard externalConnected else { return false }
         guard let watts = liveBatteryWatts else { return isCharging }
+        // 到達上限後 macOS 不再充電，SMC 兩路取樣時間不同步會有約 ±4 W 的雜訊，要晶片旗標與功率都同意才算
+        if let limit = chargeLimit?.limit, percent >= limit { return isCharging && watts >= 3 }
         if watts >= 3 { return true }
         if watts < 0.5 { return false }
         return isCharging

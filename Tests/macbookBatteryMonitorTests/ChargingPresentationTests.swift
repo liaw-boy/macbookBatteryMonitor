@@ -142,6 +142,11 @@ final class ChargingPresentationTests {
         XCTAssertTrue(s.chargingNow)
         s.isCharging = false
         XCTAssertTrue(!s.chargingNow)
+        // 實測：到達 95% 上限後 SMC 偶爾出現 +4.5 W 的單筆雜訊，晶片旗標為未充電，不算充電
+        s.percent = 95
+        s.applyLivePower(battery: nil, adapter: 10.8, system: 6.3)
+        XCTAssertTrue(!s.chargingNow)
+        XCTAssertEqual(Estimator.state(s), .limitReached)
     }
 
     /// 充到上限附近 macOS 反覆暫停／恢復充電：狀態要持續 10 秒才切換，流向圖跟著狀態
