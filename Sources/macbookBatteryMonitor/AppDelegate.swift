@@ -13,6 +13,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// 每次打開都建立新的，關閉後整個釋放（連同視窗和 SwiftUI 畫面）
     private var popover: NSPopover?
     private var refreshTimer: Timer?
+    /// 更新頻率慢於每秒時，下一次更新前 1 秒先讀變壓器輸入（見 BatteryReader.recordAdapterInput）
+    private var adapterPreReadTimer: Timer?
     private var processTimer: Timer?
     private var timers: [Timer] = []
     /// 上次畫到選單列的內容，沒變就不重畫
@@ -128,6 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func refresh() {
         store.refresh()
+        scheduleAdapterPreRead()
         store.setHardwareSampling(active: ui.isVisible && ui.page == .main && !sleeping)
         updateStatusItem()
         if let s = store.snapshot, let e = store.estimates {
@@ -145,6 +148,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func scheduleRefresh(every interval: TimeInterval) {
         refreshTimer?.invalidate()
         refreshTimer = repeating(every: interval) { $0.refresh() }
+        // 誤差不超過 0.3 秒，下一次更新才配得到 1 秒前預先讀的變壓器輸入
+        refreshTimer?.tolerance = min(interval * 0.2, 0.3)
+    }
+
+    private func scheduleAdapterPreRead() {
+        adapterPreReadTimer?.invalidate()
+        adapterPreReadTimer = nil
+        guard interval > 1, !sleeping else { return }
+        let timer = Timer(fire: Date().addingTimeInterval(interval - 1), interval: 0, repeats: false) { _ in
+            MainActor.assumeIsolated { BatteryReader.recordAdapterInput() }
+        }
+        timer.tolerance = 0.05
+        RunLoop.main.add(timer, forMode: .common)
+        adapterPreReadTimer = timer
     }
 
     private func repeating(every interval: TimeInterval, _ action: @escaping (AppDelegate) -> Void) -> Timer {

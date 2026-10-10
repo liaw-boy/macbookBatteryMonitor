@@ -129,6 +129,17 @@ final class PowerSourceTests {
         XCTAssertTrue(e.liveToEmpty != nil && e.headlineToEmpty != nil)
         XCTAssertTrue(abs((e.adapterInputWatts ?? 0) - (e.systemWatts ?? 0) - e.batteryWatts) < 0.001)
     }
+    /// PSTR 比 PDTR 慢一次更新：用 0.5～1.6 秒前的 PDTR 配對現在的 PSTR
+    func testAdapterInputPairsWithLaggingSystemPower() {
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 20, now: 100), 20)
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 21, now: 101), 20)
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 22, now: 102.2), 21)
+        // 太久以前（更新頻率較慢又沒有預先讀）或太近（插拔後的連續重讀）就用現在的值
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 23, now: 105), 23)
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: 24, now: 105.2), 24)
+        XCTAssertEqual(BatteryReader.alignedAdapterInput(current: nil, now: 106.2), 24)
+    }
+
     func testIdleFullAndMissingTelemetryKeepAC() {
         var snapshot = BatterySnapshot(percent: 100, externalConnected: true, fullyCharged: true)
         snapshot.reconcilePowerSource(inputMilliwatts: 0)

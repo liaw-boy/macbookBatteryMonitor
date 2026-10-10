@@ -114,6 +114,24 @@ struct BatterySnapshot: Codable, Equatable {
 enum BatteryReader {
     private static let smc = SMC()
 
+    /// SMC 的 PSTR（系統功率）比 PDTR（變壓器輸入）慢一次更新：實測兩者都每秒更新一次，
+    /// PSTR 幾乎等於 1 秒前的 PDTR（平均差 0.01 W），同時讀的兩個值直接相減會有約 ±4 W 的雜訊，
+    /// 面板上系統耗電也會看起來慢變壓器一秒。記住上一筆 PDTR，配對同一次更新的系統功率。只在主執行緒使用。
+    private static var previousAdapterInput: (watts: Double, uptime: TimeInterval)?
+
+    /// 更新頻率慢於每秒時，在下一次更新前 1 秒先讀一次 PDTR，讓下一次更新有可以配對的輸入
+    static func recordAdapterInput() {
+        guard let watts = smc?.read("PDTR") else { return }
+        previousAdapterInput = (watts, ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// 0.5～1.6 秒前讀到的 PDTR 與現在的 PSTR 是同一次更新；沒有就退回現在的值
+    static func alignedAdapterInput(current: Double?, now: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Double? {
+        defer { if let current { previousAdapterInput = (current, now) } }
+        if let previous = previousAdapterInput, (0.5...1.6).contains(now - previous.uptime) { return previous.watts }
+        return current
+    }
+
     static func read(includeTemperature: Bool = true, includeLivePower: Bool = true) -> BatterySnapshot? {
         guard let reg = registryProperties() else { return nil }
         let data = reg["BatteryData"] as? [String: Any] ?? [:]
@@ -161,7 +179,7 @@ enum BatteryReader {
         s.systemPowerIn_mW = positive(int(telemetry["SystemPowerIn"]))
         if includeLivePower {
             // 電池功率由 PDTR − PSTR 推算，不使用 PPBR（見 liveBatteryWatts），所以不必讀
-            s.applyLivePower(battery: nil, adapter: smc?.read("PDTR"), system: smc?.read("PSTR"))
+            s.applyLivePower(battery: nil, adapter: alignedAdapterInput(current: smc?.read("PDTR")), system: smc?.read("PSTR"))
         }
         s.chargeLimit = ChargeLimitReader.current()
         s.reconcilePowerSource(inputMilliwatts: int(telemetry["SystemPowerIn"]))
