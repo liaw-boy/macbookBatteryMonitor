@@ -11,15 +11,15 @@ struct StaticPowerFlowView: View {
             arrow(pointingRight: true, active: s.externalConnected)
             node(symbol: "laptopcomputer", title: "系統耗電", value: Format.watts(e.systemWatts), active: true, tint: .blue)
             arrow(pointingRight: batteryCharging, active: batteryActive)
-            node(symbol: batterySymbol, title: batteryTitle, value: Format.watts(abs(e.batteryWatts)), active: batteryActive,
+            node(symbol: batterySymbol, title: batteryTitle, value: Format.watts(e.batteryWatts), active: batteryActive,
                  tint: batteryCharging ? .green : .orange)
         }
         .padding(.vertical, 12)
         .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 15))
     }
 
-    private var batteryActive: Bool { abs(e.batteryWatts) >= 0.05 }
-    private var batteryCharging: Bool { e.batteryWatts > 0 }
+    private var batteryActive: Bool { e.flowKind != .adapter }
+    private var batteryCharging: Bool { e.flowKind == .charging }
     private var batteryTitle: String {
         guard batteryActive else { return "電池閒置" }
         return batteryCharging ? "充入電池" : "電池放電"
