@@ -85,7 +85,8 @@ enum ChargeLimitReader {
         // 可能同時有多個策略（例如最佳化充電暫停），取生效中且上限最低的
         let active = policies
             .compactMap { $0 as? ChargeCtrlPolicyStub }
-            .filter { !$0.terminated && $0.soclimit > 0 && $0.soclimit < 100 }
+            // 只採用使用者在系統設定裡設的上限；「最佳化電池充電」等暫時的暫停不算
+            .filter { !$0.terminated && $0.reason == "manualChargeLimit" && $0.soclimit > 0 && $0.soclimit < 100 }
             .min { $0.soclimit < $1.soclimit }
         guard let active else { return nil }
         return ChargeLimit(limit: active.soclimit, reason: active.reason ?? "")

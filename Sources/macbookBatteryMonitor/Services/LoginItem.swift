@@ -39,6 +39,8 @@ enum LoginItem {
         if enabled {
             do {
                 try SMAppService.mainApp.register()
+                // 以前退回寫的 LaunchAgent 要移除，否則登入時會啟動兩次
+                try? FileManager.default.removeItem(at: agentURL)
             } catch {
                 try writeLaunchAgent()
             }

@@ -116,6 +116,19 @@ final class PowerSourceTests {
         XCTAssertEqual(estimates.state, .limitReached)
         XCTAssertTrue(abs(estimates.batteryWatts + 3.3) < 0.001)
     }
+    /// 充電器功率不夠：接著電源但電池仍在放電，要算剩餘時間（低電量提醒也依此判斷）
+    func testWeakAdapterDrainingShowsRemainingTime() {
+        var s = BatterySnapshot(percent: 40, externalConnected: true, voltage_mV: 12000, amperage_mA: -800, remaining_mAh: 2000)
+        s.applyLivePower(battery: nil, adapter: 5, system: 15)
+        s.reconcilePowerSource(inputMilliwatts: 5000)
+        XCTAssertTrue(s.externalConnected)
+        let e = Estimator.estimates(s, avgDischarge_mA: 833, avgCharge_mA: nil)
+        XCTAssertEqual(e.state, .pluggedIdle)
+        XCTAssertTrue(e.drainingOnAC)
+        XCTAssertEqual(e.batteryWatts, -10)
+        XCTAssertTrue(e.liveToEmpty != nil && e.headlineToEmpty != nil)
+        XCTAssertTrue(abs((e.adapterInputWatts ?? 0) - (e.systemWatts ?? 0) - e.batteryWatts) < 0.001)
+    }
     func testIdleFullAndMissingTelemetryKeepAC() {
         var snapshot = BatterySnapshot(percent: 100, externalConnected: true, fullyCharged: true)
         snapshot.reconcilePowerSource(inputMilliwatts: 0)

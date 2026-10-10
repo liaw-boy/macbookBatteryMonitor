@@ -6,6 +6,10 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Notifier()
 
     private var lowFired = false
+    /// 第一次評估只記錄狀態
+    private var primed = false
+    /// 這次接上電源後是否看過「充電中」
+    private var sawChargingSincePlugged = false
     private var fullFired = false
 
     /// 沒打包成 .app（例如直接 swift run）時沒有 bundle id，通知中心會直接 crash
@@ -21,13 +25,28 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     /// 每次跨過門檻只通知一次，離開門檻一段距離後才會再通知
     func evaluate(_ s: BatterySnapshot, state: PowerState, settings: AppSettings) {
         let pct = s.percent
+        // 接著電源但供電不足、電池仍在放電，也要提醒
+        let drainingOnAC = state == .pluggedIdle && s.effectiveAmperage_mA < -50
+        let draining = state == .discharging || drainingOnAC
+        if !s.externalConnected { sawChargingSincePlugged = false }
+        if state == .charging { sawChargingSincePlugged = true }
 
-        if state == .discharging, pct <= settings.lowThreshold {
+        // App 剛啟動時只記下目前狀態、不發通知，避免每次登入都跳「充電完成」
+        if !primed {
+            primed = true
+            lowFired = draining && pct <= settings.lowThreshold
+            fullFired = s.externalConnected && (pct >= settings.fullThreshold || state == .limitReached)
+            return
+        }
+
+        if draining, pct <= settings.lowThreshold {
             if settings.lowAlertEnabled, !lowFired {
-                post(title: "電量偏低：\(pct)%", body: "電量已低於 \(settings.lowThreshold)%，建議接上電源。")
+                let body = drainingOnAC ? "電量已低於 \(settings.lowThreshold)%，接著的電源供電不足，電池仍在放電。"
+                    : "電量已低於 \(settings.lowThreshold)%，建議接上電源。"
+                post(title: "電量偏低：\(pct)%", body: body)
             }
             lowFired = true
-        } else if state != .discharging || pct > settings.lowThreshold + 2 {
+        } else if !draining || pct > settings.lowThreshold + 2 {
             lowFired = false
         }
 
@@ -35,7 +54,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         let limit = s.chargeLimit?.limit
         let target = min(settings.fullThreshold, limit ?? 100)
         if s.externalConnected, pct >= settings.fullThreshold || state == .limitReached {
-            if settings.fullAlertEnabled, !fullFired {
+            // 接上電源後真的充過電才算「充電完成」；高於上限時插上電源不通知
+            if settings.fullAlertEnabled, !fullFired, sawChargingSincePlugged {
                 let body: String
                 if state == .limitReached, let limit {
                     body = "已達充電上限 \(limit)%，電池暫停充電。"

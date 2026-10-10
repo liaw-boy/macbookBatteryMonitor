@@ -30,6 +30,9 @@ struct Estimates: Codable, Equatable {
     var adapterInputWatts: Double?
     var healthComputed: Double?
 
+    /// 接著電源但供電不足（充電器功率不夠或負載太高），電池仍在放電
+    var drainingOnAC = false
+
     var headlineToEmpty: Int? { systemToEmpty ?? liveToEmpty }
     var headlineToFull: Int? { toLimit ?? toFull }
 }
@@ -72,7 +75,8 @@ enum Estimator {
         }
 
         let pct = s.percent
-        if state == .discharging {
+        e.drainingOnAC = state == .pluggedIdle && s.effectiveAmperage_mA < -50
+        if state == .discharging || e.drainingOnAC {
             e.systemToEmpty = s.psTimeToEmpty ?? s.avgTimeToEmpty
             if let total = e.systemToEmpty, pct > 0 {
                 e.systemTo10 = max(0, total * (pct - reservePercent) / pct)

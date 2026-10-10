@@ -120,6 +120,9 @@ private struct HeaderView: View {
             }
             return ("充滿還要", e.toFull.map { Format.duration($0) } ?? "計算中…")
         case .pluggedIdle:
+            if e.drainingOnAC {
+                return ("剩餘時間", e.headlineToEmpty.map { Format.duration($0) } ?? "計算中…")
+            }
             return ("電源供電", "暫停充電")
         case .full:
             return ("電源供電", "已充飽")
@@ -237,6 +240,8 @@ private struct TimeCard: View {
             return "已達系統設定的充電上限，電池暫停充電，目前由變壓器供電。"
         case .full:
             return "電池已充飽，目前由變壓器供電。"
+        case .pluggedIdle where e.drainingOnAC:
+            return "已接上電源，但供電不足，電池仍在放電（充電器功率不夠或負載太高）。預估剩餘 \(Format.duration(e.headlineToEmpty))。"
         default:
             return "已接上電源，但電池目前沒有在充電。可能是「最佳化電池充電」暫停在 80%，或電池溫度保護。"
         }

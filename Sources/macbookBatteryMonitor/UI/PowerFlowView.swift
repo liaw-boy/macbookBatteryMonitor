@@ -103,7 +103,9 @@ private final class DiagramView: NSView {
         flows.begin(in: layer)
         branchIndex = 0
         let clipping = CAShapeLayer()
-        clipping.path = CGPath(roundedRect: bounds, cornerWidth: 15, cornerHeight: 15, transform: nil)
+        // 圓角不能超過寬高的一半，否則 CGPath 會觸發斷言閃退
+        let radius = max(0, min(15, bounds.width / 2, bounds.height / 2))
+        clipping.path = bounds.isEmpty ? nil : CGPath(roundedRect: bounds, cornerWidth: radius, cornerHeight: radius, transform: nil)
         layer.mask = clipping
         let h = bounds.height
         let w = bounds.width

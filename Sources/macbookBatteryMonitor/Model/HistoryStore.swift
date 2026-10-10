@@ -38,9 +38,14 @@ final class HistoryStore {
             .appendingPathComponent("BatteryMonitor", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         fileURL = dir.appendingPathComponent("history.json")
-        if let data = try? Data(contentsOf: fileURL),
-           let decoded = try? JSONDecoder().decode([HistorySample].self, from: data) {
-            samples = decoded.sorted { $0.t < $1.t }
+        if let data = try? Data(contentsOf: fileURL) {
+            if let decoded = try? JSONDecoder().decode([HistorySample].self, from: data) {
+                samples = decoded.sorted { $0.t < $1.t }
+            } else {
+                // 讀不懂就先備份，免得 15 分鐘後被新的空檔覆蓋掉
+                let backup = dir.appendingPathComponent("history-\(Int(Date().timeIntervalSince1970)).json.bak")
+                try? FileManager.default.moveItem(at: fileURL, to: backup)
+            }
         }
         trim()
     }

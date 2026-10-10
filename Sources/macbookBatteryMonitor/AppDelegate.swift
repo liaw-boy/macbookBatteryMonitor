@@ -27,6 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private static let processInterval: TimeInterval = 1
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // 已經有一個在執行（例如登入項目與舊的 LaunchAgent 同時啟動）就直接結束，避免兩個圖示、兩份通知
+        if let id = Bundle.main.bundleIdentifier,
+           NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0 != NSRunningApplication.current }) {
+            NSApp.terminate(nil)
+            return
+        }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.target = self
@@ -209,7 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             case .discharging: text = Format.clock(e.headlineToEmpty) ?? fallback
             case .charging: text = Format.clock(e.headlineToFull) ?? fallback
             case .full: text = inlinePercent ? "已充飽" : fallback
-            case .pluggedIdle: text = inlinePercent ? "接電" : fallback
+            case .pluggedIdle: text = e.drainingOnAC ? (Format.clock(e.headlineToEmpty) ?? fallback) : (inlinePercent ? "接電" : fallback)
             case .limitReached: text = inlinePercent ? "已達上限" : fallback
             }
         }
@@ -327,7 +333,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         guard LoginItem.isInApplications,
               !defaults.bool(forKey: LoginItem.disabledByUserKey),
               defaults.string(forKey: LoginItem.registeredPathKey) != path else { return }
-        defaults.set(path, forKey: LoginItem.registeredPathKey)
-        try? LoginItem.setEnabled(true)
+        // 登錄成功才記下位置，失敗的話下次啟動會再試
+        if (try? LoginItem.setEnabled(true)) != nil {
+            defaults.set(path, forKey: LoginItem.registeredPathKey)
+        }
     }
 }
