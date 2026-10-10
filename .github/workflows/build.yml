@@ -1,4 +1,4 @@
-# 推送到 main 或開 PR 時測試並編譯。
+# 推送到 main 或開 PR 時測試並編譯（電池版與系統監控版都編）。
 # 發布 Release（標題與說明取自 .github/release-notes/<tag>.md，第一行為標題）：
 #   - 推送到 main 時，若 Info.plist 的版本 v<版本> 還沒有 Release、且有對應說明檔，就在該 commit 建立 tag 並發布
 #   - 推送 v* tag，或手動執行並填入 tag
@@ -24,10 +24,12 @@ jobs:
       - uses: actions/checkout@v5
       - name: 測試
         run: Scripts/test-power.sh
-      - name: 編譯
-        run: ./build.sh
-      - name: 驗證簽章
-        run: codesign --verify --deep --strict build/macbookBatteryMonitor.app
+      - name: 編譯兩個版本並驗證簽章
+        run: |
+          for edition in battery status; do
+            ./build.sh "$edition"
+            codesign --verify --deep --strict build/macbookBatteryMonitor.app
+          done
 
   release:
     if: ${{ github.event_name != 'pull_request' }}
@@ -58,19 +60,19 @@ jobs:
             tag=""
           fi
           echo "TAG=$tag" >> "$GITHUB_ENV"
-          echo "ZIP=macbookBatteryMonitor-$tag-macOS-arm64.zip" >> "$GITHUB_ENV"
           echo "要發布的版本：${tag:-無}"
       - name: 測試
         if: ${{ env.TAG != '' }}
         run: Scripts/test-power.sh
-      - name: 編譯
+      - name: 編譯並打包兩個版本
         if: ${{ env.TAG != '' }}
+        # 電池版（battery）與系統監控版（status）各一個 zip，放在同一個 Release
         run: |
-          ./build.sh
-          codesign --verify --deep --strict build/macbookBatteryMonitor.app
-      - name: 打包
-        if: ${{ env.TAG != '' }}
-        run: ditto -c -k --sequesterRsrc --keepParent build/macbookBatteryMonitor.app "$ZIP"
+          for edition in battery status; do
+            ./build.sh "$edition"
+            codesign --verify --deep --strict build/macbookBatteryMonitor.app
+            ditto -c -k --sequesterRsrc --keepParent build/macbookBatteryMonitor.app "macbookBatteryMonitor-$TAG-$edition-macOS-arm64.zip"
+          done
       - name: 建立 Release
         if: ${{ env.TAG != '' }}
         run: |
@@ -78,7 +80,7 @@ jobs:
           if [[ -f "$notes" ]]; then
             title="$(head -n 1 "$notes" | sed 's/^# *//')"
             tail -n +3 "$notes" > release-body.md
-            gh release create "$TAG" "$ZIP" --target "$GITHUB_SHA" --title "$title" --notes-file release-body.md
+            gh release create "$TAG" macbookBatteryMonitor-"$TAG"-*-macOS-arm64.zip --target "$GITHUB_SHA" --title "$title" --notes-file release-body.md
           else
-            gh release create "$TAG" "$ZIP" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+            gh release create "$TAG" macbookBatteryMonitor-"$TAG"-*-macOS-arm64.zip --target "$GITHUB_SHA" --title "$TAG" --generate-notes
           fi

@@ -28,6 +28,7 @@ final class HistoryStore {
     static let retention: TimeInterval = 7 * 24 * 3600
 
     private(set) var samples: [HistorySample] = []
+    @ObservationIgnored private var isPreview = false
     @ObservationIgnored private var unsaved = 0
     @ObservationIgnored private let fileURL: URL
 
@@ -76,7 +77,14 @@ final class HistoryStore {
         return false
     }
 
+    /// 截圖用：換成示範資料，只放在記憶體裡，之後也不會寫回使用者的歷史檔
+    func loadPreview(_ preview: [HistorySample]) {
+        isPreview = true
+        samples = preview
+    }
+
     func save() {
+        guard !isPreview else { return }
         guard let data = try? JSONEncoder().encode(samples) else { return }
         try? data.write(to: fileURL, options: .atomic)
         unsaved = 0

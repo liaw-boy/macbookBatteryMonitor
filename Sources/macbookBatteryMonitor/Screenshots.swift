@@ -1,0 +1,89 @@
+import AppKit
+import SwiftUI
+
+/// `--screenshots <資料夾>`：用示範數據畫出兩個版本的介紹圖（README 與版本說明用），不含使用者的真實資料
+@MainActor
+enum ScreenshotCommand {
+    static func run(directory: String) {
+        let dir = URL(fileURLWithPath: directory, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let now = Date()
+        let store = BatteryStore()
+        store.loadPreview(now: now)
+        let ui = PanelState()
+        ui.isVisible = true
+        ui.tab = .details
+        let cpu = CPUMonitor(), memory = MemoryMonitor(), disk = DiskMonitor(), network = NetworkMonitor()
+        cpu.loadPreview(now: now)
+        memory.loadPreview(now: now)
+        disk.loadPreview(now: now)
+        network.loadPreview(now: now)
+
+        let batteryIcon = StatusIconRenderer.image(percent: 78, state: .discharging, low: false, showsPercent: false)
+        let battery = MenuItem(image: batteryIcon, text: "78%")
+        let modules = MonitorDebug.menuBarImages(cpu: cpu, memory: memory, disk: disk, network: network).map { MenuItem(image: $0, text: nil) }
+
+        let batteryEdition = Showcase(menuItems: [battery]) {
+            Popover { RootView(store: store, settings: .shared, ui: ui) }
+        }
+        SnapshotCommand.render(batteryEdition, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("edition-battery.png"))
+
+        let statusEdition = Showcase(menuItems: modules + [battery]) {
+            ForEach(MonitorKind.allCases) { kind in
+                Popover { MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network, onSettings: {}) }
+            }
+        }
+        SnapshotCommand.render(statusEdition, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("edition-status.png"))
+        print("已輸出到 \(dir.path)")
+    }
+
+    private struct MenuItem: Identifiable {
+        let id = UUID()
+        let image: NSImage
+        let text: String?
+    }
+
+    /// 上方模擬選單列，下方並排面板
+    private struct Showcase<Panels: View>: View {
+        let menuItems: [MenuItem]
+        @ViewBuilder var panels: Panels
+
+        var body: some View {
+            VStack(alignment: .trailing, spacing: 14) {
+                HStack(spacing: 16) {
+                    ForEach(menuItems) { item in
+                        HStack(spacing: 4) {
+                            if let text = item.text {
+                                Text(text).font(.system(size: 13)).monospacedDigit()
+                            }
+                            Image(nsImage: item.image)
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 26)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.55)))
+                HStack(alignment: .top, spacing: 18) {
+                    panels
+                }
+            }
+            .padding(24)
+            .background(LinearGradient(colors: [Color(red: 0.16, green: 0.20, blue: 0.30), Color(red: 0.08, green: 0.09, blue: 0.13)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing))
+            .environment(\.colorScheme, .dark)
+        }
+    }
+
+    /// 模擬彈出面板的外觀
+    private struct Popover<Content: View>: View {
+        @ViewBuilder var content: Content
+
+        var body: some View {
+            content
+                .background(Color(nsColor: .windowBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.white.opacity(0.12)))
+                .shadow(color: .black.opacity(0.45), radius: 14, y: 6)
+        }
+    }
+}

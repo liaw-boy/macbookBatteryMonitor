@@ -22,6 +22,7 @@ enum DumpCommand {
         var lastUnplugged: Date?
         var topProcesses: [EnergyProcess]
         var loginItem: String
+        var edition: String
     }
 
     static func run() {
@@ -42,7 +43,8 @@ enum DumpCommand {
             systemHealth: SystemProfiler.readSync(),
             lastUnplugged: e.state == .discharging ? PowerLog.lastUnpluggedDateSync() : nil,
             topProcesses: ProcessEnergy.sampleSync(),
-            loginItem: "\(LoginItem.status)"
+            loginItem: "\(LoginItem.status)",
+            edition: AppEdition.current.rawValue
         )
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]

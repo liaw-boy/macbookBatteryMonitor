@@ -158,3 +158,79 @@ final class NetworkMonitor {
         updated = now
     }
 }
+
+// MARK: - 截圖用的示範數據（README、版本說明），不含任何使用者的真實資料
+
+private func previewHistory(count: Int = MonitorHistory.capacity, now: Date, _ value: (Double) -> (Double, Double)) -> MonitorHistory {
+    var history = MonitorHistory()
+    for i in 0..<count {
+        let v = value(Double(i))
+        history.append(v.0, v.1, at: now.addingTimeInterval(Double(i - count)))
+    }
+    return history
+}
+
+private func previewApps(_ values: [Double]) -> [TopProcess] {
+    let apps = [("Safari", "/Applications/Safari.app"), ("照片", "/System/Applications/Photos.app"),
+                ("音樂", "/System/Applications/Music.app"), ("郵件", "/System/Applications/Mail.app"),
+                ("Finder", "/System/Library/CoreServices/Finder.app")]
+    return zip(apps, values).map { TopProcess(id: $0.0.1, name: $0.0.0, value: $0.1, appPath: $0.0.1) }
+}
+
+extension CPUMonitor {
+    func loadPreview(now: Date = Date()) {
+        usage = CPUUsage(user: 0.18, system: 0.09)
+        let e = max(layout.efficiency, 4), p = max(layout.performance, 4)
+        cores = (0..<e).map { CPUUsage(user: 0.30 - Double($0) * 0.04, system: 0.10) }
+            + (0..<p).map { CPUUsage(user: 0.20 - Double($0) * 0.04, system: 0.05) }
+        gpu = 0.12
+        gpuMemory = 512 * 1024 * 1024
+        load = [2.35, 2.10, 1.98]
+        history = previewHistory(now: now) { (0.25 + 0.08 * sin($0 / 7) + 0.04 * sin($0 / 2.3), 0.10 + 0.05 * sin($0 / 11)) }
+        topProcesses = previewApps([34.5, 12.2, 8.1, 3.4, 1.6])
+        topLoaded = true
+        updated = now
+    }
+}
+
+extension MemoryMonitor {
+    func loadPreview(now: Date = Date()) {
+        let gib: UInt64 = 1024 * 1024 * 1024
+        usage = MemoryUsage(total: 16 * gib, app: 6 * gib + gib / 4, wired: 2 * gib + gib / 10, compressed: gib + gib / 2,
+                            cached: 3 * gib + gib / 2, swapUsed: 0, swapTotal: 0, pressure: .normal)
+        history = previewHistory(now: now) { (0.61 + 0.015 * sin($0 / 13), 0) }
+        topProcesses = previewApps([1.8, 0.82, 0.41, 0.38, 0.16].map { $0 * Double(gib) })
+        topLoaded = true
+        updated = now
+    }
+}
+
+extension DiskMonitor {
+    func loadPreview(now: Date = Date()) {
+        volume = DiskReader.Volume(name: "Macintosh HD", total: 494_384_795_648, available: 312_000_000_000)
+        readRate = 2_400_000
+        writeRate = 900_000
+        totalRead = 85_000_000_000
+        totalWritten = 41_000_000_000
+        history = previewHistory(now: now) { i in
+            (max(0, 1_500_000 + 1_200_000 * sin(i / 5)), max(0, 600_000 + 500_000 * sin(i / 8 + 1)))
+        }
+        updated = now
+    }
+}
+
+extension NetworkMonitor {
+    func loadPreview(now: Date = Date()) {
+        interface = "en0"
+        kind = "Wi-Fi"
+        address = "192.168.1.23"
+        downloadRate = 2_800_000
+        uploadRate = 340_000
+        totalReceived = 12_400_000_000
+        totalSent = 1_900_000_000
+        history = previewHistory(now: now) { i in
+            (max(0, 2_000_000 + 1_500_000 * sin(i / 6)), max(0, 300_000 + 150_000 * sin(i / 4 + 2)))
+        }
+        updated = now
+    }
+}

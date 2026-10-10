@@ -106,11 +106,11 @@ enum SnapshotCommand {
         }
     }
 
-    private static func wait(_ seconds: TimeInterval) {
+    static func wait(_ seconds: TimeInterval) {
         RunLoop.main.run(until: Date().addingTimeInterval(seconds))
     }
 
-    private static func render<V: View>(_ view: V, appearance: NSAppearance.Name, settle: TimeInterval, to url: URL) {
+    static func render<V: View>(_ view: V, appearance: NSAppearance.Name, settle: TimeInterval, to url: URL) {
         let hosting = NSHostingView(rootView: view)
         hosting.appearance = NSAppearance(named: appearance)
         let window = NSWindow(contentRect: NSRect(x: -5000, y: 0, width: 380, height: 800),

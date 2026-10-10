@@ -153,4 +153,48 @@ final class BatteryStore {
         let alpha = 1 - exp(-dt / tau)
         return previous + alpha * (value - previous)
     }
+
+    /// 截圖用的示範數據（README、版本說明）：不含任何使用者的真實資料
+    func loadPreview(now: Date = Date()) {
+        var s = BatterySnapshot()
+        s.date = now
+        s.percent = 78
+        s.voltage_mV = 12450
+        s.amperage_mA = -520
+        s.cycleCount = 212
+        s.designCycleCount = 1000
+        s.remaining_mAh = 3900
+        s.fullCharge_mAh = 5000
+        s.nominal_mAh = 5080
+        s.design_mAh = 5500
+        s.psTimeToEmpty = 445
+        s.avgTimeToEmpty = 450
+        s.temperature_C = 31.4
+        s.smcAdapterWatts = 0
+        s.smcSystemWatts = 6.5
+        s.chargeLimit = ChargeLimit(limit: 80, reason: "manualChargeLimit", active: false)
+        snapshot = s
+        avgDischarge = 520
+        estimates = Estimator.estimates(s, avgDischarge_mA: 520, avgCharge_mA: nil)
+        systemHealth = SystemHealth(maxCapacityPercent: 92, condition: "Good", cycleCount: 212)
+        unpluggedAt = now.addingTimeInterval(-(2 * 3600 + 15 * 60))
+        // 24 小時：前一晚接電充到 80%，早上拔掉後慢慢用到 78%
+        var samples: [HistorySample] = []
+        for minute in stride(from: 24 * 60, through: 0, by: -10) {
+            let t = now.addingTimeInterval(-Double(minute) * 60)
+            let plugged = minute > 135
+            let pct = plugged ? min(80, 45 + (24 * 60 - minute) / 12) : 80 - (135 - minute) / 60
+            let watts = plugged ? 4.5 + 2 * sin(Double(minute) / 37) : 6 + 2.5 * sin(Double(minute) / 9)
+            samples.append(HistorySample(t: t, pct: pct, watts: max(1, watts), plugged: plugged, charging: plugged && pct < 80))
+        }
+        history.loadPreview(samples)
+        topProcesses = [
+            EnergyProcess(id: "safari", name: "Safari", power: 12.4, appPath: "/Applications/Safari.app"),
+            EnergyProcess(id: "music", name: "音樂", power: 6.8, appPath: "/System/Applications/Music.app"),
+            EnergyProcess(id: "mail", name: "郵件", power: 3.2, appPath: "/System/Applications/Mail.app"),
+            EnergyProcess(id: "photos", name: "照片", power: 2.1, appPath: "/System/Applications/Photos.app"),
+            EnergyProcess(id: "finder", name: "Finder", power: 0.9, appPath: "/System/Library/CoreServices/Finder.app"),
+        ]
+        processesLoaded = true
+    }
 }

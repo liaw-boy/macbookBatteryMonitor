@@ -36,9 +36,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         settings.onChange = { [weak self] in self?.updateStatusItem() }
-        settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
-        monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
-        monitors.start()
+        // 電池版不建立任何系統監控圖示與計時器
+        if AppEdition.current.hasSystemMonitors {
+            settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
+            monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
+            monitors.start()
+        }
         Notifier.shared.setup()
 
         refresh()
@@ -176,9 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func updateStatusItem() {
         guard let button = statusItem?.button else { return }
         guard let s = store.snapshot, let e = store.estimates else {
+            guard lastStatusKey != "noBattery" else { return }
             button.image = NSImage(systemSymbolName: "battery.0percent", accessibilityDescription: "找不到電池")
             button.title = ""
-            lastStatusKey = ""
+            lastStatusKey = "noBattery"
             return
         }
         let low = e.state == .discharging && s.percent <= settings.lowThreshold
@@ -292,11 +296,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         scheduleRefresh(every: Self.openInterval)
         processTimer?.invalidate()
         processTimer = repeating(every: Self.processInterval) { delegate in
-            delegate.store.setProcessSampling(active: delegate.ui.page == .main && delegate.ui.tab == .processes)
+            delegate.store.setProcessSampling(active: !delegate.sleeping && delegate.ui.page == .main && delegate.ui.tab == .processes)
         }
     }
 
     func popoverDidClose(_ notification: Notification) {
+        guard let closed = notification.object as? NSPopover, closed === popover else { return }
         store.panelVisible = false
         store.setHardwareSampling(active: false)
         store.setProcessSampling(active: false)
@@ -305,10 +310,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         scheduleRefresh(every: Self.idleInterval)
         ui.page = .main
         ui.isVisible = false
-        // 等這次 delegate 回呼結束再釋放
+        // 等這次 delegate 回呼結束再釋放；這段時間若又打開新面板，不要動到它
         DispatchQueue.main.async { [weak self] in
-            self?.popover?.contentViewController = nil
-            self?.popover = nil
+            closed.contentViewController = nil
+            if self?.popover === closed { self?.popover = nil }
         }
     }
 
