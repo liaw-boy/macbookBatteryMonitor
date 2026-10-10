@@ -41,7 +41,7 @@ enum ChargeLimitReader {
     static func resolve(externalConnected: Bool, pluggedSince: Date?) -> ChargeLimit? {
         let defaults = UserDefaults.standard
         if let live = current() {
-            defaults.set(live.limit, forKey: lastKnownKey)
+            if defaults.integer(forKey: lastKnownKey) != live.limit { defaults.set(live.limit, forKey: lastKnownKey) }
             return live
         }
         let cached = defaults.integer(forKey: lastKnownKey)

@@ -7,7 +7,7 @@ final class IOReportReader {
     private typealias Subscribe = @convention(c) (UnsafeMutableRawPointer?, CFMutableDictionary?, UnsafeMutablePointer<Unmanaged<CFMutableDictionary>?>?, UInt64, CFTypeRef?) -> Unmanaged<CFTypeRef>?
     private typealias Sample = @convention(c) (CFTypeRef?, CFMutableDictionary?, CFTypeRef?) -> Unmanaged<CFDictionary>?
     private typealias Label = @convention(c) (CFDictionary) -> Unmanaged<CFString>?
-    private typealias Value = @convention(c) (CFDictionary, Int32) -> Int64
+    private typealias Value = @convention(c) (CFDictionary, UnsafeMutablePointer<Int32>?) -> Int64
     private static let library = dlopen("/usr/lib/libIOReport.dylib", RTLD_LAZY)
     private let channels: CFMutableDictionary
     private let subscription: CFTypeRef
@@ -63,7 +63,7 @@ final class IOReportReader {
             case let label where label.hasPrefix("ANE"): component = "ane"
             default: continue
             }
-            if let joules = EnergyCounter.joules(Double(value(channel, 0)), unit: unit) {
+            if let joules = EnergyCounter.joules(Double(value(channel, nil)), unit: unit) {
                 pairs.append((component, joules))
             }
         }

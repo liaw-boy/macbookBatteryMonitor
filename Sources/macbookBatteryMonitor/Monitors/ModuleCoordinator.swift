@@ -106,6 +106,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         if items[.disk] != nil { disk.sample(at: now) }
         if items[.network] != nil { network.sample(at: now) }
         for (kind, item) in items { render(kind, item) }
+        // top 意外結束時（例如被強制結束），面板還開著就重新啟動
+        if let topStream, !topStream.isRunning, !sleeping { topStream.start() }
     }
 
     // MARK: - 選單列

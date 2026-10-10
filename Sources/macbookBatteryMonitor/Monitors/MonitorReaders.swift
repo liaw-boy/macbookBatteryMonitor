@@ -101,8 +101,10 @@ enum DiskReader {
         var used: UInt64 { total > available ? total - available : 0 }
     }
 
-    /// 系統可清出的空間（快取、可清除檔案）與磁碟名稱；查一次約 12 毫秒，變化又慢，每 5 分鐘校正一次
+    /// 系統可清出的空間（快取、可清除檔案）與磁碟名稱；查一次要十幾毫秒（有時更久），變化又慢，
+    /// 每 5 分鐘在背景校正一次。這兩個變數只在主執行緒讀寫
     private static var purgeable: (bytes: UInt64, name: String, date: Date)?
+    private static var calibrating = false
 
     /// 開機磁碟的容量；「可用」包含系統可以清出的空間，與 Finder 一致。
     /// 每秒用 statfs()（只需幾微秒）讀實際剩餘空間，再加上定期校正的可清出空間
@@ -112,10 +114,20 @@ enum DiskReader {
         let blockSize = UInt64(fs.f_bsize)
         let total = UInt64(fs.f_blocks) * blockSize
         let free = UInt64(fs.f_bavail) * blockSize
-        if purgeable == nil || Date().timeIntervalSince(purgeable!.date) > 300 {
-            let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey, .volumeAvailableCapacityForImportantUsageKey])
-            let important = values?.volumeAvailableCapacityForImportantUsage.map { UInt64(max(0, $0)) } ?? free
-            purgeable = (important > free ? important - free : 0, values?.volumeName ?? purgeable?.name ?? "Macintosh HD", Date())
+        if !calibrating, purgeable.map({ Date().timeIntervalSince($0.date) > 300 }) ?? true {
+            calibrating = true
+            let previousName = purgeable?.name
+            DispatchQueue.global(qos: .utility).async {
+                let values = try? URL(fileURLWithPath: "/").resourceValues(forKeys: [.volumeNameKey, .volumeAvailableCapacityForImportantUsageKey])
+                var now = statfs()
+                let freeNow = statfs("/", &now) == 0 ? UInt64(now.f_bavail) * UInt64(now.f_bsize) : free
+                let important = values?.volumeAvailableCapacityForImportantUsage.map { UInt64(max(0, $0)) } ?? freeNow
+                let result = (important > freeNow ? important - freeNow : 0, values?.volumeName ?? previousName ?? "Macintosh HD", Date())
+                DispatchQueue.main.async {
+                    purgeable = result
+                    calibrating = false
+                }
+            }
         }
         let extra = purgeable?.bytes ?? 0
         return Volume(name: purgeable?.name ?? "Macintosh HD", total: total, available: min(total, free + extra))
@@ -249,6 +261,8 @@ final class TopStream {
         self.onSample = onSample
     }
 
+    var isRunning: Bool { process != nil }
+
     func start() {
         guard process == nil else { return }
         let process = Process()
@@ -257,10 +271,15 @@ final class TopStream {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        pipe.fileHandleForReading.readabilityHandler = { [weak self, weak process] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
-            DispatchQueue.main.async { self?.append(data) }
+            guard !data.isEmpty else {
+                // top 結束了（被強制結束或閃退）：不停止監聽的話會不停收到空資料，讓 CPU 跑滿
+                handle.readabilityHandler = nil
+                DispatchQueue.main.async { if let self, self.process === process { self.stop() } }
+                return
+            }
+            DispatchQueue.main.async { if let self, self.process === process { self.append(data) } }
         }
         do {
             try process.run()

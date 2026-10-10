@@ -12,7 +12,7 @@ enum MonitorDebug {
             memory.sample(at: now)
             disk.sample(at: now)
             network.sample(at: now)
-            Thread.sleep(forTimeInterval: 1)
+            RunLoop.main.run(until: Date().addingTimeInterval(1))
         }
         let m = memory.usage
         let output: [String: Any] = [

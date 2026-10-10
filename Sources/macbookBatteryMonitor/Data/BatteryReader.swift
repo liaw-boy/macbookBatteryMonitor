@@ -164,6 +164,17 @@ enum BatteryReader {
         return s
     }
 
+    /// 只讀 PowerTelemetryData 的 SystemLoad（W）。不碰任何共用快取，可以在背景執行緒呼叫
+    static func systemLoadWatts() -> Double? {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != IO_OBJECT_NULL else { return nil }
+        defer { IOObjectRelease(service) }
+        guard let telemetry = IORegistryEntryCreateCFProperty(service, "PowerTelemetryData" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? [String: Any],
+              let load = (telemetry["SystemLoad"] as? NSNumber)?.int64Value, load > 0 else { return nil }
+        return Double(load) / 1000
+    }
+
     /// 變壓器規格（額定瓦數等）不會每秒變；接上電源後先查一次，之後每 30 秒更新
     private static var adapterCache: (info: AdapterInfo?, date: Date)?
 

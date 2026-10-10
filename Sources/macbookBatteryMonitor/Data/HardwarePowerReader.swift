@@ -29,7 +29,8 @@ final class HardwarePowerReader {
         let backlightAverage = estimated ? (backlight! + previousBacklight!) / 2 : backlight
         previousSystem = system
         previousBacklight = backlight
-        let fallback = BatteryReader.read(includeTemperature: false, includeLivePower: false)?.systemLoad_mW.map { Double($0) / 1000 }
+        // 在背景執行緒，只讀需要的那一個值；BatteryReader.read 會動到主執行緒共用的快取
+        let fallback = system == nil ? BatteryReader.systemLoadWatts() : nil
         return ComponentPowerSample(uptime: now, interval: interval,
             backlightWatts: backlightAverage,
             cpuWatts: EnergyCounter.updatedCPUWatts(watts["cpu"]), gpuWatts: watts["gpu"], aneWatts: watts["ane"],

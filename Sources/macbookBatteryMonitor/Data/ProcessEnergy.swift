@@ -79,10 +79,15 @@ final class ProcessEnergyStream {
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+        pipe.fileHandleForReading.readabilityHandler = { [weak self, weak process] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
-            DispatchQueue.main.async { self?.append(data) }
+            guard !data.isEmpty else {
+                // top 結束了（被強制結束或閃退）：不停止監聽的話會不停收到空資料，讓 CPU 跑滿
+                handle.readabilityHandler = nil
+                DispatchQueue.main.async { if let self, self.process === process { self.stop() } }
+                return
+            }
+            DispatchQueue.main.async { if let self, self.process === process { self.append(data) } }
         }
         do {
             try process.run()
