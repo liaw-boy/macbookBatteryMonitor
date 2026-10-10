@@ -29,6 +29,31 @@ final class AppSettings {
     @ObservationIgnored private let defaults = UserDefaults.standard
     /// 影響選單列圖示的設定改變時呼叫
     @ObservationIgnored var onChange: (() -> Void)?
+    /// 系統監控模組開關改變時呼叫
+    @ObservationIgnored var onMonitorsChange: (() -> Void)?
+
+    /// 每個系統監控模組是否在選單列顯示（並每秒更新）
+    var monitorCPU: Bool {
+        didSet { defaults.set(monitorCPU, forKey: Keys.monitorCPU); onMonitorsChange?() }
+    }
+    var monitorMemory: Bool {
+        didSet { defaults.set(monitorMemory, forKey: Keys.monitorMemory); onMonitorsChange?() }
+    }
+    var monitorDisk: Bool {
+        didSet { defaults.set(monitorDisk, forKey: Keys.monitorDisk); onMonitorsChange?() }
+    }
+    var monitorNetwork: Bool {
+        didSet { defaults.set(monitorNetwork, forKey: Keys.monitorNetwork); onMonitorsChange?() }
+    }
+
+    func isMonitorEnabled(_ kind: MonitorKind) -> Bool {
+        switch kind {
+        case .cpu: return monitorCPU
+        case .memory: return monitorMemory
+        case .disk: return monitorDisk
+        case .network: return monitorNetwork
+        }
+    }
 
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
@@ -52,6 +77,10 @@ final class AppSettings {
         static let lowThreshold = "lowThreshold"
         static let fullAlertEnabled = "fullAlertEnabled"
         static let fullThreshold = "fullThreshold"
+        static let monitorCPU = "monitorCPU"
+        static let monitorMemory = "monitorMemory"
+        static let monitorDisk = "monitorDisk"
+        static let monitorNetwork = "monitorNetwork"
     }
 
     private init() {
@@ -61,11 +90,19 @@ final class AppSettings {
             Keys.lowThreshold: 20,
             Keys.fullAlertEnabled: true,
             Keys.fullThreshold: 100,
+            Keys.monitorCPU: true,
+            Keys.monitorMemory: true,
+            Keys.monitorDisk: true,
+            Keys.monitorNetwork: true,
         ])
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
         lowAlertEnabled = defaults.bool(forKey: Keys.lowAlertEnabled)
         lowThreshold = defaults.integer(forKey: Keys.lowThreshold)
         fullAlertEnabled = defaults.bool(forKey: Keys.fullAlertEnabled)
         fullThreshold = defaults.integer(forKey: Keys.fullThreshold)
+        monitorCPU = defaults.bool(forKey: Keys.monitorCPU)
+        monitorMemory = defaults.bool(forKey: Keys.monitorMemory)
+        monitorDisk = defaults.bool(forKey: Keys.monitorDisk)
+        monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
     }
 }

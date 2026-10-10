@@ -1,5 +1,10 @@
 import AppKit
 
+if CommandLine.arguments.contains("--dump-monitors") {
+    MainActor.assumeIsolated { MonitorDebug.dump() }
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--dump-hardware") {
     DumpCommand.runHardware()
     exit(0)

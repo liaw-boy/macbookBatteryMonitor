@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let store = BatteryStore()
     private let settings = AppSettings.shared
     private let ui = PanelState()
+    /// CPU／GPU、記憶體、磁碟、網路模組
+    private let monitors = ModuleCoordinator()
     private var statusItem: NSStatusItem!
     /// 每次打開都建立新的，關閉後整個釋放（連同視窗和 SwiftUI 畫面）
     private var popover: NSPopover?
@@ -34,6 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
 
         settings.onChange = { [weak self] in self?.updateStatusItem() }
+        settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
+        monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
+        monitors.start()
         Notifier.shared.setup()
 
         refresh()
@@ -155,11 +160,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         powerTransitionTask?.cancel()
         store.setHardwareSampling(active: false)
         store.setProcessSampling(active: false)
+        monitors.setSleeping(true)
         store.history.save()
     }
 
     @objc private func didWake() {
         sleeping = false
+        monitors.setSleeping(false)
         refresh()
         store.recordHistory()
     }

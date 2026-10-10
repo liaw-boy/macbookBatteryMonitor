@@ -56,7 +56,54 @@ enum SnapshotCommand {
             renderStatusIcons(appearance: appearance, to: dir.appendingPathComponent("icons-percent-time-\(suffix).png"), showsPercent: true)
         }
         store.setHardwareSampling(active: false)
+        renderMonitors(directory: dir)
         print("已輸出到 \(dir.path)")
+    }
+
+    /// 系統監控模組：四個面板與選單列小圖
+    private static func renderMonitors(directory dir: URL) {
+        let cpu = CPUMonitor(), memory = MemoryMonitor(), disk = DiskMonitor(), network = NetworkMonitor()
+        let cpuTop = TopStream(arguments: ["-l", "0", "-s", "1", "-o", "cpu", "-stats", "pid,command,cpu", "-n", "15"]) { cpu.receiveTop($0) }
+        let memoryTop = TopStream(arguments: ["-l", "0", "-s", "1", "-o", "mem", "-stats", "pid,command,mem", "-n", "15"]) { memory.receiveTop($0) }
+        cpuTop.start()
+        memoryTop.start()
+        for _ in 0..<4 {
+            let now = Date()
+            cpu.sample(at: now)
+            memory.sample(at: now)
+            disk.sample(at: now)
+            network.sample(at: now)
+            wait(1)
+        }
+        cpuTop.stop()
+        memoryTop.stop()
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            let suffix = appearance == .aqua ? "light" : "dark"
+            for kind in MonitorKind.allCases {
+                let view = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network, onSettings: {})
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .environment(\.colorScheme, appearance == .aqua ? .light : .dark)
+                render(view, appearance: appearance, settle: 0.3, to: dir.appendingPathComponent("monitor-\(kind.rawValue)-\(suffix).png"))
+            }
+            let views = MonitorDebug.menuBarImages(cpu: cpu, memory: memory, disk: disk, network: network).map { image -> NSView in
+                let button = NSButton(image: image, target: nil, action: nil)
+                button.isBordered = false
+                return button
+            }
+            let stack = NSStackView(views: views)
+            stack.spacing = 14
+            stack.edgeInsets = NSEdgeInsets(top: 4, left: 10, bottom: 4, right: 10)
+            stack.wantsLayer = true
+            stack.appearance = NSAppearance(named: appearance)
+            stack.layer?.backgroundColor = (appearance == .aqua ? NSColor(white: 0.93, alpha: 1) : NSColor(white: 0.12, alpha: 1)).cgColor
+            let window = NSWindow(contentRect: NSRect(x: -5000, y: 0, width: 600, height: 40), styleMask: [.borderless], backing: .buffered, defer: false)
+            window.contentView = stack
+            stack.setFrameSize(stack.fittingSize)
+            window.orderFrontRegardless()
+            wait(0.3)
+            save(view: stack, to: dir.appendingPathComponent("monitors-menubar-\(suffix).png"))
+            window.orderOut(nil)
+        }
     }
 
     private static func wait(_ seconds: TimeInterval) {

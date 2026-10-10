@@ -12,6 +12,7 @@ let package = Package(
                 .linkedFramework("IOKit"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("UserNotifications"),
+                .linkedFramework("SystemConfiguration"),
             ]
         )
     ]

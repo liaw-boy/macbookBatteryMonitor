@@ -30,6 +30,25 @@ struct SettingsView: View {
 
             Card {
                 VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("系統監控", systemImage: "gauge.with.dots.needle.33percent")
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                        GridRow {
+                            SwitchRow("CPU／GPU", isOn: binding(\.monitorCPU))
+                            SwitchRow("記憶體", isOn: binding(\.monitorMemory))
+                        }
+                        GridRow {
+                            SwitchRow("磁碟", isOn: binding(\.monitorDisk))
+                            SwitchRow("網路", isOn: binding(\.monitorNetwork))
+                        }
+                    }
+                    Text("開啟的模組在選單列各有一個圖示，每秒更新。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
                     CardTitle("通知", systemImage: "bell")
                     SwitchRow("低電量提醒", isOn: binding(\.lowAlertEnabled))
                     Stepper("電量低於 \(settings.lowThreshold)% 時提醒", value: binding(\.lowThreshold), in: 5...50, step: 5)

@@ -1,0 +1,59 @@
+import AppKit
+import SwiftUI
+
+/// 開發用：`--dump-monitors` 取樣兩次（間隔 1 秒）並把四個模組的讀數印成 JSON
+@MainActor
+enum MonitorDebug {
+    static func dump() {
+        let cpu = CPUMonitor(), memory = MemoryMonitor(), disk = DiskMonitor(), network = NetworkMonitor()
+        for _ in 0..<2 {
+            let now = Date()
+            cpu.sample(at: now)
+            memory.sample(at: now)
+            disk.sample(at: now)
+            network.sample(at: now)
+            Thread.sleep(forTimeInterval: 1)
+        }
+        let m = memory.usage
+        let output: [String: Any] = [
+            "cpu": [
+                "total": cpu.usage?.total ?? -1, "user": cpu.usage?.user ?? -1, "system": cpu.usage?.system ?? -1,
+                "cores": cpu.cores.map { ($0.total * 1000).rounded() / 1000 },
+                "efficiencyCores": cpu.layout.efficiency, "performanceCores": cpu.layout.performance,
+                "gpu": cpu.gpu ?? -1, "gpuMemory": cpu.gpuMemory ?? 0, "load": cpu.load,
+            ],
+            "memory": [
+                "total": m?.total ?? 0, "used": m?.used ?? 0, "app": m?.app ?? 0, "wired": m?.wired ?? 0,
+                "compressed": m?.compressed ?? 0, "cached": m?.cached ?? 0, "free": m?.free ?? 0,
+                "swapUsed": m?.swapUsed ?? 0, "pressure": m?.pressure.rawValue ?? 0,
+            ],
+            "disk": [
+                "name": disk.volume?.name ?? "", "total": disk.volume?.total ?? 0, "available": disk.volume?.available ?? 0,
+                "readRate": disk.readRate, "writeRate": disk.writeRate,
+                "totalRead": disk.totalRead, "totalWritten": disk.totalWritten,
+            ],
+            "network": [
+                "interface": network.interface ?? "", "kind": network.kind ?? "", "address": network.address ?? "",
+                "downloadRate": network.downloadRate, "uploadRate": network.uploadRate,
+                "totalReceived": network.totalReceived, "totalSent": network.totalSent,
+            ],
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]),
+           let text = String(data: data, encoding: .utf8) {
+            print(text)
+        }
+    }
+
+    /// 選單列小圖（截圖用），與 ModuleCoordinator 顯示的內容相同
+    static func menuBarImages(cpu: CPUMonitor, memory: MemoryMonitor, disk: DiskMonitor, network: NetworkMonitor) -> [NSImage] {
+        let diskFraction = disk.volume.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
+        return [
+            MonitorMenuBarRenderer.twoLines([("CPU", cpu.usage.map { ByteFormat.percent($0.total) } ?? "—", MonitorMenuBarRenderer.green),
+                                             ("GPU", cpu.gpu.map(ByteFormat.percent) ?? "—", MonitorMenuBarRenderer.orange)], valueTemplate: "100%"),
+            MonitorMenuBarRenderer.symbolValue(symbol: "memorychip", value: memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—", valueTemplate: "100%"),
+            MonitorMenuBarRenderer.symbolValue(symbol: "internaldrive", value: diskFraction.map(ByteFormat.percent) ?? "—", valueTemplate: "100%"),
+            MonitorMenuBarRenderer.twoLines([("↑", ByteFormat.compactRate(network.uploadRate), MonitorMenuBarRenderer.orange),
+                                             ("↓", ByteFormat.compactRate(network.downloadRate), MonitorMenuBarRenderer.green)], valueTemplate: "999K"),
+        ]
+    }
+}
