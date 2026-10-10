@@ -4,9 +4,10 @@ public struct CPUPowerReading: Codable {
     public let watts: Double
     public let uptime: TimeInterval
     public init(watts: Double, uptime: TimeInterval) { self.watts = watts; self.uptime = uptime }
-    public func freshWatts(at now: TimeInterval) -> Double? {
+    /// maxAge：取樣間隔 1 秒時為 3 秒，省電模式（2 秒）時放寬
+    public func freshWatts(at now: TimeInterval, maxAge: TimeInterval = 3) -> Double? {
         guard watts.isFinite, watts >= 0, watts < 500,
-              (0...3).contains(now - uptime) else { return nil }
+              (0...maxAge).contains(now - uptime) else { return nil }
         return watts
     }
 }

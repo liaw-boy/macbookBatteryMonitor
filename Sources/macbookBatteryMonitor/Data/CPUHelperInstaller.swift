@@ -21,6 +21,12 @@ enum CPUHelperInstaller {
         return config.uid == getuid() && config.version == CPUHelperConstants.version
     }
 
+    /// 系統裡留有任何服務檔案（包含版本不符的舊服務），關閉選項時要移除
+    static var present: Bool {
+        FileManager.default.fileExists(atPath: CPUHelperConstants.launchDaemon)
+            || FileManager.default.fileExists(atPath: CPUHelperConstants.directory)
+    }
+
     static func makeProcess(bundle: Bundle = .main, lease: URL) throws -> Process {
         let helper = bundle.bundleURL.appendingPathComponent("Contents/Library/Helpers/CPUPowerHelper")
         let data = try Data(contentsOf: helper)

@@ -68,8 +68,9 @@ final class AppSettings {
         }
     }
 
+    /// 選用的管理員 CPU 取樣（預設關閉）。開啟時安裝系統服務，關閉時移除；由 AdminCPUSampler 在下一次更新時套用
     var adminCPUSampling: Bool {
-        didSet { defaults.set(adminCPUSampling, forKey: "adminCPUSampling"); onChange?() }
+        didSet { defaults.set(adminCPUSampling, forKey: Keys.adminCPUSampling) }
     }
 
     var display: MenuBarDisplay {
@@ -99,6 +100,7 @@ final class AppSettings {
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
         static let powerSaving = "powerSaving"
+        static let adminCPUSampling = "adminCPUSampling"
     }
 
     private init() {
@@ -113,8 +115,9 @@ final class AppSettings {
             Keys.monitorDisk: true,
             Keys.monitorNetwork: true,
             Keys.powerSaving: false,
+            Keys.adminCPUSampling: false,
         ])
-        adminCPUSampling = defaults.bool(forKey: "adminCPUSampling")
+        adminCPUSampling = defaults.bool(forKey: Keys.adminCPUSampling)
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
         lowAlertEnabled = defaults.bool(forKey: Keys.lowAlertEnabled)
         lowThreshold = defaults.integer(forKey: Keys.lowThreshold)

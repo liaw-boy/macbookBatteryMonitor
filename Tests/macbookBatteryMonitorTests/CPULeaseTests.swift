@@ -21,4 +21,17 @@ final class CPULeaseTests {
         XCTAssertNil(CPUPowerReading(watts: .nan, uptime: 10).freshWatts(at: 11))
         XCTAssertNil(CPUPowerReading(watts: -1, uptime: 10).freshWatts(at: 11))
     }
+
+    /// 服務只接受 1 或 2 秒；省電模式（2 秒）時資料有效期限放寬到 4 秒
+    func testIntervalAndPowerSavingFreshness() {
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(1), 1)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(2), 2)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(0), 1)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(-5), 1)
+        XCTAssertEqual(CPUHelperConstants.samplingInterval(60), 2)
+        let reading = CPUPowerReading(watts: 4.2, uptime: 10)
+        XCTAssertNil(reading.freshWatts(at: 13.5))
+        XCTAssertEqual(reading.freshWatts(at: 13.5, maxAge: 4), 4.2)
+        XCTAssertNil(reading.freshWatts(at: 14.5, maxAge: 4))
+    }
 }

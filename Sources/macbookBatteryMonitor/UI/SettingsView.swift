@@ -64,7 +64,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("CPU 功耗", systemImage: "cpu")
                     SwitchRow("管理員 CPU 取樣", isOn: binding(\.adminCPUSampling))
-                    Text("首次啟用需系統授權，之後開關面板與重新開機都會保留。主面板開啟時每秒取樣，關閉此選項會移除服務。")
+                    Text("選用功能，預設關閉。開啟時需輸入管理員密碼，安裝只讀取 CPU 功耗的系統服務；只在主面板開啟時取樣（\(settings.updateText)），面板關閉後不通訊，服務閒置會自行結束。關閉此選項會移除服務。")
                         .font(.caption).foregroundStyle(.secondary)
                     Text(adminCPU.status).font(.caption).foregroundStyle(.secondary)
                 }

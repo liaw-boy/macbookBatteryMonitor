@@ -15,10 +15,14 @@ final class CPUSampler {
     private var disabled = false
     private var stopping = false
     private var token = UUID()
+    /// powermetrics 的取樣間隔（秒），只會是 1 或 2
+    private var interval = 1
+    private var idleExit: DispatchWorkItem?
 
-    func sample(client: UUID, active: Bool, reply: @escaping (Data) -> Void) {
+    func sample(client: UUID, active: Bool, interval requested: Int, reply: @escaping (Data) -> Void) {
         queue.async {
             let now = ProcessInfo.processInfo.systemUptime
+            if active && !self.disabled { self.setInterval(CPUHelperConstants.samplingInterval(requested)) }
             self.leases.set(client, active: active && !self.disabled, at: now)
             self.reconcile()
             let value = active && !self.disabled ? self.reading : nil
@@ -31,9 +35,20 @@ final class CPUSampler {
         queue.async { self.leases.remove(client); self.reconcile() }
     }
 
+    /// 間隔改變（切換省電模式）時重新啟動 powermetrics；結束後由 terminationHandler 依新間隔啟動
+    private func setInterval(_ seconds: Int) {
+        guard seconds != interval else { return }
+        interval = seconds
+        if let process, process.isRunning, !stopping {
+            stopping = true
+            process.terminate()
+        }
+    }
+
     private func reconcile() {
         let active = !disabled && leases.isActive(at: ProcessInfo.processInfo.systemUptime)
         if active {
+            idleExit?.cancel(); idleExit = nil
             if timer == nil {
                 let timer = DispatchSource.makeTimerSource(queue: queue)
                 timer.schedule(deadline: .now() + 1, repeating: 1, leeway: .milliseconds(100))
@@ -50,7 +65,24 @@ final class CPUSampler {
                 stopping = true
                 process.terminate()
             }
+            scheduleIdleExit()
         }
+    }
+
+    func startIdleCountdown() { reconcile() }
+
+    /// 沒有任何租約一段時間後自行結束，不常駐；App 下次需要取樣時 launchd 會再啟動服務
+    private func scheduleIdleExit() {
+        guard idleExit == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.idleExit = nil
+            // powermetrics 還在結束中時，等 terminationHandler 呼叫 reconcile 再重新排程
+            guard !self.leases.isActive(at: ProcessInfo.processInfo.systemUptime), self.process == nil else { return }
+            exit(0)
+        }
+        idleExit = work
+        queue.asyncAfter(deadline: .now() + CPUHelperConstants.idleExit, execute: work)
     }
 
     private func start() {
@@ -59,7 +91,7 @@ final class CPUSampler {
         stopping = false
         parser = CPUPowerStream()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/powermetrics")
-        task.arguments = ["--samplers", "cpu_power", "-i", "1000", "-b", "1"]
+        task.arguments = ["--samplers", "cpu_power", "-i", "\(interval * 1000)", "-b", "1"]
         task.standardInput = FileHandle.nullDevice
         task.standardOutput = stream
         task.standardError = FileHandle.nullDevice
@@ -126,8 +158,8 @@ final class CPUClient: NSObject, CPUHelperProtocol {
     let id = UUID()
     let sampler: CPUSampler
     init(sampler: CPUSampler) { self.sampler = sampler }
-    func sample(active: Bool, withReply reply: @escaping (Data) -> Void) {
-        sampler.sample(client: id, active: active, reply: reply)
+    func sample(active: Bool, interval: Int, withReply reply: @escaping (Data) -> Void) {
+        sampler.sample(client: id, active: active, interval: interval, reply: reply)
     }
     func uninstall(withReply reply: @escaping (String?) -> Void) { sampler.uninstall(reply: reply) }
 }
@@ -160,4 +192,6 @@ let delegate = ListenerDelegate(uid: configuration.uid)
 let listener = NSXPCListener(machServiceName: CPUHelperConstants.label)
 listener.delegate = delegate
 listener.resume()
+// 被 launchd 啟動後若一直沒有取樣要求（例如只是來移除服務），閒置後同樣自行結束
+delegate.sampler.queue.async { delegate.sampler.startIdleCountdown() }
 RunLoop.current.run()
