@@ -142,9 +142,8 @@ enum BatteryReader {
         s.systemLoad_mW = positive(int(telemetry["SystemLoad"]))
         s.systemPowerIn_mW = positive(int(telemetry["SystemPowerIn"]))
         if includeLivePower {
-            // PPBR 只在讀不到 PSTR 時備援（見 liveBatteryWatts），平常不必讀
-            let system = smc?.read("PSTR")
-            s.applyLivePower(battery: system == nil ? smc?.read("PPBR") : nil, adapter: smc?.read("PDTR"), system: system)
+            // 電池功率由 PDTR − PSTR 推算，不使用 PPBR（見 liveBatteryWatts），所以不必讀
+            s.applyLivePower(battery: nil, adapter: smc?.read("PDTR"), system: smc?.read("PSTR"))
         }
         s.chargeLimit = ChargeLimitReader.current()
         s.reconcilePowerSource(inputMilliwatts: int(telemetry["SystemPowerIn"]))
