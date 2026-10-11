@@ -145,6 +145,8 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 圖示是一隻仰躺在無線充電墊上的布偶貓（照片去背）。設定 → App 圖示可以換背景色：薄荷綠（內建）、暖杏色、深夜藍、天空藍。
 
+![App 圖示的四種背景色](docs/screenshots/app-icons.png)
+
 - 換的是「應用程式」資料夾、Finder、Launchpad、Spotlight 裡看到的圖示，等同在「取得資訊」裡貼上自訂圖示；通知與系統設定的登入項目用的是內建圖示，仍是薄荷綠
 - 換成薄荷綠以外的顏色時，App 最上層會多一個自訂圖示檔，`codesign --verify --strict` 會回報有多餘的檔案；App 照常執行，換回薄荷綠就會移除
 - 用新版覆蓋 App 後自訂圖示會消失，App 啟動時會自動套回你選的顏色
@@ -283,7 +285,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異。機�
 ```bash
 git clone https://github.com/sgeric910601/macbookBatteryMonitor.git
 cd macbookBatteryMonitor
-git checkout v1.4.0          # 或其他版本的 tag，不指定就是最新的開發版
+git checkout v1.4.1          # 或其他版本的 tag，不指定就是最新的開發版
 ./build.sh                   # 系統監控版：產生 build/macbookBatteryMonitor.app
 ./build.sh battery           # 電池版
 ./build.sh install           # 系統監控版，並安裝到 /Applications 啟動
