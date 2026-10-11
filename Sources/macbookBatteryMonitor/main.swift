@@ -19,6 +19,13 @@ if CommandLine.arguments.contains("--dump-peripherals") {
     exit(0)
 }
 
+/// 開發用：每秒印一份感測器表格，可接次數，例如 --dump-sensors 10
+if let index = CommandLine.arguments.firstIndex(of: "--dump-sensors") {
+    let next = CommandLine.arguments.dropFirst(index + 1).first
+    SensorDump.run(count: min(600, max(1, next.flatMap { Int($0) } ?? 1)))
+    exit(0)
+}
+
 if CommandLine.arguments.contains("--dump-hardware") {
     DumpCommand.runHardware()
     exit(0)
