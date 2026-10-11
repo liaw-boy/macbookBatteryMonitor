@@ -346,7 +346,9 @@ struct TemperatureSummary: Equatable {
     var soc: Stat?
     var battery: Stat?
     var storage: Stat?
-    var isEmpty: Bool { cpu == nil && gpu == nil && soc == nil && battery == nil && storage == nil }
+    /// 機型有核心溫度感測器，但目前讀不到有效值（核心群組休眠）；介面顯示「休眠中」而不是整列消失
+    var coreSensorsAsleep = false
+    var isEmpty: Bool { cpu == nil && gpu == nil && soc == nil && battery == nil && storage == nil && !coreSensorsAsleep }
 }
 
 enum ThermalMath {
@@ -365,6 +367,37 @@ enum ThermalMath {
     /// 0 度或超過 110 度都當成讀取失敗
     static func isPlausible(_ value: Double) -> Bool { value.isFinite && value > 0 && value <= 110 }
 
+    /// SMC 的核心溫度鍵：核心群組斷電休眠時會固定回報 0、4.6、5.3、6.7、8.4 這類假值
+    /// （實測 M2 Pro 閒置時效能核心全是這些值），真正的晶片溫度不會低於室溫，所以 20 度以下一律視為沒有資料
+    static func isValidDieTemperature(_ value: Double) -> Bool { value.isFinite && value >= 20 && value <= 110 }
+
+    /// 核心溫度每秒都可能在「有效」與「休眠假值」之間跳動（實測閒置 45 秒有 20 秒整組無效）。
+    /// 每個感測器各自保留最近一次有效值，讀到假值或讀不到時沿用，
+    /// 超過 maxAge 才放棄。這樣醒著與休眠的核心會一起算進平均，不會因為只剩節能核心醒著而讓平均偏低
+    static func effectiveDieValues(_ readings: [(key: String, value: Double?)],
+                                   held: inout [String: (value: Double, date: Date)],
+                                   now: Date, maxAge: TimeInterval = 120) -> [Double] {
+        var result: [Double] = []
+        for reading in readings {
+            if let value = reading.value, isValidDieTemperature(value) {
+                held[reading.key] = (value, now)
+                result.append(value)
+            } else if let previous = held[reading.key], now.timeIntervalSince(previous.date) <= maxAge {
+                result.append(previous.value)
+            } else {
+                held[reading.key] = nil
+            }
+        }
+        return result
+    }
+
+    /// 只用有效的核心感測器算平均與最高；全部休眠時回傳 nil
+    static func dieStatistic(_ values: [Double]) -> TemperatureSummary.Stat? {
+        let valid = values.filter(isValidDieTemperature)
+        guard !valid.isEmpty else { return nil }
+        return .init(average: valid.reduce(0, +) / Double(valid.count), maximum: valid.max() ?? 0)
+    }
+
     /// 同名感測器（一個名稱常有兩個服務）先平均成一點，再依類別彙整
     static func summary(_ readings: [(name: String, value: Double)]) -> TemperatureSummary {
         var perName: [String: [Double]] = [:]
@@ -379,5 +412,25 @@ enum ThermalMath {
             return .init(average: values.reduce(0, +) / Double(values.count), maximum: values.max() ?? 0)
         }
         return TemperatureSummary(cpu: stat(.cpu), gpu: stat(.gpu), soc: stat(.soc), battery: stat(.battery), storage: stat(.storage))
+    }
+}
+
+/// 各晶片世代的 CPU／GPU 溫度 SMC 鍵。鍵名依世代不同，只收錄在實機上用負載測試確認過的世代；
+/// 其他晶片回傳 nil，介面就不顯示 CPU／GPU 溫度，不會顯示錯誤的數字
+struct ThermalKeys: Equatable {
+    var cpu: [String]
+    var gpu: [String]
+}
+
+enum ThermalKeyTable {
+    /// "Apple M2 Pro" → M2 世代。M2 Pro 實測：效能核心（Tp01 起每核心三個點取中間）、
+    /// 節能核心（Tp1h／Tp1l／Tp1p／Tp1t）在 CPU 負載下明顯升溫，Tg0f／Tg0j 隨 GPU 負載升溫
+    static func keys(forChip brand: String) -> ThermalKeys? {
+        let name = brand.trimmingCharacters(in: .whitespaces)
+        let isM2 = name == "Apple M2" || name.hasPrefix("Apple M2 ")
+        guard isM2 else { return nil }
+        return ThermalKeys(
+            cpu: ["Tp01", "Tp05", "Tp09", "Tp0D", "Tp0X", "Tp0b", "Tp0f", "Tp0j", "Tp1h", "Tp1t", "Tp1p", "Tp1l"],
+            gpu: ["Tg0f", "Tg0j"])
     }
 }
