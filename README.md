@@ -129,6 +129,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 - 更新頻率可選 1／2／5／10 秒；省電模式改用靜態電力流向
 - 滿電或到達充電上限、接著電源時，狀態與流向不會反覆跳動（見下方「電力總覽與硬體功耗」）
 - 管理員 CPU 取樣（選用）：CPU 能量計數不更新的機型，可改用 `powermetrics` 取得 CPU 功耗
+- App 圖示可換背景色：薄荷綠（內建）、暖杏色、深夜藍、天空藍（見下方說明）
 - 開機自動啟動
 
 ## 使用方式
@@ -138,7 +139,15 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 - **電力流向**（v1.2 起）：點「系統」展開硬體細項，點「晶片運算」再展開 CPU／GPU／ANE
 - **系統監控模組**（系統監控版）：左鍵打開該模組的面板，右鍵打開設定或結束；按住 ⌘ 可以拖曳調整圖示在選單列的順序
 - **周邊設備**：面板下方切到「周邊設備」分頁；點設備右邊的鈴鐺設定低電量通知，右下角的箭頭可以立即更新
-- **設定**：選單列顯示方式、顯示項目（電力流向細項與詳細資訊欄位）、更新頻率與省電模式、系統監控模組開關（系統監控版）、管理員 CPU 取樣、通知門檻、開機自啟動；充電上限由 macOS 控制，App 只讀取顯示，可從設定頁跳到系統設定修改
+- **設定**：選單列顯示方式、App 圖示顏色、顯示項目（電力流向細項與詳細資訊欄位）、更新頻率與省電模式、系統監控模組開關（系統監控版）、管理員 CPU 取樣、通知門檻、開機自啟動；充電上限由 macOS 控制，App 只讀取顯示，可從設定頁跳到系統設定修改
+
+## App 圖示
+
+圖示是一隻仰躺在無線充電墊上的布偶貓（照片去背）。設定 → App 圖示可以換背景色：薄荷綠（內建）、暖杏色、深夜藍、天空藍。
+
+- 換的是「應用程式」資料夾、Finder、Launchpad、Spotlight 裡看到的圖示，等同在「取得資訊」裡貼上自訂圖示；通知與系統設定的登入項目用的是內建圖示，仍是薄荷綠
+- 換成薄荷綠以外的顏色時，App 最上層會多一個自訂圖示檔，`codesign --verify --strict` 會回報有多餘的檔案；App 照常執行，換回薄荷綠就會移除
+- 用新版覆蓋 App 後自訂圖示會消失，App 啟動時會自動套回你選的顏色
 
 ## 管理員 CPU 取樣（選用，預設關閉）
 
@@ -305,5 +314,13 @@ $APP --screenshots <資料夾> # 用示範數據畫出兩個版本、省電模�
 發布時 GitHub Actions 會用同一份程式碼編出電池版與系統監控版（`build.sh` 把版本寫進 Info.plist 的 `MBMEdition`），兩個 zip 放在同一個 Release。
 
 `build.sh` 也會把管理員 CPU 取樣用的服務程式（`CPUPowerHelper`）放進 App 的 `Contents/Library/Helpers/`；只有使用者開啟該選項時才會安裝到系統。
+
+App 圖示由 `Scripts/make-icon.swift` 產生：貓咪是 `Resources/icon-cat.png`（照片去背），充電墊、波紋與背景用程式畫出來。
+
+```bash
+swiftc -O Scripts/make-icon.swift -o build/make-icon
+build/make-icon Resources/AppIcon.icns                                  # 內建的薄荷綠圖示
+for bg in peach night sky; do build/make-icon --bg $bg --size 512 --preview Resources/AppIcons/icon-$bg.png; done
+```
 
 只裝 Command Line Tools 時沒有 SwiftUI 的 macro 外掛，所以程式裡不用 `@State`，介面狀態集中在 `PanelState`。

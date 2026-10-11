@@ -109,6 +109,15 @@ final class AppSettings {
     func peripheralThreshold(for id: String) -> Int { peripheralThresholds[id] ?? Self.defaultPeripheralThreshold }
     func setPeripheralThreshold(_ value: Int, for id: String) { peripheralThresholds[id] = value }
 
+    /// App 圖示的背景色；改變時立刻套用到 App 本身（失敗原因放在 appIconError）
+    var appIconColor: AppIconColor {
+        didSet {
+            defaults.set(appIconColor.rawValue, forKey: Keys.appIconColor)
+            appIconError = AppIconChanger.apply(appIconColor)
+        }
+    }
+    private(set) var appIconError: String?
+
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
     }
@@ -140,6 +149,7 @@ final class AppSettings {
         static let hiddenFlowItems = "hiddenFlowItems"
         static let hiddenDetailFields = "hiddenDetailFields"
         static let peripheralThresholds = "peripheralThresholds"
+        static let appIconColor = "appIconColor"
         static let adminCPUSampling = "adminCPUSampling"
     }
 
@@ -174,5 +184,6 @@ final class AppSettings {
         hiddenFlowItems = Set(defaults.stringArray(forKey: Keys.hiddenFlowItems) ?? [])
         hiddenDetailFields = Set(defaults.stringArray(forKey: Keys.hiddenDetailFields) ?? [])
         peripheralThresholds = defaults.dictionary(forKey: Keys.peripheralThresholds) as? [String: Int] ?? [:]
+        appIconColor = AppIconColor(rawValue: defaults.string(forKey: Keys.appIconColor) ?? "") ?? .mint
     }
 }

@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self?.popover?.behavior = pending ? .applicationDefined : .transient
         }
         Notifier.shared.setup()
+        // 用新版覆蓋 App 後，自訂的 App 圖示會消失，套回使用者選的顏色
+        AppIconChanger.restoreIfNeeded(settings.appIconColor)
 
         refresh()
         store.recordHistory()

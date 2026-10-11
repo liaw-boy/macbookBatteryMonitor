@@ -31,6 +31,8 @@ plutil -replace MBMEdition -string "$EDITION" "$APP/Contents/Info.plist"
 if [[ -f Resources/AppIcon.icns ]]; then
     cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi
+# 設定裡可切換的其他 App 圖示顏色
+cp Resources/AppIcons/icon-*.png "$APP/Contents/Resources/" 2>/dev/null || true
 codesign --force --sign - --timestamp=none "$APP"
 echo "✅ 已產生 ${APP}（$([[ $EDITION == battery ]] && echo 電池版 || echo 系統監控版)）"
 

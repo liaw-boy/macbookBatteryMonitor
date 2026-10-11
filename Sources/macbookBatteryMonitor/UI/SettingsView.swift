@@ -33,6 +33,36 @@ struct SettingsView: View {
 
             Card {
                 VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("App 圖示", systemImage: "app.badge")
+                    HStack(spacing: 14) {
+                        ForEach(AppIconColor.allCases) { color in
+                            Button {
+                                settings.appIconColor = color
+                            } label: {
+                                VStack(spacing: 4) {
+                                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                        .fill(LinearGradient(colors: color.swatch, startPoint: .top, endPoint: .bottom))
+                                        .frame(width: 40, height: 40)
+                                        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                                            .strokeBorder(settings.appIconColor == color ? Color.accentColor : Color.primary.opacity(0.15),
+                                                          lineWidth: settings.appIconColor == color ? 2.5 : 1))
+                                    Text(color.title)
+                                        .font(.caption)
+                                        .foregroundStyle(settings.appIconColor == color ? .primary : .secondary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("App 圖示：\(color.title)")
+                        }
+                    }
+                    Text(settings.appIconError ?? "應用程式資料夾、Finder、Launchpad 裡的圖示；通知與登入項目仍顯示內建的薄荷綠。")
+                        .font(.caption)
+                        .foregroundStyle(settings.appIconError == nil ? Color.secondary : Color.orange)
+                }
+            }
+
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
                     CardTitle("更新頻率與省電", systemImage: "leaf")
                     Picker("更新頻率", selection: binding(\.updateInterval)) {
                         ForEach(AppSettings.updateIntervals, id: \.self) { Text(AppSettings.updateText(seconds: $0)).tag($0) }
