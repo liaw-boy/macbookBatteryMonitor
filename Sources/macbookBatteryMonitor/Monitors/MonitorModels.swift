@@ -321,3 +321,63 @@ extension ExternalDisk {
         return trimmed.isEmpty ? "外接磁碟" : String(trimmed.prefix(64))
     }
 }
+
+// MARK: - 風扇與溫度
+
+struct FanReading: Equatable, Identifiable {
+    var id: Int
+    var name: String
+    var rpm: Double
+    var minRPM: Double
+    var maxRPM: Double
+    /// 佔最高轉速的比例（0～1）
+    var fraction: Double { maxRPM > 0 ? min(1, max(0, rpm / maxRPM)) : 0 }
+}
+
+/// 各類溫度的平均與最高值（°C）；機型沒有的項目為 nil
+struct TemperatureSummary: Equatable {
+    struct Stat: Equatable {
+        var average: Double
+        var maximum: Double
+    }
+    var cpu: Stat?
+    var gpu: Stat?
+    /// SoC 晶片（PMU die）感測器
+    var soc: Stat?
+    var battery: Stat?
+    var storage: Stat?
+    var isEmpty: Bool { cpu == nil && gpu == nil && soc == nil && battery == nil && storage == nil }
+}
+
+enum ThermalMath {
+    enum Category: Hashable { case cpu, gpu, soc, battery, storage }
+
+    /// 感測器名稱 → 類別；不認得的（PMU tdev、TP 等）回傳 nil
+    static func category(for name: String) -> Category? {
+        if name.hasPrefix("pACC MTR Temp Sensor") || name.hasPrefix("eACC MTR Temp Sensor") { return .cpu }
+        if name.hasPrefix("GPU MTR Temp Sensor") { return .gpu }
+        if name.hasPrefix("PMU tdie") || name.hasPrefix("SOC MTR Temp Sensor") || name.hasPrefix("PMGR SOC Die Temp Sensor") { return .soc }
+        if name.hasPrefix("gas gauge battery") { return .battery }
+        if name.hasPrefix("NAND CH") { return .storage }
+        return nil
+    }
+
+    /// 0 度或超過 110 度都當成讀取失敗
+    static func isPlausible(_ value: Double) -> Bool { value.isFinite && value > 0 && value <= 110 }
+
+    /// 同名感測器（一個名稱常有兩個服務）先平均成一點，再依類別彙整
+    static func summary(_ readings: [(name: String, value: Double)]) -> TemperatureSummary {
+        var perName: [String: [Double]] = [:]
+        for reading in readings where isPlausible(reading.value) { perName[reading.name, default: []].append(reading.value) }
+        var perCategory: [Category: [Double]] = [:]
+        for (name, values) in perName {
+            guard let category = category(for: name) else { continue }
+            perCategory[category, default: []].append(values.reduce(0, +) / Double(values.count))
+        }
+        func stat(_ category: Category) -> TemperatureSummary.Stat? {
+            guard let values = perCategory[category], !values.isEmpty else { return nil }
+            return .init(average: values.reduce(0, +) / Double(values.count), maximum: values.max() ?? 0)
+        }
+        return TemperatureSummary(cpu: stat(.cpu), gpu: stat(.gpu), soc: stat(.soc), battery: stat(.battery), storage: stat(.storage))
+    }
+}

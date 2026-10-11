@@ -90,6 +90,7 @@ enum SnapshotCommand {
         let memoryTop = TopStream(arguments: ["-l", "0", "-s", "1", "-o", "mem", "-stats", "pid,command,mem", "-n", "15"]) { memory.receiveTop($0) }
         cpuTop.start()
         memoryTop.start()
+        cpu.setThermalActive(true)
         for _ in 0..<4 {
             let now = Date()
             cpu.sample(at: now)
