@@ -31,6 +31,13 @@ enum MonitorDebug {
             "name": disk.volume?.name ?? "", "total": disk.volume?.total ?? 0, "available": disk.volume?.available ?? 0,
             "readRate": disk.readRate, "writeRate": disk.writeRate,
             "totalRead": disk.totalRead, "totalWritten": disk.totalWritten,
+            "external": disk.externalVolumes.map { volume -> [String: Any] in
+                let stats = disk.externalStats[volume.id]
+                return ["name": volume.name, "total": volume.total, "available": volume.available, "device": volume.deviceNode,
+                        "fileSystem": volume.fileSystem, "connection": volume.connection,
+                        "totalRead": stats?.totalRead ?? 0, "totalWritten": stats?.totalWritten ?? 0,
+                        "readRate": stats?.readRate ?? 0, "writeRate": stats?.writeRate ?? 0]
+            },
         ]
         let networkInfo: [String: Any] = [
             "interface": network.interface ?? "", "kind": network.kind ?? "", "address": network.address ?? "",
