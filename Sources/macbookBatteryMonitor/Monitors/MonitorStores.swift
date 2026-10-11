@@ -83,6 +83,11 @@ final class MemoryMonitor {
 @Observable
 final class DiskMonitor {
     private(set) var volume: DiskReader.Volume?
+    /// 本機磁碟的 SMART 狀態
+    private(set) var volumeHealth: DiskHealth?
+    /// 目前掛載的外接磁碟，與各自的讀寫統計（key 為掛載點）
+    private(set) var externalVolumes: [ExternalVolume] = []
+    private(set) var externalStats: [String: ExternalDiskStats] = [:]
     private(set) var readRate: Double = 0
     private(set) var writeRate: Double = 0
     /// 自開機以來的累計讀寫
@@ -93,10 +98,20 @@ final class DiskMonitor {
     private(set) var updated: Date?
 
     @ObservationIgnored private var last: (read: UInt64, written: UInt64, date: Date)?
+    @ObservationIgnored private var externalLast: [String: (read: UInt64, written: UInt64, date: Date)] = [:]
+    /// 掛載點 → 上次查 SMART 的時間；SMART 變化很慢，每 10 分鐘在背景查一次
+    @ObservationIgnored private var healthChecked: [String: Date] = [:]
+    @ObservationIgnored private var volumeHealthChecked: Date?
+    /// 正在查 SMART 的裝置節點，避免同一顆卡住時重複派工
+    @ObservationIgnored private var healthInFlight: Set<String> = []
 
     func sample(at now: Date = Date()) {
         if let reading = DiskReader.startupVolume() { volume = reading }
-        if let io = DiskReader.ioBytes() {
+        externalVolumes = DiskReader.externalVolumes()
+        sampleExternal(at: now)
+        checkVolumeHealth(at: now)
+        // 優先讀開機磁碟自己的統計，讀不到才退回所有儲存裝置合計
+        if let io = volume.flatMap({ DiskReader.ioBytes(forDevice: $0.deviceNode) }) ?? DiskReader.ioBytes() {
             if let last {
                 let interval = now.timeIntervalSince(last.date)
                 readRate = RateMath.perSecond(old: last.read, new: io.read, interval: interval)
@@ -108,6 +123,59 @@ final class DiskMonitor {
             totalWritten = io.written
         }
         updated = now
+    }
+
+    private func checkVolumeHealth(at now: Date) {
+        guard let node = volume?.deviceNode, !node.isEmpty, !healthInFlight.contains(node),
+              volumeHealthChecked.map({ now.timeIntervalSince($0) > 600 }) ?? true else { return }
+        volumeHealthChecked = now
+        healthInFlight.insert(node)
+        DispatchQueue.global(qos: .utility).async {
+            let health = DiskReader.smartStatus(forDevice: node)
+            Task { @MainActor [weak self] in
+                self?.healthInFlight.remove(node)
+                self?.volumeHealth = health
+            }
+        }
+    }
+
+    private func sampleExternal(at now: Date) {
+        let live = Set(externalVolumes.map(\.id))
+        externalStats = externalStats.filter { live.contains($0.key) }
+        externalLast = externalLast.filter { live.contains($0.key) }
+        healthChecked = healthChecked.filter { live.contains($0.key) }
+        for volume in externalVolumes {
+            var usage = externalStats[volume.id] ?? ExternalDiskStats()
+            if let io = DiskReader.ioBytes(forDevice: volume.deviceNode) {
+                if let previous = externalLast[volume.id] {
+                    let interval = now.timeIntervalSince(previous.date)
+                    usage.readRate = RateMath.perSecond(old: previous.read, new: io.read, interval: interval)
+                    usage.writeRate = RateMath.perSecond(old: previous.written, new: io.written, interval: interval)
+                    usage.history.append(usage.readRate, usage.writeRate, at: now)
+                }
+                externalLast[volume.id] = (io.read, io.written, now)
+                usage.totalRead = io.read
+                usage.totalWritten = io.written
+            }
+            externalStats[volume.id] = usage
+            if !healthInFlight.contains(volume.deviceNode),
+               healthChecked[volume.id].map({ now.timeIntervalSince($0) > 600 }) ?? true {
+                healthChecked[volume.id] = now
+                let id = volume.id, node = volume.deviceNode
+                healthInFlight.insert(node)
+                DispatchQueue.global(qos: .utility).async {
+                    let health = DiskReader.smartStatus(forDevice: node)
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        healthInFlight.remove(node)
+                        // 期間若換成別的裝置（同掛載點），不要把舊裝置的結果貼上去
+                        if externalVolumes.first(where: { $0.id == id })?.deviceNode == node {
+                            externalStats[id]?.health = health
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -207,7 +275,23 @@ extension MemoryMonitor {
 
 extension DiskMonitor {
     func loadPreview(now: Date = Date()) {
-        volume = DiskReader.Volume(name: "Macintosh HD", total: 494_384_795_648, available: 312_000_000_000)
+        volume = DiskReader.Volume(name: "Macintosh HD", total: 494_384_795_648, available: 312_000_000_000,
+                                   fileSystem: "apfs", connection: "Apple Fabric")
+        volumeHealth = .verified
+        externalVolumes = [
+            ExternalVolume(mountPoint: "/Volumes/Backup", name: "Backup", total: 2_000_000_000_000, available: 1_240_000_000_000,
+                           fileSystem: "apfs", connection: "Thunderbolt"),
+            ExternalVolume(mountPoint: "/Volumes/USB", name: "USB", total: 64_000_000_000, available: 57_000_000_000,
+                           fileSystem: "exfat", connection: "USB"),
+        ]
+        externalStats = [
+            "/Volumes/Backup": ExternalDiskStats(readRate: 38_000_000, writeRate: 12_000_000, totalRead: 640_000_000_000,
+                                                 totalWritten: 210_000_000_000,
+                                                 history: previewHistory(now: now) { i in (max(0, 30_000_000 + 20_000_000 * sin(i / 6)), max(0, 9_000_000 + 8_000_000 * sin(i / 9))) },
+                                                 health: .verified),
+            "/Volumes/USB": ExternalDiskStats(totalRead: 4_000_000_000, totalWritten: 1_200_000_000, history: previewHistory(now: now) { _ in (0, 0) },
+                                              health: .unsupported),
+        ]
         readRate = 2_400_000
         writeRate = 900_000
         totalRead = 85_000_000_000

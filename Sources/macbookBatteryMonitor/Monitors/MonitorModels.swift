@@ -236,3 +236,88 @@ enum TopParse {
         return Double(s)
     }
 }
+
+/// 外接磁碟（隨身碟、外接硬碟、SD 卡等）的容量
+struct ExternalVolume: Equatable, Identifiable {
+    var id: String { mountPoint }
+    var mountPoint: String
+    var name: String
+    var total: UInt64
+    var available: UInt64
+    var used: UInt64 { total > available ? total - available : 0 }
+    /// 例如 /dev/disk5s2，用來對應 IOKit 的讀寫統計與 SMART
+    var deviceNode: String = ""
+    /// "exfat"、"apfs"…
+    var fileSystem: String = ""
+    /// DiskArbitration 的裝置協定："USB"、"PCI-Express"、"Thunderbolt"…
+    var connection: String = ""
+}
+
+/// 外接磁碟的 SMART 整體狀態（只有正常／異常，沒有耗損百分比；多數 USB 外接盒不支援）
+enum DiskHealth: Equatable {
+    case verified, failing, unsupported
+    /// diskutil 失敗或逾時，無法判斷
+    case unknown
+
+    /// diskutil 的 SMARTStatus 文字："Verified"、"Failing"、"About to Fail"、"Not Supported"…
+    static func parse(_ status: String?) -> DiskHealth {
+        switch status {
+        case "Verified": return .verified
+        case "Failing", "About to Fail": return .failing
+        default: return .unsupported
+        }
+    }
+}
+
+/// 單一外接磁碟的讀寫統計（計數器從接上那一刻起算）
+struct ExternalDiskStats: Equatable {
+    var readRate: Double = 0
+    var writeRate: Double = 0
+    var totalRead: UInt64 = 0
+    var totalWritten: UInt64 = 0
+    var history = MonitorHistory()
+    var health: DiskHealth?
+}
+
+/// 掛載項目的裝置資訊，供判斷是否為實體外接磁碟
+struct ExternalMountTraits: Equatable {
+    var mountPoint: String
+    var deviceNode: String
+    var isInternal: Bool
+    var protocolName: String?
+}
+
+enum ExternalDisk {
+    /// 只收掛在 /Volumes 下的實體外接磁碟；排除系統內部磁區、內建儲存、磁碟映像檔（DMG）與網路磁碟
+    static func isExternal(_ traits: ExternalMountTraits) -> Bool {
+        guard traits.mountPoint.hasPrefix("/Volumes/"),
+              isValidDeviceNode(traits.deviceNode),
+              !traits.isInternal else { return false }
+        return traits.protocolName != "Disk Image" && traits.protocolName != "Virtual Interface"
+    }
+}
+
+extension ExternalDisk {
+    /// 裝置節點必須是 /dev/disk<N>(s<M>)*（只接受 ASCII 數字），才會交給 IOKit、DiskArbitration 與 diskutil
+    static func isValidDeviceNode(_ node: String) -> Bool {
+        guard node.hasPrefix("/dev/disk") else { return false }
+        let rest = node.dropFirst("/dev/disk".count)
+        guard let first = rest.first, first.isASCII, first.isNumber else { return false }
+        var previousWasS = false
+        for ch in rest {
+            if ch.isASCII, ch.isNumber { previousWasS = false; continue }
+            if ch == "s", !previousWasS { previousWasS = true; continue }
+            return false
+        }
+        return !previousWasS
+    }
+
+    /// 磁碟標籤由磁碟本身決定，顯示前去掉控制字元與雙向文字控制符，並限制長度
+    static func displayName(_ raw: String) -> String {
+        let cleaned = String(String.UnicodeScalarView(raw.unicodeScalars.filter {
+            $0.properties.generalCategory != .control && $0.properties.generalCategory != .format
+        }))
+        let trimmed = cleaned.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? "外接磁碟" : String(trimmed.prefix(64))
+    }
+}

@@ -1,4 +1,5 @@
 import Darwin
+import DiskArbitration
 import Foundation
 import IOKit
 import SystemConfiguration
@@ -99,6 +100,24 @@ enum DiskReader {
         var total: UInt64
         var available: UInt64
         var used: UInt64 { total > available ? total - available : 0 }
+        /// 例如 /dev/disk3s3s1，用來對應 IOKit 的讀寫統計與 SMART
+        var deviceNode: String = ""
+        var fileSystem: String = ""
+        var connection: String = ""
+    }
+
+    /// 開機磁碟的裝置協定（"Apple Fabric"…）；只問一次 DiskArbitration。只在主執行緒讀寫
+    private static var startupConnection: (node: String, protocolName: String)?
+
+    private static func connection(forDevice node: String) -> String {
+        if let cached = startupConnection, cached.node == node { return cached.protocolName }
+        var name = ""
+        if let arbitration, let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, arbitration, node),
+           let info = DADiskCopyDescription(disk) as? [String: Any] {
+            name = (info[kDADiskDescriptionDeviceProtocolKey as String] as? String) ?? ""
+        }
+        startupConnection = (node, name)
+        return name
     }
 
     /// 系統可清出的空間（快取、可清除檔案）與磁碟名稱；查一次要十幾毫秒（有時更久），變化又慢，
@@ -130,7 +149,110 @@ enum DiskReader {
             }
         }
         let extra = purgeable?.bytes ?? 0
-        return Volume(name: purgeable?.name ?? "Macintosh HD", total: total, available: min(total, free + extra))
+        let deviceNode = withUnsafePointer(to: &fs.f_mntfromname) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+        }
+        let fileSystem = withUnsafePointer(to: &fs.f_fstypename) {
+            $0.withMemoryRebound(to: CChar.self, capacity: Int(MFSTYPENAMELEN)) { String(cString: $0) }
+        }
+        return Volume(name: purgeable?.name ?? "Macintosh HD", total: total, available: min(total, free + extra),
+                      deviceNode: deviceNode, fileSystem: fileSystem,
+                      connection: ExternalDisk.isValidDeviceNode(deviceNode) ? connection(forDevice: String(deviceNode.dropFirst("/dev/".count))) : "")
+    }
+
+    private static let arbitration = DASessionCreate(kCFAllocatorDefault)
+    /// 掛載項目 → 是否為外接磁碟；同一個掛載只問一次 DiskArbitration。只在主執行緒讀寫
+    private static var externalCache: [String: (isExternal: Bool, connection: String)] = [:]
+
+    private static func externalMount(mountPoint: String, deviceNode: String) -> (isExternal: Bool, connection: String) {
+        let key = mountPoint + "|" + deviceNode
+        if let cached = externalCache[key] { return cached }
+        var traits = ExternalMountTraits(mountPoint: mountPoint, deviceNode: deviceNode, isInternal: true, protocolName: nil)
+        if let arbitration, ExternalDisk.isValidDeviceNode(deviceNode),
+           let disk = DADiskCreateFromBSDName(kCFAllocatorDefault, arbitration, String(deviceNode.dropFirst("/dev/".count))),
+           let info = DADiskCopyDescription(disk) as? [String: Any] {
+            traits.isInternal = (info[kDADiskDescriptionDeviceInternalKey as String] as? Bool) ?? true
+            traits.protocolName = info[kDADiskDescriptionDeviceProtocolKey as String] as? String
+        }
+        let result = (ExternalDisk.isExternal(traits), traits.protocolName ?? "")
+        externalCache[key] = result
+        return result
+    }
+
+    /// 目前掛載的外接磁碟與容量。用 getfsstat(MNT_NOWAIT) 讀核心已有的資料，不會被離線的網路磁碟卡住
+    static func externalVolumes() -> [ExternalVolume] {
+        let count = getfsstat(nil, 0, MNT_NOWAIT)
+        guard count > 0 else { return [] }
+        var buffer = Array(repeating: Darwin.statfs(), count: Int(count))
+        let size = Int32(buffer.count * MemoryLayout<statfs>.stride)
+        let filled = getfsstat(&buffer, size, MNT_NOWAIT)
+        guard filled > 0 else { return [] }
+        var volumes: [ExternalVolume] = []
+        var liveKeys: Set<String> = []
+        for var fs in buffer.prefix(Int(filled)) {
+            let mountPoint = withUnsafePointer(to: &fs.f_mntonname) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+            }
+            let deviceNode = withUnsafePointer(to: &fs.f_mntfromname) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXPATHLEN)) { String(cString: $0) }
+            }
+            guard mountPoint.hasPrefix("/Volumes/") else { continue }
+            liveKeys.insert(mountPoint + "|" + deviceNode)
+            let mount = externalMount(mountPoint: mountPoint, deviceNode: deviceNode)
+            guard mount.isExternal else { continue }
+            let fileSystem = withUnsafePointer(to: &fs.f_fstypename) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MFSTYPENAMELEN)) { String(cString: $0) }
+            }
+            // 第三方檔案系統驅動可能回報任意值，乘法溢位時略過這顆磁碟，不能讓 App 崩潰
+            let blockSize = UInt64(fs.f_bsize)
+            let (total, totalOverflow) = UInt64(fs.f_blocks).multipliedReportingOverflow(by: blockSize)
+            let (free, freeOverflow) = UInt64(fs.f_bavail).multipliedReportingOverflow(by: blockSize)
+            guard !totalOverflow, !freeOverflow, total > 0 else { continue }
+            volumes.append(ExternalVolume(mountPoint: mountPoint,
+                                          name: ExternalDisk.displayName((mountPoint as NSString).lastPathComponent),
+                                          total: total, available: min(total, free), deviceNode: deviceNode,
+                                          fileSystem: fileSystem, connection: mount.connection))
+        }
+        // 已經卸載的掛載不再保留判斷結果，編號與標籤被別的裝置重用時才不會沿用舊結果
+        externalCache = externalCache.filter { liveKeys.contains($0.key) }
+        return volumes.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// 單一磁碟自接上以來的累計讀寫位元組：從該分割區的 IOMedia 沿著 IORegistry 往上找到 IOBlockStorageDriver
+    static func ioBytes(forDevice deviceNode: String) -> (read: UInt64, written: UInt64)? {
+        guard ExternalDisk.isValidDeviceNode(deviceNode) else { return nil }
+        let bsdName = String(deviceNode.dropFirst("/dev/".count))
+        let media = IOServiceGetMatchingService(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, bsdName))
+        guard media != IO_OBJECT_NULL else { return nil }
+        defer { IOObjectRelease(media) }
+        var iterator: io_iterator_t = 0
+        guard IORegistryEntryCreateIterator(media, kIOServicePlane,
+                                            IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents),
+                                            &iterator) == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(iterator) }
+        var entry = IOIteratorNext(iterator)
+        while entry != IO_OBJECT_NULL {
+            var result: (read: UInt64, written: UInt64)?
+            if IOObjectConformsTo(entry, "IOBlockStorageDriver") != 0,
+               let counters = IORegistryEntryCreateCFProperty(entry, "Statistics" as CFString, kCFAllocatorDefault, 0)?
+                .takeRetainedValue() as? [String: Any] {
+                result = ((counters["Bytes (Read)"] as? NSNumber)?.uint64Value ?? 0,
+                          (counters["Bytes (Write)"] as? NSNumber)?.uint64Value ?? 0)
+            }
+            IOObjectRelease(entry)
+            if let result { return result }
+            entry = IOIteratorNext(iterator)
+        }
+        return nil
+    }
+
+    /// SMART 整體狀態；會啟動 diskutil，只能在背景執行
+    static func smartStatus(forDevice deviceNode: String) -> DiskHealth {
+        guard ExternalDisk.isValidDeviceNode(deviceNode),
+              let output = Shell.runSync("/usr/sbin/diskutil", ["info", "-plist", deviceNode], timeout: 10),
+              let plist = try? PropertyListSerialization.propertyList(from: Data(output.utf8), format: nil) as? [String: Any]
+        else { return .unknown }
+        return DiskHealth.parse(plist["SMARTStatus"] as? String)
     }
 
     /// 所有內建與外接儲存裝置自開機以來的累計讀寫位元組

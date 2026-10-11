@@ -13,16 +13,30 @@ struct MonitorPanel: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            switch kind {
-            case .cpu: CPUPanel(cpu: cpu)
-            case .memory: MemoryPanel(memory: memory)
-            case .disk: DiskPanel(disk: disk)
-            case .network: NetworkPanel(network: network)
+            // 內容比螢幕高時（接了多顆外接磁碟）改成可捲動；太高的 popover 會被系統挪到圖示旁邊，不再置中在圖示下方
+            HeightCap(maxHeight: Self.maxContentHeight) {
+                ScrollView(.vertical) {
+                    VStack(spacing: 10) {
+                        switch kind {
+                        case .cpu: CPUPanel(cpu: cpu)
+                        case .memory: MemoryPanel(memory: memory)
+                        case .disk: DiskPanel(disk: disk)
+                        case .network: NetworkPanel(network: network)
+                        }
+                    }
+                }
+                .scrollIndicators(.never)
             }
             footer
         }
         .padding(14)
         .frame(width: 340)
+    }
+
+    /// 面板內容區的高度上限：可用螢幕高度扣掉箭頭、內距與頁尾
+    private static var maxContentHeight: CGFloat {
+        let screen = NSScreen.main ?? NSScreen.screens.first
+        return max(320, (screen?.visibleFrame.height ?? 800) - 120)
     }
 
     private var updated: Date? {
@@ -58,6 +72,22 @@ struct MonitorPanel: View {
     }
 }
 
+/// 子視圖的理想高度超過上限時，只佔上限高度（子視圖是 ScrollView，會自己捲動）
+private struct HeightCap: Layout {
+    var maxHeight: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let ideal = child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return CGSize(width: ideal.width, height: min(ideal.height, maxHeight))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading,
+                              proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
 // MARK: - 共用元件
 
 private struct PanelHeader: View {
@@ -66,7 +96,6 @@ private struct PanelHeader: View {
     let value: String
     let detail: String
     var tint: Color = .primary
-
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             Image(systemName: symbol)
@@ -77,6 +106,8 @@ private struct PanelHeader: View {
                 Text(title)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 Text(detail)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -408,30 +439,85 @@ private struct DiskPanel: View {
     var body: some View {
         VStack(spacing: 10) {
             let v = disk.volume
-            let fraction = v.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 } ?? 0
-            PanelHeader(symbol: "internaldrive", title: v?.name ?? "磁碟",
-                        value: v == nil ? "—" : ByteFormat.percent(fraction),
-                        detail: v.map { "可用 \(ByteFormat.size($0.available))・共 \(ByteFormat.size($0.total))" } ?? "讀取中…")
+            DiskSection(symbol: "internaldrive", name: v?.name ?? "磁碟", total: v?.total, available: v?.available,
+                        fileSystem: v?.fileSystem ?? "", connection: v?.connection ?? "", health: disk.volumeHealth,
+                        readRate: disk.readRate, writeRate: disk.writeRate, history: disk.history,
+                        totalRead: disk.totalRead, totalWritten: disk.totalWritten, totalsTitle: "開機以來")
+            ForEach(disk.externalVolumes) { volume in
+                let usage = disk.externalStats[volume.id] ?? ExternalDiskStats()
+                DiskSection(symbol: "externaldrive", name: volume.name, total: volume.total, available: volume.available,
+                            fileSystem: volume.fileSystem, connection: volume.connection, health: usage.health,
+                            readRate: usage.readRate, writeRate: usage.writeRate, history: usage.history,
+                            totalRead: usage.totalRead, totalWritten: usage.totalWritten, totalsTitle: "接上以來")
+            }
+        }
+    }
+}
+
+/// 一顆磁碟的完整資訊：標題、容量、檔案系統、健康度、讀寫速度與累計。本機與外接磁碟共用
+private struct DiskSection: View {
+    let symbol: String
+    let name: String
+    let total: UInt64?
+    let available: UInt64?
+    let fileSystem: String
+    let connection: String
+    let health: DiskHealth?
+    let readRate: Double
+    let writeRate: Double
+    let history: MonitorHistory
+    let totalRead: UInt64
+    let totalWritten: UInt64
+    let totalsTitle: String
+
+    var body: some View {
+        let used = total.flatMap { total in available.map { total > $0 ? total - $0 : 0 } }
+        let fraction = total.flatMap { total in total > 0 ? used.map { Double($0) / Double(total) } : nil } ?? 0
+        VStack(spacing: 10) {
+            PanelHeader(symbol: symbol, title: name,
+                        value: total == nil ? "—" : ByteFormat.percent(fraction),
+                        detail: total.flatMap { total in available.map { "可用 \(ByteFormat.size($0))・共 \(ByteFormat.size(total))" } } ?? "讀取中…")
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     ProgressView(value: fraction)
                         .tint(fraction > 0.9 ? .red : fraction > 0.8 ? .orange : .blue)
-                    InfoRow("已使用", v.map { ByteFormat.size($0.used) } ?? "—")
-                    InfoRow("可用", v.map { ByteFormat.size($0.available) } ?? "—")
+                    detailRows(used: used)
                 }
             }
+            activityCards
+        }
+    }
+
+    @ViewBuilder
+    private func detailRows(used: UInt64?) -> some View {
+        InfoRow("已使用", used.map(ByteFormat.size) ?? "—")
+        InfoRow("可用", available.map(ByteFormat.size) ?? "—")
+        InfoRow("總容量", total.map(ByteFormat.size) ?? "—")
+        if !fileSystem.isEmpty { InfoRow("檔案系統", fileSystem.uppercased()) }
+        if !connection.isEmpty { InfoRow("連線類型", connection) }
+        switch health {
+        case .verified: InfoRow("健康度（SMART）", "正常", tint: .green)
+        case .failing: InfoRow("健康度（SMART）", "異常，建議立即備份", tint: .red)
+        case .unsupported: InfoRow("健康度（SMART）", "此裝置不支援")
+        case .unknown: InfoRow("健康度（SMART）", "無法讀取")
+        case nil: InfoRow("健康度（SMART）", "讀取中…")
+        }
+    }
+
+    private var activityCards: some View {
+        VStack(spacing: 10) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    InfoRow("讀取", ByteFormat.rate(disk.readRate), tint: .green)
-                    InfoRow("寫入", ByteFormat.rate(disk.writeRate), tint: .orange)
-                    MonitorChart(points: disk.history.points, a: ("讀取", .green), b: ("寫入", .orange), showsLegend: false)
+                    InfoRow("讀取", ByteFormat.rate(readRate), tint: .green)
+                    InfoRow("寫入", ByteFormat.rate(writeRate), tint: .orange)
+                    MonitorChart(points: history.points, a: ("讀取", .green), b: ("寫入", .orange), showsLegend: false)
                 }
             }
             Card {
                 VStack(alignment: .leading, spacing: 6) {
-                    CardTitle("開機以來", systemImage: "clock.arrow.circlepath")
-                    InfoRow("累計讀取", ByteFormat.size(disk.totalRead))
-                    InfoRow("累計寫入", ByteFormat.size(disk.totalWritten))
+                    CardTitle(totalsTitle, systemImage: "clock.arrow.circlepath")
+                    InfoRow("累計讀取", ByteFormat.size(totalRead))
+                    InfoRow("累計寫入", ByteFormat.size(totalWritten))
                 }
             }
         }

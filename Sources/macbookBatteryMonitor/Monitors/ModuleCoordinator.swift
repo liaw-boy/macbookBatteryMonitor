@@ -301,15 +301,24 @@ enum MonitorMenuBarRenderer {
 
     /// SF Symbol ＋ 單一數值
     static func symbolValue(symbol: String, value: String, valueTemplate: String, color: NSColor? = nil) -> NSImage {
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .regular)
+        // 線條比文字細，視覺上會比數字淡；加粗一級讓圖示與文字同樣清楚
+        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
         let symbolImage = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(config)
         let symbolSize = symbolImage?.size ?? .zero
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
         let size = NSSize(width: ceil(symbolSize.width + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: false) { rect in
             let textColor = color ?? NSColor.labelColor
-            if let symbolImage = symbolImage?.withSymbolConfiguration(config.applying(.init(paletteColors: [textColor]))) {
-                symbolImage.draw(in: NSRect(x: 0, y: (rect.height - symbolSize.height) / 2, width: symbolSize.width, height: symbolSize.height))
+            if let symbolImage {
+                // 圖示當成遮罩，整個填上與文字完全相同的顏色（不受符號內建的圖層透明度影響）
+                let iconRect = NSRect(x: 0, y: (rect.height - symbolSize.height) / 2, width: symbolSize.width, height: symbolSize.height)
+                let tinted = NSImage(size: symbolSize, flipped: false) { bounds in
+                    symbolImage.draw(in: bounds)
+                    textColor.setFill()
+                    bounds.fill(using: .sourceIn)
+                    return true
+                }
+                tinted.draw(in: iconRect)
             }
             let text = NSAttributedString(string: value, attributes: [.font: valueFont, .foregroundColor: textColor])
             let textSize = text.size()
