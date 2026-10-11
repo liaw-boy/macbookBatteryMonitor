@@ -86,6 +86,7 @@ final class Updater {
             return
         }
         state = .downloading(release)
+        Self.removeStaleWorkFolders()
         do {
             let staged = try await Self.download(release)
             state = .installing
@@ -102,10 +103,27 @@ final class Updater {
 
     struct UpdateError: Error { let message: String }
 
-    /// 下載 zip、比對 SHA-256、解壓並驗證內容，回傳準備好的新版 App 位置
+    /// 之前中斷的更新（例如下載到一半 App 被結束）留下的暫存資料夾
+    nonisolated private static func removeStaleWorkFolders() {
+        let temp = FileManager.default.temporaryDirectory
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: temp.path)) ?? [] where name.hasPrefix("update-") {
+            try? FileManager.default.removeItem(at: temp.appendingPathComponent(name))
+        }
+    }
+
+    /// 下載 zip、比對 SHA-256、解壓並驗證內容，回傳準備好的新版 App 位置；失敗時清掉暫存資料夾
     nonisolated private static func download(_ release: ReleaseInfo) async throws -> URL {
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("update-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        do {
+            return try await downloadAndVerify(release, into: work)
+        } catch {
+            try? FileManager.default.removeItem(at: work)
+            throw error
+        }
+    }
+
+    nonisolated private static func downloadAndVerify(_ release: ReleaseInfo, into work: URL) async throws -> URL {
         var request = URLRequest(url: release.assetURL, timeoutInterval: 120)
         request.setValue("macbookBatteryMonitor", forHTTPHeaderField: "User-Agent")
         let (temp, response) = try await URLSession.shared.download(for: request)
