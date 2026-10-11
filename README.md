@@ -1,12 +1,13 @@
 # 電池監控 macbookBatteryMonitor
 
 macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能看到剩餘時間、健康度、電力流向（可展開到各硬體的耗電）、充電上限、歷史曲線、耗電排行，以及藍牙鍵盤、滑鼠、耳機等周邊設備的電量。
-每個版本都提供兩種讓你選：只有電池資訊的**電池版**，以及另外有 CPU／GPU、記憶體、磁碟、網路模組的**系統監控版**。
+每個版本都提供兩種讓你選：只有電池資訊的**電池版**，以及另外有 CPU／GPU（含風扇與溫度）、記憶體、磁碟（含外接磁碟）、網路模組的**系統監控版**。
 
 - **只讀取資訊**：不會更動任何充電設定；預設不需要管理員權限，只有選用的「管理員 CPU 取樣」開啟時才要授權
 - **每秒更新**：選單列與面板上的資訊預設每 1 秒刷新一次，可在設定改成每 2、5、10 秒；面板關閉時 CPU 約 0.2%（電池版）、約 1%（系統監控版，四個模組全開），不會阻止系統睡眠
 - **省電模式**：想更省電可在設定開啟，電力流向改用靜態圖示、更新頻率至少每 2 秒，不必為了省電改用有 bug 的舊版
 - **自己選顯示項目**：電力流向細項（螢幕背光、晶片、CPU／GPU／ANE）與詳細資訊欄位可以個別隱藏；機型讀不到的 ANE、螢幕背光會自動隱藏
+- **一鍵更新**：有新版本時在設定按一下就下載、驗證並換上新版（v1.5.0 起）
 - **不需要 Xcode**：只要 Command Line Tools 就能編譯
 
 ## 下載與版本選擇
@@ -17,10 +18,11 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 |---|---|---|
 | 檔名 | `macbookBatteryMonitor-<版本>-battery-macOS-arm64.zip` | `macbookBatteryMonitor-<版本>-status-macOS-arm64.zip` |
 | 電池資訊、電力流向、充電上限、通知 | ✓ | ✓ |
-| CPU／GPU、記憶體、磁碟、網路模組 | — | ✓（選單列各一個圖示，可個別開關） |
+| CPU／GPU、記憶體、磁碟、網路模組 | — | ✓（選單列各一個圖示，可個別開關；含風扇與溫度、外接磁碟） |
 | 周邊設備電量與各自的低電量通知 | ✓ | ✓ |
 | 更新頻率（1／2／5／10 秒）、省電模式（靜態電力流向） | ✓ | ✓ |
 | 管理員 CPU 取樣（選用，預設關閉） | ✓ | ✓ |
+| 一鍵更新、App 圖示換色 | ✓ | ✓ |
 | 面板關閉時 CPU | 約 0.2% | 約 1%（四個模組全開） |
 | 面板關閉時 CPU，省電模式 | 約 0.15% | 約 0.5%（四個模組全開） |
 | 適合 | 只想看電池 | 想一次看完整台 Mac 的狀態 |
@@ -33,7 +35,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 ### 系統監控版
 
-![系統監控版：選單列的 CPU／GPU、記憶體、磁碟、網路圖示與各模組面板](docs/screenshots/edition-status.png)
+![系統監控版：選單列的 CPU／GPU、記憶體、磁碟、網路圖示與各模組面板，含風扇與溫度、外接磁碟](docs/screenshots/edition-status.png)
 
 ### 周邊設備
 
@@ -76,6 +78,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 | 版本 | 介面 | 下載 |
 |---|---|---|
+| v1.5.0 | 一鍵更新（沒有已知 bug，可直接一鍵更新到最新版） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
 | v1.4.1 | 新 App 圖示，可換背景色 | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.1) |
 | v1.4.0 | 周邊設備、可調更新頻率與顯示項目（沒有已知 bug，但沒有一鍵更新） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.0) |
 | v1.3.0 | 電池版／系統監控版、省電模式 | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.3.0) |
@@ -97,6 +100,8 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
      xattr -dr com.apple.quarantine /Applications/macbookBatteryMonitor.app
      ```
 4. 第一次啟動會詢問通知權限，並自動加入開機自啟動（可在設定關閉）
+
+已經在用 v1.5.0 以後的版本：到設定 → 更新按「一鍵更新」即可升級，不必重新下載。
 
 要換版本（例如電池版換成系統監控版）時，結束 App 後用另一個 `.app` 覆蓋即可，設定與歷史資料會保留。設定頁最下方會顯示目前的版本號與是哪一版。
 
@@ -162,7 +167,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 1. 下載與目前相同版本別（電池版或系統監控版）的 zip，只從 `github.com` 與 `githubusercontent.com` 下載
 2. 驗證：比對 Release 附的 `SHA256SUMS.txt`（加入一鍵更新之後的每個 Release 都有），並確認 App 的識別碼、版本別、版本號與簽章
-3. App 結束後換上新版並重新開啟；換不過去會放回原本的版本。設定、電量歷史與自訂的 App 圖示顏色都會保留
+3. App 結束後換上新版並重新開啟；換不過去會放回原本的版本。設定、電量歷史與自訂的 App 圖示顏色都會保留；下載或驗證失敗、或更新中途被中斷時，暫存檔會清掉
 
 「自動檢查更新」預設開啟：啟動後與之後每 6 小時看一次，距離上次檢查超過一天才會連到 `api.github.com` 查最新版本，只提示、不會自動安裝。App 不在可寫入的位置（例如由系統管理員安裝）時無法一鍵更新，會提示到 GitHub 手動下載。
 
@@ -199,7 +204,7 @@ v1.4.1 以前的版本沒有這個功能，要先手動下載一次新版。
 - **電池功率**用「變壓器輸入 − 系統耗電」推算，所以三個數字一定對得起來。實測兩個感測器都每秒更新一次，但 `PSTR` 比 `PDTR` 慢一次更新（`PSTR` 幾乎等於 1 秒前的 `PDTR`，平均差 0.01 W），同時讀的兩個值直接相減會有約 ±4 W 的雜訊、系統耗電也會看起來慢變壓器一秒；所以系統耗電配對 1 秒前讀到的變壓器輸入。更新頻率慢於每秒時，在每次更新前 1 秒先讀一次變壓器輸入（只多一次 SMC 讀取），電池閒置時誤差由約 4 W 降到 0.00 W。SMC 的 `PPBR` 在部分機型上與實際充放電功率不符（例如 M1 MacBook Air 充電約 13 W 時只讀到 1～2 W），所以完全不使用；缺少 `PDTR` 或 `PSTR` 時，改用 IORegistry 電壓 × 電流備援，不會把缺少的輸入當成 0 W
 - 剛拔電時 `PDTR` 可能殘留舊值，只在系統確認接電時才計入輸入
 - macOS 放電到充電上限時會暫停變壓器供電，此時仍視為接電，顯示「已達充電上限」
-- SMC 數值即時更新，不會像電池晶片（IORegistry）那樣插拔後延遲約一分鐘；電流由電池功率與電壓換算，數值不加約等於符號。第一頁每秒重新讀取輸入與系統功率，並同步重新計算電池分流。插拔通知後會在 1、3、6 秒各重讀一次
+- SMC 數值即時更新，不會像電池晶片（IORegistry）那樣插拔後延遲約一分鐘；電流由電池功率與電壓換算，數值不加約等於符號。第一頁依更新頻率重新讀取輸入與系統功率，並同步重新計算電池分流。插拔通知後會在 1、3、6 秒各重讀一次
 
 **硬體細項**
 
@@ -260,7 +265,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異。機�
 | 系統預估時間 | IOKit Power Sources |
 | 是否在充電 | SMC 即時電池功率為主，數值模糊時看 IOKit Power Sources／IORegistry 的充電旗標 |
 | 健康度（最大容量）、電池狀況 | `system_profiler SPPowerDataType` |
-| 溫度 | SMC（唯讀，`TB0T`～`TB2T`） |
+| 電池溫度（詳細資訊） | SMC（唯讀，`TB0T`～`TB2T`） |
 | 耗電排行 | `top -o power` |
 | 歷史回填、拔電時間 | `pmset -g log` |
 | 充電上限 | `/Library/Preferences/com.apple.powerd.charging.plist`（唯讀；macOS 拔電後會清空，App 會記住上次接電時讀到的值） |
@@ -273,7 +278,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異。機�
 | 外接磁碟清單、連線類型 | `getfsstat`、DiskArbitration（`DeviceInternal`、`DeviceProtocol`） |
 | 磁碟健康狀態 | `diskutil info -plist` 的 `SMARTStatus`（多數 USB 外接盒不回報，顯示「此裝置不支援」） |
 | 風扇轉速 | SMC（唯讀，`F<n>Ac`、`F<n>Mn`、`F<n>Mx`） |
-| 溫度 | IOHIDEventSystem 溫度感測器（以 `dlsym` 取得的私有介面，不存在時不顯示）；HID 沒有各核心感測器的 M2 系列改讀 SMC 核心溫度鍵，核心叢集休眠時的假值會沿用最近一次有效值最多 120 秒。實測 M1 MacBook Air 可由 HID 讀到 CPU、GPU、SoC、電池與儲存溫度 |
+| CPU 面板的溫度（CPU／GPU／SoC／電池／儲存） | IOHIDEventSystem 溫度感測器（以 `dlsym` 取得的私有介面，不存在時不顯示）；HID 沒有各核心感測器的 M2 系列改讀 SMC 核心溫度鍵，核心叢集休眠時的假值會沿用最近一次有效值最多 120 秒。實測 M1 MacBook Air 可由 HID 讀到 CPU、GPU、SoC、電池與儲存溫度 |
 | 網路速度與累計流量 | `sysctl` 的 64 位元介面計數器（`NET_RT_IFLIST2`），只查目前使用中的介面 |
 | 網路介面與 IP | `SCDynamicStore`（預設路由介面）、`getifaddrs` |
 | CPU／記憶體 App 排行 | `top -o cpu`、`top -o mem` |
@@ -320,7 +325,7 @@ git checkout v1.5.3          # 或其他版本的 tag，不指定就是最新的
 ## 開發
 
 ```bash
-Scripts/test-power.sh    # 換算、供電狀態切換、接電穩定顯示、生命週期、動畫、系統監控、CPU 服務協定與周邊設備測試（Command Line Tools 可執行）
+Scripts/test-power.sh    # 換算、供電狀態切換、接電穩定顯示、生命週期、動畫、系統監控、外接磁碟、溫度、CPU 服務協定、周邊設備與一鍵更新測試（Command Line Tools 可執行）
 ```
 
 除錯用參數：
@@ -353,3 +358,8 @@ for bg in peach night sky; do build/make-icon --bg $bg --size 512 --preview Reso
 ```
 
 只裝 Command Line Tools 時沒有 SwiftUI 的 macro 外掛，所以程式裡不用 `@State`，介面狀態集中在 `PanelState`。
+
+## 致謝
+
+- [@melvin0kuo](https://github.com/melvin0kuo)：動畫電力流向、分層硬體功耗、功率感測備援、選單列圖示內百分比、滿電穩定顯示與管理員 CPU 取樣（#1、#2、#4～#7）
+- [@liaw-boy](https://github.com/liaw-boy)：外接磁碟、風扇與溫度、1x 螢幕的選單列圖示對齊（#8、#9）
