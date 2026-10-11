@@ -86,6 +86,8 @@ final class SMC {
             return Double(bytes.withUnsafeBytes { $0.loadUnaligned(as: Float.self) })
         case "sp78" where size == 2:
             return Double(Int16(bitPattern: UInt16(bytes[0]) << 8 | UInt16(bytes[1]))) / 256
+        case "ui8 " where size == 1:
+            return Double(bytes[0])
         case "fpe2" where size == 2:
             return Double(UInt16(bytes[0]) << 8 | UInt16(bytes[1])) / 4
         default:

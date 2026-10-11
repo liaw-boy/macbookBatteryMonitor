@@ -6,6 +6,7 @@ import SwiftUI
 enum MonitorDebug {
     static func dump() {
         let cpu = CPUMonitor(), memory = MemoryMonitor(), disk = DiskMonitor(), network = NetworkMonitor()
+        cpu.setThermalActive(true)
         for _ in 0..<2 {
             let now = Date()
             cpu.sample(at: now)
@@ -15,6 +16,12 @@ enum MonitorDebug {
             RunLoop.main.run(until: Date().addingTimeInterval(1))
         }
         let m = memory.usage
+        func stat(_ s: TemperatureSummary.Stat?) -> Any { s.map { ["average": $0.average, "maximum": $0.maximum] } ?? NSNull() }
+        let thermalInfo: [String: Any] = [
+            "fans": cpu.fans.map { ["name": $0.name, "rpm": $0.rpm, "min": $0.minRPM, "max": $0.maxRPM, "fraction": $0.fraction] },
+            "cpu": stat(cpu.temperatures.cpu), "gpu": stat(cpu.temperatures.gpu), "soc": stat(cpu.temperatures.soc),
+            "battery": stat(cpu.temperatures.battery), "storage": stat(cpu.temperatures.storage),
+        ]
         // 分成幾個有型別標註的字典，避免單一大型字面值讓編譯器型別推斷逾時
         let cpuInfo: [String: Any] = [
             "total": cpu.usage?.total ?? -1, "user": cpu.usage?.user ?? -1, "system": cpu.usage?.system ?? -1,
@@ -44,7 +51,7 @@ enum MonitorDebug {
             "downloadRate": network.downloadRate, "uploadRate": network.uploadRate,
             "totalReceived": network.totalReceived, "totalSent": network.totalSent,
         ]
-        let output: [String: Any] = ["cpu": cpuInfo, "memory": memoryInfo, "disk": diskInfo, "network": networkInfo]
+        let output: [String: Any] = ["thermal": thermalInfo, "cpu": cpuInfo, "memory": memoryInfo, "disk": diskInfo, "network": networkInfo]
         if let data = try? JSONSerialization.data(withJSONObject: output, options: [.prettyPrinted, .sortedKeys]),
            let text = String(data: data, encoding: .utf8) {
             print(text)

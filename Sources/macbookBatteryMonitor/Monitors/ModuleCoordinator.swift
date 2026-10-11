@@ -187,6 +187,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
 
     private func showPopover(_ kind: MonitorKind, from button: NSStatusBarButton) {
         openKind = kind
+        cpu.setThermalActive(kind == .cpu)
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
                                 onSettings: { [weak self] in
@@ -240,6 +241,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             topStream?.stop()
             topStream = nil
             openKind = nil
+            cpu.setThermalActive(false)
         }
         DispatchQueue.main.async { [weak self] in
             closed.contentViewController = nil

@@ -315,9 +315,53 @@ private struct CPUPanel: View {
                     InfoRow("平均負載（1／5／15 分）", cpu.load.isEmpty ? "—" : cpu.load.map { String(format: "%.2f", $0) }.joined(separator: "／"))
                 }
             }
+            if !cpu.fans.isEmpty || !cpu.temperatures.isEmpty {
+                ThermalCard(fans: cpu.fans, temperatures: cpu.temperatures)
+            }
             TopList(title: "CPU 使用率最高的 App", processes: cpu.topProcesses, loaded: cpu.topLoaded) {
                 String(format: "%.1f%%", $0)
             }
+        }
+    }
+}
+
+/// 風扇轉速與溫度；機型沒有風扇或沒有感測器的部分整塊不顯示
+private struct ThermalCard: View {
+    let fans: [FanReading]
+    let temperatures: TemperatureSummary
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                CardTitle(fans.isEmpty ? "溫度" : "風扇與溫度", systemImage: "thermometer.medium")
+                if !temperatures.isEmpty {
+                    temperatureRow("CPU", temperatures.cpu)
+                    temperatureRow("GPU", temperatures.gpu)
+                    temperatureRow("SoC 晶片", temperatures.soc)
+                    temperatureRow("電池", temperatures.battery)
+                    temperatureRow("儲存裝置", temperatures.storage)
+                }
+                ForEach(fans) { fan in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(fan.name).foregroundStyle(.secondary)
+                            Spacer()
+                            Text("\(Int(fan.rpm.rounded())) RPM・\(ByteFormat.percent(fan.fraction))").monospacedDigit()
+                        }
+                        ProgressView(value: fan.fraction).tint(.cyan)
+                    }
+                }
+            }
+            .font(.callout)
+        }
+    }
+
+    @ViewBuilder
+    private func temperatureRow(_ title: String, _ stat: TemperatureSummary.Stat?) -> some View {
+        if let stat {
+            InfoRow(title, abs(stat.average - stat.maximum) < 0.05
+                    ? String(format: "%.1f°C", stat.average)
+                    : String(format: "%.1f°C（最高 %.1f°C）", stat.average, stat.maximum))
         }
     }
 }

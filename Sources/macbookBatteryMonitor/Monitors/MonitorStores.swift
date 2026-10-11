@@ -16,9 +16,22 @@ final class CPUMonitor {
     private(set) var topProcesses: [TopProcess] = []
     private(set) var topLoaded = false
     private(set) var updated: Date?
+    /// 這台 Mac 的風扇與溫度；沒有風扇時 fans 為空，介面就不顯示風扇區塊
+    private(set) var fans: [FanReading] = []
+    private(set) var temperatures = TemperatureSummary()
     let layout = CPUReader.coreLayout
 
     @ObservationIgnored private var lastTicks: [CPUTicks]?
+    @ObservationIgnored private let thermal = ThermalReader()
+    @ObservationIgnored private var lastThermal: Date?
+    @ObservationIgnored private var thermalBusy = false
+    /// 只有 CPU 面板開著時才讀風扇與溫度（讀一次要幾十毫秒），選單列圖示用不到
+    @ObservationIgnored private var thermalActive = false
+
+    func setThermalActive(_ active: Bool) {
+        thermalActive = active
+        if active { lastThermal = nil }
+    }
 
     func sample(at now: Date = Date()) {
         if let ticks = CPUReader.ticks() {
@@ -33,6 +46,21 @@ final class CPUMonitor {
         gpuMemory = gpuReading.memory
         load = CPUReader.loadAverage()
         if let usage { history.append(usage.total, gpu ?? 0, at: now) }
+        // 風扇與溫度變化慢，每 2 秒讀一次就夠；在背景讀，上一次還沒回來就跳過
+        if thermalActive, !thermalBusy, lastThermal.map({ now.timeIntervalSince($0) >= 2 }) ?? true {
+            lastThermal = now
+            thermalBusy = true
+            let reader = thermal
+            DispatchQueue.global(qos: .utility).async {
+                let fans = reader.fans()
+                let temperatures = reader.temperatures(now: now)
+                Task { @MainActor [weak self] in
+                    self?.fans = fans
+                    self?.temperatures = temperatures
+                    self?.thermalBusy = false
+                }
+            }
+        }
         updated = now
     }
 
@@ -257,6 +285,11 @@ extension CPUMonitor {
         history = previewHistory(now: now) { (0.25 + 0.08 * sin($0 / 7) + 0.04 * sin($0 / 2.3), 0.10 + 0.05 * sin($0 / 11)) }
         topProcesses = previewApps([34.5, 12.2, 8.1, 3.4, 1.6])
         topLoaded = true
+        fans = [FanReading(id: 0, name: "左側風扇", rpm: 2323, minRPM: 2317, maxRPM: 6800),
+                FanReading(id: 1, name: "右側風扇", rpm: 2509, minRPM: 2317, maxRPM: 6800)]
+        temperatures = TemperatureSummary(cpu: .init(average: 52.0, maximum: 54.7), gpu: .init(average: 50.7, maximum: 51.3),
+                                          soc: .init(average: 47.5, maximum: 49.2), battery: .init(average: 34.5, maximum: 34.5),
+                                          storage: .init(average: 38.9, maximum: 38.9))
         updated = now
     }
 }
