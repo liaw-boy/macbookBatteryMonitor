@@ -63,8 +63,22 @@ enum AppIconChanger {
         guard NSWorkspace.shared.setIcon(image, forFile: path, options: []) else {
             return "無法更換圖示：App 所在位置沒有寫入權限"
         }
-        NSWorkspace.shared.noteFileSystemChanged(path)
+        refreshCaches(path)
         return nil
+    }
+
+    /// Finder 已開著的視窗與 LaunchServices 會快取圖示：更新 App 的修改時間、通知 Finder 重新讀取這個 App 與所在資料夾，
+    /// 並請 LaunchServices 重新登記這個 App
+    private static func refreshCaches(_ path: String) {
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: path)
+        NSWorkspace.shared.noteFileSystemChanged(path)
+        NSWorkspace.shared.noteFileSystemChanged((path as NSString).deletingLastPathComponent)
+        let register = Process()
+        register.executableURL = URL(fileURLWithPath: "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister")
+        register.arguments = ["-f", path]
+        register.standardOutput = FileHandle.nullDevice
+        register.standardError = FileHandle.nullDevice
+        try? register.run()
     }
 
     /// 啟動時讓圖示與設定一致：選了其他顏色、但 App 剛被新版覆蓋（自訂圖示不見了）就重新套用；
