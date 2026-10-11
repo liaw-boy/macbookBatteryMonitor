@@ -276,6 +276,20 @@ enum MonitorMenuBarRenderer {
 
     private static var height: CGFloat { max(18, NSStatusBar.system.thickness - 2) }
 
+    /// 目前繪製目標每個點對應的像素數：內建螢幕是 2，一般外接螢幕是 1
+    private static var pixelsPerPoint: CGFloat {
+        max(1, NSGraphicsContext.current?.cgContext.ctm.a ?? 1)
+    }
+
+    /// 把座標對齊到整數像素。座標落在半個像素上時，線條與邊緣會被抗鋸齒糊成兩個像素寬，在 1x 螢幕上最明顯
+    private static func snap(_ value: CGFloat, scale: CGFloat) -> CGFloat { (value * scale).rounded() / scale }
+
+    private static func snap(_ rect: NSRect, scale: CGFloat) -> NSRect {
+        let minX = snap(rect.minX, scale: scale), minY = snap(rect.minY, scale: scale)
+        let maxX = snap(rect.maxX, scale: scale), maxY = snap(rect.maxY, scale: scale)
+        return NSRect(x: minX, y: minY, width: max(1 / scale, maxX - minX), height: max(1 / scale, maxY - minY))
+    }
+
     /// 兩行，每行「彩色底塊的標籤＋靠右的數值」；寬度依 valueTemplate 固定，數字變動時圖示不會左右晃。
     /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚
     static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String) -> NSImage {
@@ -284,18 +298,21 @@ enum MonitorMenuBarRenderer {
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: lineFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: true) { rect in
+            let scale = pixelsPerPoint
             let lineHeight = rect.height / 2
             for (index, line) in lines.prefix(2).enumerated() {
                 let y = CGFloat(index) * lineHeight
-                let badge = NSRect(x: 0, y: y + 0.75, width: badgeWidth, height: lineHeight - 1.5)
+                let badge = snap(NSRect(x: 0, y: y + 0.75, width: badgeWidth, height: lineHeight - 1.5), scale: scale)
                 line.color.setFill()
                 NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
                 let label = NSAttributedString(string: line.label, attributes: [.font: labelFont, .foregroundColor: NSColor.white])
                 let labelSize = label.size()
-                label.draw(at: NSPoint(x: badge.midX - labelSize.width / 2, y: badge.midY - labelSize.height / 2))
+                label.draw(at: NSPoint(x: snap(badge.midX - labelSize.width / 2, scale: scale),
+                                       y: snap(badge.midY - labelSize.height / 2, scale: scale)))
                 let value = NSAttributedString(string: line.value, attributes: [.font: lineFont, .foregroundColor: NSColor.labelColor])
                 let valueSize = value.size()
-                value.draw(at: NSPoint(x: rect.width - valueSize.width, y: y + (lineHeight - valueSize.height) / 2))
+                value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
+                                       y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))
             }
             return true
         }
@@ -303,18 +320,24 @@ enum MonitorMenuBarRenderer {
 
     /// SF Symbol ＋ 單一數值
     static func symbolValue(symbol: String, value: String, valueTemplate: String, color: NSColor? = nil) -> NSImage {
-        // 線條比文字細，視覺上會比數字淡；加粗一級讓圖示與文字同樣清楚
-        let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
-        let symbolImage = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(config)
-        let symbolSize = symbolImage?.size ?? .zero
+        // 寬度固定用粗一級的字重算，數字變動或換螢幕時圖示不會左右晃
+        let layoutConfig = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+        let layoutSize = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+            .withSymbolConfiguration(layoutConfig)?.size ?? .zero
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
-        let size = NSSize(width: ceil(symbolSize.width + 3 + valueWidth), height: height)
+        let size = NSSize(width: ceil(layoutSize.width + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: false) { rect in
+            let scale = pixelsPerPoint
             let textColor = color ?? NSColor.labelColor
-            if let symbolImage {
+            // 2x 螢幕用粗一級才與文字一樣清楚；1x 螢幕上粗線條會糊成兩個像素，改用一般字重
+            let weight: NSFont.Weight = scale >= 2 ? .semibold : .regular
+            let config = NSImage.SymbolConfiguration(pointSize: 12, weight: weight)
+            if let symbolImage = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?.withSymbolConfiguration(config) {
+                let natural = symbolImage.size
                 // 圖示當成遮罩，整個填上與文字完全相同的顏色（不受符號內建的圖層透明度影響）
-                let iconRect = NSRect(x: 0, y: (rect.height - symbolSize.height) / 2, width: symbolSize.width, height: symbolSize.height)
-                let tinted = NSImage(size: symbolSize, flipped: false) { bounds in
+                let iconRect = snap(NSRect(x: 0, y: (rect.height - natural.height) / 2, width: natural.width, height: natural.height),
+                                    scale: scale)
+                let tinted = NSImage(size: natural, flipped: false) { bounds in
                     symbolImage.draw(in: bounds)
                     textColor.setFill()
                     bounds.fill(using: .sourceIn)
@@ -324,7 +347,8 @@ enum MonitorMenuBarRenderer {
             }
             let text = NSAttributedString(string: value, attributes: [.font: valueFont, .foregroundColor: textColor])
             let textSize = text.size()
-            text.draw(at: NSPoint(x: rect.width - textSize.width, y: (rect.height - textSize.height) / 2))
+            text.draw(at: NSPoint(x: snap(rect.width - textSize.width, scale: scale),
+                                  y: snap((rect.height - textSize.height) / 2, scale: scale)))
             return true
         }
     }
