@@ -60,7 +60,27 @@ enum SnapshotCommand {
         }
         store.setHardwareSampling(active: false)
         renderMonitors(directory: dir)
+        renderUpdateCard(directory: dir)
         print("已輸出到 \(dir.path)")
+    }
+
+    /// 設定頁的「更新」卡片在各狀態下的樣子
+    private static func renderUpdateCard(directory dir: URL) {
+        let updater = Updater()
+        let release = ReleaseInfo(tag: "v9.9.9", version: [9, 9, 9],
+                                  pageURL: URL(string: "https://github.com/sgeric910601/macbookBatteryMonitor/releases")!,
+                                  assetName: "x.zip", assetURL: URL(string: "https://github.com/x.zip")!, assetSize: 0, checksumURL: nil)
+        let states: [(String, Updater.State)] = [("idle", .idle), ("uptodate", .upToDate), ("available", .available(release)),
+                                                 ("downloading", .downloading(release)), ("failed", .failed("無法連線到 GitHub，請稍後再試"))]
+        for (name, state) in states {
+            updater.loadPreview(state)
+            let view = UpdateCard(updater: updater, settings: .shared)
+                .padding(14)
+                .frame(width: 380)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, .dark)
+            render(view, appearance: .darkAqua, settle: 0.2, to: dir.appendingPathComponent("update-\(name)-dark.png"))
+        }
     }
 
     /// 系統監控模組：四個面板與選單列小圖

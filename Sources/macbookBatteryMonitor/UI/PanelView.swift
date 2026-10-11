@@ -12,7 +12,7 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU) }
+                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater) }
                 case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui) }
                 }
             }
@@ -65,6 +65,16 @@ struct PanelView: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
+            if let release = store.updater.available {
+                Button {
+                    ui.page = .settings
+                } label: {
+                    Label("有新版本 v\(release.versionText)", systemImage: "arrow.down.circle.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.borderless)
+                .help("到設定一鍵更新")
+            }
             Button {
                 ui.page = .settings
             } label: {

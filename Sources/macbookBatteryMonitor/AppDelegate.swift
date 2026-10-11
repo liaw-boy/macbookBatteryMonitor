@@ -66,6 +66,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         timers.append(repeating(every: 6 * 3600) { $0.store.refreshHealth() })
         // 周邊設備電量變化很慢，每 60 秒查一次；面板停在周邊設備分頁時連所有藍牙設備一起查
         store.peripherals.refresh()
+        // 自動檢查更新：啟動 15 秒後與之後每 6 小時看一次，距離上次檢查超過一天才真的連線
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
+            guard let self, self.settings.autoCheckUpdates else { return }
+            self.store.updater.checkIfDue()
+        }
+        timers.append(repeating(every: 6 * 3600) { delegate in
+            guard delegate.settings.autoCheckUpdates, !delegate.sleeping else { return }
+            delegate.store.updater.checkIfDue()
+        })
         timers.append(repeating(every: PeripheralStore.interval) { delegate in
             guard !delegate.sleeping else { return }
             delegate.store.peripherals.refresh(includeAllBluetooth: delegate.ui.isVisible && delegate.ui.page == .main && delegate.ui.tab == .peripherals)
@@ -80,6 +89,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         )
         registerLoginItemIfNeeded()
         runPanelSelfTestIfRequested()
+        runUpdateSelfTestIfRequested()
+    }
+
+    /// 開發用：`--selftest-update` 檢查 GitHub 上的新版本，有就直接一鍵更新（App 會結束並由安裝程序重新開啟）
+    private func runUpdateSelfTestIfRequested() {
+        guard CommandLine.arguments.contains("--selftest-update") else { return }
+        Task { [weak self] in
+            guard let updater = self?.store.updater else { return }
+            print("selftest: 目前版本 \(updater.currentVersion)，可以安裝：\(updater.canInstall)")
+            await updater.check(userInitiated: true)
+            print("selftest: 檢查結果 \(updater.state)")
+            guard updater.available != nil else { return }
+            await updater.install()
+            print("selftest: 安裝結果 \(updater.state)")
+        }
     }
 
     /// 開發用：`--selftest-panel` 會打開面板（耗電排行分頁）20 秒後自動關閉，用來確認關閉後取樣會停

@@ -118,6 +118,11 @@ final class AppSettings {
     }
     private(set) var appIconError: String?
 
+    /// 每天自動檢查一次 GitHub 上有沒有新版本（只檢查，不會自動安裝）
+    var autoCheckUpdates: Bool {
+        didSet { defaults.set(autoCheckUpdates, forKey: Keys.autoCheckUpdates) }
+    }
+
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
     }
@@ -150,6 +155,7 @@ final class AppSettings {
         static let hiddenDetailFields = "hiddenDetailFields"
         static let peripheralThresholds = "peripheralThresholds"
         static let appIconColor = "appIconColor"
+        static let autoCheckUpdates = "autoCheckUpdates"
         static let adminCPUSampling = "adminCPUSampling"
     }
 
@@ -167,6 +173,7 @@ final class AppSettings {
             Keys.powerSaving: false,
             Keys.updateInterval: 1,
             Keys.adminCPUSampling: false,
+            Keys.autoCheckUpdates: true,
         ])
         adminCPUSampling = defaults.bool(forKey: Keys.adminCPUSampling)
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
@@ -185,5 +192,6 @@ final class AppSettings {
         hiddenDetailFields = Set(defaults.stringArray(forKey: Keys.hiddenDetailFields) ?? [])
         peripheralThresholds = defaults.dictionary(forKey: Keys.peripheralThresholds) as? [String: Int] ?? [:]
         appIconColor = AppIconColor(rawValue: defaults.string(forKey: Keys.appIconColor) ?? "") ?? .mint
+        autoCheckUpdates = defaults.bool(forKey: Keys.autoCheckUpdates)
     }
 }

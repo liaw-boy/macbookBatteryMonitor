@@ -4,6 +4,7 @@ struct SettingsView: View {
     let settings: AppSettings
     let ui: PanelState
     let adminCPU: AdminCPUSampler
+    let updater: Updater
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -176,6 +177,8 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            UpdateCard(updater: updater, settings: settings)
 
             HStack {
                 Text("電池監控 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")（\(AppEdition.current.title)）")

@@ -15,6 +15,8 @@ final class BatteryStore {
     let adminCPU = AdminCPUSampler()
     /// 周邊設備電量（鍵盤、滑鼠、耳機等）
     let peripherals = PeripheralStore()
+    /// 一鍵更新
+    let updater = Updater()
     private(set) var componentPower: ComponentPowerSample?
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()
