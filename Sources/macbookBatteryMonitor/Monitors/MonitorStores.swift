@@ -132,12 +132,17 @@ final class DiskMonitor {
     @ObservationIgnored private var volumeHealthChecked: Date?
     /// 正在查 SMART 的裝置節點，避免同一顆卡住時重複派工
     @ObservationIgnored private var healthInFlight: Set<String> = []
+    /// 只有磁碟面板開著時才查 SMART：要啟動 diskutil，還可能喚醒休眠中的外接硬碟
+    @ObservationIgnored private var healthActive = false
+
+    func setHealthActive(_ active: Bool) { healthActive = active }
 
     func sample(at now: Date = Date()) {
         if let reading = DiskReader.startupVolume() { volume = reading }
         externalVolumes = DiskReader.externalVolumes()
+        DiskReader.pruneDriverCache(keeping: Set(externalVolumes.map(\.deviceNode) + [volume?.deviceNode ?? ""]))
         sampleExternal(at: now)
-        checkVolumeHealth(at: now)
+        if healthActive { checkVolumeHealth(at: now) }
         // 優先讀開機磁碟自己的統計，讀不到才退回所有儲存裝置合計
         if let io = volume.flatMap({ DiskReader.ioBytes(forDevice: $0.deviceNode) }) ?? DiskReader.ioBytes() {
             if let last {
@@ -186,7 +191,7 @@ final class DiskMonitor {
                 usage.totalWritten = io.written
             }
             externalStats[volume.id] = usage
-            if !healthInFlight.contains(volume.deviceNode),
+            if healthActive, !healthInFlight.contains(volume.deviceNode),
                healthChecked[volume.id].map({ now.timeIntervalSince($0) > 600 }) ?? true {
                 healthChecked[volume.id] = now
                 let id = volume.id, node = volume.deviceNode

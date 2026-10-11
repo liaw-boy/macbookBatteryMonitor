@@ -219,7 +219,37 @@ enum DiskReader {
     }
 
     /// 單一磁碟自接上以來的累計讀寫位元組：從該分割區的 IOMedia 沿著 IORegistry 往上找到 IOBlockStorageDriver
+    /// 裝置節點 → 找到的 IOBlockStorageDriver（已 retain）。每秒都要讀，記住位置就不必每次搜尋 IORegistry。只在主執行緒讀寫
+    private static var driverCache: [String: io_service_t] = [:]
+
     static func ioBytes(forDevice deviceNode: String) -> (read: UInt64, written: UInt64)? {
+        if let driver = driverCache[deviceNode] {
+            if let bytes = statistics(of: driver) { return bytes }
+            // 裝置已移除或重新列舉：放掉舊的，重新找
+            IOObjectRelease(driver)
+            driverCache[deviceNode] = nil
+        }
+        guard let driver = findDriver(forDevice: deviceNode) else { return nil }
+        driverCache[deviceNode] = driver
+        return statistics(of: driver)
+    }
+
+    /// 只保留仍掛載中的裝置，其餘釋放
+    static func pruneDriverCache(keeping nodes: Set<String>) {
+        for (node, driver) in driverCache where !nodes.contains(node) {
+            IOObjectRelease(driver)
+            driverCache[node] = nil
+        }
+    }
+
+    private static func statistics(of driver: io_service_t) -> (read: UInt64, written: UInt64)? {
+        guard let counters = IORegistryEntryCreateCFProperty(driver, "Statistics" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? [String: Any] else { return nil }
+        return ((counters["Bytes (Read)"] as? NSNumber)?.uint64Value ?? 0, (counters["Bytes (Write)"] as? NSNumber)?.uint64Value ?? 0)
+    }
+
+    /// 從分割區的 IOMedia 沿著 IORegistry 往上找到 IOBlockStorageDriver；回傳的物件由呼叫端負責釋放
+    private static func findDriver(forDevice deviceNode: String) -> io_service_t? {
         guard ExternalDisk.isValidDeviceNode(deviceNode) else { return nil }
         let bsdName = String(deviceNode.dropFirst("/dev/".count))
         let media = IOServiceGetMatchingService(kIOMainPortDefault, IOBSDNameMatching(kIOMainPortDefault, 0, bsdName))
@@ -232,15 +262,8 @@ enum DiskReader {
         defer { IOObjectRelease(iterator) }
         var entry = IOIteratorNext(iterator)
         while entry != IO_OBJECT_NULL {
-            var result: (read: UInt64, written: UInt64)?
-            if IOObjectConformsTo(entry, "IOBlockStorageDriver") != 0,
-               let counters = IORegistryEntryCreateCFProperty(entry, "Statistics" as CFString, kCFAllocatorDefault, 0)?
-                .takeRetainedValue() as? [String: Any] {
-                result = ((counters["Bytes (Read)"] as? NSNumber)?.uint64Value ?? 0,
-                          (counters["Bytes (Write)"] as? NSNumber)?.uint64Value ?? 0)
-            }
+            if IOObjectConformsTo(entry, "IOBlockStorageDriver") != 0 { return entry }
             IOObjectRelease(entry)
-            if let result { return result }
             entry = IOIteratorNext(iterator)
         }
         return nil
