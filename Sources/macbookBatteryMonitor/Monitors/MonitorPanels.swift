@@ -335,6 +335,9 @@ private struct ThermalCard: View {
             VStack(alignment: .leading, spacing: 8) {
                 CardTitle(fans.isEmpty ? "溫度" : "風扇與溫度", systemImage: "thermometer.medium")
                 if !temperatures.isEmpty {
+                    if temperatures.coreSensorsAsleep {
+                        InfoRow("CPU／GPU", "核心休眠中，暫無讀值")
+                    }
                     temperatureRow("CPU", temperatures.cpu)
                     temperatureRow("GPU", temperatures.gpu)
                     temperatureRow("SoC 晶片", temperatures.soc)

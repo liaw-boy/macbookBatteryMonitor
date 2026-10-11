@@ -37,7 +37,18 @@ final class ThermalReader: @unchecked Sendable {
     private static let temperatureField = Int32(15 << 16)
 
     private let smc = SMC()
+    /// 這台 Mac 的 CPU／GPU 溫度鍵；晶片世代不在表內時為 nil
+    private lazy var dieKeys: ThermalKeys? = {
+        var size = 0
+        sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
+        guard size > 0 else { return nil }
+        var buffer = [CChar](repeating: 0, count: size)
+        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else { return nil }
+        return ThermalKeyTable.keys(forChip: String(cString: buffer))
+    }()
     private var fanCount: Int?
+    /// 每個核心感測器最近一次有效的讀值
+    private var heldDieValues: [String: (value: Double, date: Date)] = [:]
     private var client: AnyObject?
     /// (名稱, 服務)；服務清單變化很慢，每分鐘重列一次
     private var sensors: [(name: String, service: AnyObject)] = []
@@ -81,6 +92,19 @@ final class ThermalReader: @unchecked Sendable {
             guard let event = api.copyEvent(sensor.service, Self.temperatureEventType, 0, 0)?.takeRetainedValue() else { return nil }
             return (sensor.name, api.floatValue(event, Self.temperatureField))
         }
-        return ThermalMath.summary(readings)
+        var summary = ThermalMath.summary(readings)
+        // HID 沒有核心感測器的機型（例如 M2 Pro），改用 SMC 的核心溫度鍵
+        if let smc, let keys = dieKeys {
+            if summary.cpu == nil {
+                let values = ThermalMath.effectiveDieValues(keys.cpu.map { ($0, smc.read($0)) }, held: &heldDieValues, now: now)
+                summary.cpu = ThermalMath.dieStatistic(values)
+            }
+            if summary.gpu == nil {
+                let values = ThermalMath.effectiveDieValues(keys.gpu.map { ($0, smc.read($0)) }, held: &heldDieValues, now: now)
+                summary.gpu = ThermalMath.dieStatistic(values)
+            }
+            summary.coreSensorsAsleep = summary.cpu == nil && summary.gpu == nil
+        }
+        return summary
     }
 }

@@ -38,4 +38,53 @@ final class ThermalTests {
         XCTAssertEqual(FanReading(id: 0, name: "f", rpm: 9000, minRPM: 2317, maxRPM: 6800).fraction, 1)
         XCTAssertEqual(FanReading(id: 0, name: "f", rpm: 3000, minRPM: 0, maxRPM: 0).fraction, 0)
     }
+
+    func testSleepingClusterJunkValuesAreIgnored() {
+        // 實測 M2 Pro 閒置時效能核心回報的假值
+        XCTAssertNil(ThermalMath.dieStatistic([0, 4.6, 5.3, 6.7, 8.4]))
+        XCTAssertNil(ThermalMath.dieStatistic([]))
+        // 一半休眠、一半有效：只用有效的
+        let mixed = ThermalMath.dieStatistic([6.7, 4.6, 51.0, 49.0, 0])
+        XCTAssertEqual(mixed?.average, 50)
+        XCTAssertEqual(mixed?.maximum, 51)
+        XCTAssertNil(ThermalMath.dieStatistic([130, .nan]))
+    }
+
+    func testKeyTableOnlyCoversVerifiedChips() {
+        XCTAssertEqual(ThermalKeyTable.keys(forChip: "Apple M2 Pro")?.gpu, ["Tg0f", "Tg0j"])
+        XCTAssertEqual(ThermalKeyTable.keys(forChip: "Apple M2")?.cpu.count, 12)
+        XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M1"))
+        XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M3 Max"))
+        XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M20"))
+        XCTAssertNil(ThermalKeyTable.keys(forChip: "Intel(R) Core(TM) i7"))
+    }
+
+    func testEachSensorKeepsItsLastValidValue() {
+        let t0 = Date(timeIntervalSince1970: 1_000)
+        var held: [String: (value: Double, date: Date)] = [:]
+        // 兩顆都有效
+        XCTAssertEqual(ThermalMath.effectiveDieValues([("A", 50), ("B", 60)], held: &held, now: t0), [50, 60])
+        // A 讀到假值：沿用 50；B 有新值
+        XCTAssertEqual(ThermalMath.effectiveDieValues([("A", 6.7), ("B", 61)], held: &held, now: t0.addingTimeInterval(1)), [50, 61])
+        // 讀不到（nil）也沿用
+        XCTAssertEqual(ThermalMath.effectiveDieValues([("A", nil), ("B", 62)], held: &held, now: t0.addingTimeInterval(2)), [50, 62])
+        // A 超過 120 秒沒有有效值：放棄；B 最近有效，仍保留
+        let late = ThermalMath.effectiveDieValues([("A", 4.6), ("B", 5.3)], held: &held, now: t0.addingTimeInterval(122))
+        XCTAssertEqual(late, [62])
+        // 全部過期：沒有值
+        XCTAssertEqual(ThermalMath.effectiveDieValues([("A", 0), ("B", 0)], held: &held, now: t0.addingTimeInterval(400)), [])
+        // 從來沒有有效值：不顯示
+        var empty: [String: (value: Double, date: Date)] = [:]
+        XCTAssertEqual(ThermalMath.effectiveDieValues([("X", 6.7)], held: &empty, now: t0), [])
+    }
+
+    func testAverageDoesNotDropWhenOneClusterSleeps() {
+        // 節能核心 ≈ 48，效能核心 ≈ 54。效能核心休眠時沿用舊值，平均不應掉到只剩節能核心的數字
+        let t0 = Date(timeIntervalSince1970: 5_000)
+        var held: [String: (value: Double, date: Date)] = [:]
+        let awake: [(key: String, value: Double?)] = [("E1", 48), ("E2", 48), ("P1", 54), ("P2", 54)]
+        let asleep: [(key: String, value: Double?)] = [("E1", 48), ("E2", 48), ("P1", 6.7), ("P2", 4.6)]
+        XCTAssertEqual(ThermalMath.dieStatistic(ThermalMath.effectiveDieValues(awake, held: &held, now: t0))?.average, 51)
+        XCTAssertEqual(ThermalMath.dieStatistic(ThermalMath.effectiveDieValues(asleep, held: &held, now: t0.addingTimeInterval(1)))?.average, 51)
+    }
 }
