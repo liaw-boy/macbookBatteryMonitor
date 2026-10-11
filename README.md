@@ -310,7 +310,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異。機�
 ```bash
 git clone https://github.com/sgeric910601/macbookBatteryMonitor.git
 cd macbookBatteryMonitor
-git checkout v1.5.0          # 或其他版本的 tag，不指定就是最新的開發版
+git checkout v1.5.3          # 或其他版本的 tag，不指定就是最新的開發版
 ./build.sh                   # 系統監控版：產生 build/macbookBatteryMonitor.app
 ./build.sh battery           # 電池版
 ./build.sh install           # 系統監控版，並安裝到 /Applications 啟動
