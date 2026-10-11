@@ -45,7 +45,7 @@ struct PanelView: View {
                     case .peripherals: PeripheralsView(store: store.peripherals, settings: settings)
                     }
                 }
-                .frame(height: 222, alignment: .top)
+                .frame(height: 231, alignment: .top)
                 footer(updated: s.date)
             } else {
                 ContentUnavailableView("找不到電池", systemImage: "battery.0percent", description: Text("這台 Mac 沒有內建電池。"))
