@@ -5,12 +5,6 @@ struct SettingsView: View {
     let ui: PanelState
     let adminCPU: AdminCPUSampler
     let updater: Updater
-    let chargeLimit: SystemChargeLimit
-
-    private var limitText: String {
-        if chargeLimit.supported { return chargeLimit.limit >= 100 ? "不限制（100%）" : "\(chargeLimit.limit)%" }
-        return ChargeLimitReader.lastKnown().map { "\($0.limit)%" } ?? "未設定"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -29,7 +23,7 @@ struct SettingsView: View {
 
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("選單列", systemImage: "menubar.rectangle")
+                    CardTitle("電池顯示", systemImage: "menubar.rectangle")
                     Picker("顯示方式", selection: binding(\.display)) {
                         ForEach(MenuBarDisplay.allCases) { Text($0.title).tag($0) }
                     }
@@ -126,39 +120,6 @@ struct SettingsView: View {
                         .disabled(!settings.fullAlertEnabled)
                     Button("傳送測試通知") {
                         Notifier.shared.sendTest()
-                    }
-                }
-            }
-
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("充電上限", systemImage: "checkmark.shield")
-                    HStack {
-                        Text("系統充電上限")
-                        Spacer()
-                        Text(limitText)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    if chargeLimit.supported {
-                        Text("可在主面板電量下方的滑桿調整（80–100%），與系統設定「電池」裡的充電上限是同一個設定，改哪一邊都會同步。實際停在上限由 macOS 控制，這個 App 不會另外控制充電。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        if ChargeLimitReader.lastKnown()?.active == false {
-                            Text("用電池時 macOS 不會套用上限，數值是上次接電時讀到的。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Text("這台 Mac 或系統版本無法從 App 調整充電上限，這裡只讀取並顯示。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("在系統設定中修改") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
-                            NSWorkspace.shared.open(url)
-                        }
                     }
                 }
             }

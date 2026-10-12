@@ -12,7 +12,7 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit) }
+                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater) }
                 case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui, limitSlider: store.chargeLimit.supported) }
                 }
             }
