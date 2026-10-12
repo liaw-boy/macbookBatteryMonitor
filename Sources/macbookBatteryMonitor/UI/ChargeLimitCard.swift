@@ -1,32 +1,30 @@
 import SwiftUI
 
-/// 主面板的充電上限滑桿：拖動後直接改 macOS 系統設定裡的充電上限
+/// 充電上限滑桿列（放在下方資訊卡裡）：拖動後直接改 macOS 系統設定裡的充電上限
 struct ChargeLimitCard: View {
     let control: SystemChargeLimit
 
     var body: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    CardTitle("充電上限", systemImage: "battery.100percent.bolt")
-                        .fixedSize()
-                    Slider(value: position, in: 0...Double(max(1, control.options.count - 1)), step: 1) { editing in
-                        control.setEditing(editing)
-                    }
-                    .controlSize(.small)
-                    .help("與系統設定「電池」裡的充電上限是同一個設定，放開後套用")
-                    Text("\(control.shown)%")
-                        .font(.callout.weight(.semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(control.draft == nil ? .primary : .secondary)
-                        .frame(width: 42, alignment: .trailing)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                CardTitle("充電上限", systemImage: "battery.100percent.bolt")
+                    .fixedSize()
+                Slider(value: position, in: 0...Double(max(1, control.options.count - 1)), step: 1) { editing in
+                    control.setEditing(editing)
                 }
-                if let note {
-                    Text(note.text)
-                        .font(.caption)
-                        .foregroundStyle(note.warning ? Color.orange : Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                .controlSize(.small)
+                .help("與系統設定「電池」裡的充電上限是同一個設定，放開後套用")
+                Text("\(control.shown)%")
+                    .font(.callout.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(control.draft == nil ? .primary : .secondary)
+                    .frame(width: 42, alignment: .trailing)
+            }
+            if let note {
+                Text(note.text)
+                    .font(.caption)
+                    .foregroundStyle(note.warning ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

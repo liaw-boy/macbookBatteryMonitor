@@ -30,10 +30,7 @@ struct PanelView: View {
         VStack(spacing: 10) {
             if let s = store.snapshot, let e = store.estimates {
                 HeaderView(s: s, e: e, lowThreshold: settings.lowThreshold)
-                if store.chargeLimit.supported {
-                    ChargeLimitCard(control: store.chargeLimit)
-                }
-                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold)
+                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold, chargeLimit: store.chargeLimit)
                 PowerFlowView(s: s, e: e, breakdown: store.breakdown, ui: ui, powerSaving: settings.powerSaving)
                 Picker("", selection: ui.binding(\.tab)) {
                     ForEach(BottomTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -142,7 +139,7 @@ private struct HeaderView: View {
         case .full:
             return ("電源供電", "已充飽")
         case .limitReached:
-            return ("充電上限", s.chargeLimit.map { "\($0.limit)%" } ?? "—")
+            return ("電源供電", "暫停充電")
         }
     }
 }
@@ -152,13 +149,20 @@ private struct TimeCard: View {
     let e: Estimates
     let unpluggedAt: Date?
     let fullThreshold: Int
+    let chargeLimit: SystemChargeLimit
 
     var body: some View {
         Card {
-            switch e.state {
-            case .discharging: discharging
-            case .charging: charging
-            case .pluggedIdle, .full, .limitReached: plugged
+            VStack(alignment: .leading, spacing: 8) {
+                switch e.state {
+                case .discharging: discharging
+                case .charging: charging
+                case .pluggedIdle, .full, .limitReached: plugged
+                }
+                if chargeLimit.supported {
+                    Divider()
+                    ChargeLimitCard(control: chargeLimit)
+                }
             }
         }
     }
@@ -223,7 +227,6 @@ private struct TimeCard: View {
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             if let limit = s.chargeLimit?.limit {
-                row("充電上限", "\(limit)%（系統設定）")
                 if let minutes = minutesToDrain(to: limit) {
                     row("降到上限約需", Format.duration(minutes))
                 }
