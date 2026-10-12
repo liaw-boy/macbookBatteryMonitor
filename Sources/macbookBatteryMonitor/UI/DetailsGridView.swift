@@ -4,13 +4,15 @@ struct DetailsGridView: View {
     let s: BatterySnapshot
     let e: Estimates
     let health: SystemHealth?
+    /// 主面板有充電上限滑桿
+    var limitSlider = false
 
     private var settings: AppSettings { .shared }
 
     var body: some View {
         Card(expand: true) {
             // 只顯示設定裡勾選的欄位，依序每列兩欄
-            let fields = DetailField.allCases.filter { settings.isVisible($0) }
+            let fields = DetailField.available(limitSlider: limitSlider).filter { settings.isVisible($0) }
             if fields.isEmpty {
                 Text("所有欄位都已隱藏，可在設定 → 顯示項目調整。")
                     .font(.callout)

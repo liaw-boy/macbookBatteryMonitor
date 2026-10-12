@@ -141,7 +141,7 @@ struct SettingsView: View {
                             .monospacedDigit()
                     }
                     if chargeLimit.supported {
-                        Text("可在主面板最上方的滑桿調整（80–100%），與系統設定「電池」裡的充電上限是同一個設定，改哪一邊都會同步。實際停在上限由 macOS 控制，這個 App 不會另外控制充電。")
+                        Text("可在主面板電量下方的滑桿調整（80–100%），與系統設定「電池」裡的充電上限是同一個設定，改哪一邊都會同步。實際停在上限由 macOS 控制，這個 App 不會另外控制充電。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -194,11 +194,11 @@ struct SettingsView: View {
             UpdateCard(updater: updater, settings: settings)
 
             HStack {
-                Text("電池監控 \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")（\(AppEdition.current.title)）")
+                Text("\(AppEdition.current.appName) \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("結束電池監控") {
+                Button("結束\(AppEdition.current.appName)") {
                     NSApp.terminate(nil)
                 }
             }

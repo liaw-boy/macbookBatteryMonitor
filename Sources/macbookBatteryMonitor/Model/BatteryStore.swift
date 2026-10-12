@@ -222,4 +222,30 @@ final class BatteryStore {
         ]
         processesLoaded = true
     }
+
+    /// 開發用快照：接著電源的示範狀態（檢查充電中、已達充電上限時的版面）
+    func loadPluggedPreview(now: Date = Date(), atLimit: Bool) {
+        loadPreview(now: now)
+        guard var s = snapshot else { return }
+        s.externalConnected = true
+        s.adapter = AdapterInfo(watts: 30)
+        s.chargeLimit = ChargeLimit(limit: 80, reason: "manualChargeLimit", active: true)
+        s.psTimeToEmpty = nil
+        s.avgTimeToEmpty = nil
+        if atLimit {
+            s.percent = 80
+            s.amperage_mA = 0
+            s.smcAdapterWatts = 6.5
+        } else {
+            s.percent = 62
+            s.amperage_mA = 1500
+            s.isCharging = true
+            s.smcAdapterWatts = 25
+        }
+        snapshot = s
+        unpluggedAt = nil
+        avgDischarge = nil
+        avgCharge = atLimit ? nil : 1500
+        estimates = Estimator.estimates(s, avgDischarge_mA: nil, avgCharge_mA: avgCharge)
+    }
 }

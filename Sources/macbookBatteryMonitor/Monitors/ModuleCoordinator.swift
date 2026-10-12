@@ -256,7 +256,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         let menu = NSMenu()
         menu.addItem(withTitle: "設定…", action: #selector(openSettingsFromMenu), keyEquivalent: ",").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "結束電池監控", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "結束\(AppEdition.current.appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil

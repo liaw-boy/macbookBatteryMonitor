@@ -28,6 +28,19 @@ cp "$(dirname "$BIN")/CPUPowerHelper" "$APP/Contents/Library/Helpers/CPUPowerHel
 codesign --force --sign - --timestamp=none "$APP/Contents/Library/Helpers/CPUPowerHelper"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 plutil -replace MBMEdition -string "$EDITION" "$APP/Contents/Info.plist"
+# 兩個版本別各自的 App 名稱（Finder、啟動台、Spotlight、通知、登入項目顯示的名稱）。
+# 資料夾名稱維持 macbookBatteryMonitor.app：舊版的一鍵更新會在 zip 裡找這個名稱
+if [[ $EDITION == battery ]]; then
+    NAMES=("zh-Hant:電池監控" "zh_TW:電池監控" "zh-Hans:电池监控" "en:Battery Monitor")
+else
+    NAMES=("zh-Hant:電池與系統監控" "zh_TW:電池與系統監控" "zh-Hans:电池与系统监控" "en:Battery & System Monitor")
+fi
+for entry in "${NAMES[@]}"; do
+    lang="${entry%%:*}"
+    name="${entry#*:}"
+    mkdir -p "$APP/Contents/Resources/${lang}.lproj"
+    printf '"CFBundleDisplayName" = "%s";\n"CFBundleName" = "%s";\n' "$name" "$name" > "$APP/Contents/Resources/${lang}.lproj/InfoPlist.strings"
+done
 if [[ -f Resources/AppIcon.icns ]]; then
     cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 fi

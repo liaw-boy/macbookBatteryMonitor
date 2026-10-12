@@ -20,4 +20,12 @@ enum AppEdition: String {
         case .status: return "系統監控版"
         }
     }
+
+    /// App 名稱（與 build.sh 寫進各語言 InfoPlist.strings 的繁體中文名稱相同）
+    var appName: String {
+        switch self {
+        case .battery: return "電池監控"
+        case .status: return "電池與系統監控"
+        }
+    }
 }

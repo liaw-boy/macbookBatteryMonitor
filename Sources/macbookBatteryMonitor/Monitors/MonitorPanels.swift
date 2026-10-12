@@ -67,7 +67,7 @@ struct MonitorPanel: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.borderless)
-            .help("結束電池監控")
+            .help("結束\(AppEdition.current.appName)")
         }
     }
 }

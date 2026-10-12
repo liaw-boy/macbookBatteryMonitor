@@ -11,7 +11,9 @@
     <key>CFBundleName</key>
     <string>macbookBatteryMonitor</string>
     <key>CFBundleDisplayName</key>
-    <string>電池監控</string>
+    <string>macbookBatteryMonitor</string>
+    <key>LSHasLocalizedDisplayName</key>
+    <true/>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

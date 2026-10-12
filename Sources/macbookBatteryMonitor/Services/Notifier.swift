@@ -80,7 +80,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func sendTest() {
-        post(title: "電池監控", body: "通知功能正常 👍")
+        post(title: AppEdition.current.appName, body: "通知功能正常 👍")
     }
 
     private func post(title: String, body: String) {

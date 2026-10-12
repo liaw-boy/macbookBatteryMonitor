@@ -35,6 +35,13 @@ enum DetailField: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// 可以顯示的欄位：主面板有充電上限滑桿時，上限只顯示在滑桿上，不列在詳細資訊
+    static func available(limitSlider: Bool) -> [DetailField] {
+        guard limitSlider else { return allCases }
+        // 拿掉充電上限後把低耗電模式移到最後，變壓器、變壓器電壓、變壓器電流才會排在一起
+        return allCases.filter { $0 != .chargeLimit && $0 != .lowPower } + [.lowPower]
+    }
+
     var title: String {
         switch self {
         case .voltage: return "電池電壓"

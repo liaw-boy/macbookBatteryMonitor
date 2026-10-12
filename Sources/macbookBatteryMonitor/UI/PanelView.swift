@@ -13,7 +13,7 @@ struct RootView: View {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
                 case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit) }
-                case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui) }
+                case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui, limitSlider: store.chargeLimit.supported) }
                 }
             }
         }
@@ -30,10 +30,8 @@ struct PanelView: View {
         VStack(spacing: 10) {
             if let s = store.snapshot, let e = store.estimates {
                 HeaderView(s: s, e: e, lowThreshold: settings.lowThreshold)
-                if store.chargeLimit.supported {
-                    ChargeLimitCard(control: store.chargeLimit)
-                }
-                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold)
+                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold,
+                         chargeLimit: store.chargeLimit.supported ? store.chargeLimit : nil)
                 PowerFlowView(s: s, e: e, breakdown: store.breakdown, ui: ui, powerSaving: settings.powerSaving)
                 Picker("", selection: ui.binding(\.tab)) {
                     ForEach(BottomTab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
@@ -42,7 +40,7 @@ struct PanelView: View {
                 .labelsHidden()
                 Group {
                     switch ui.tab {
-                    case .details: DetailsGridView(s: s, e: e, health: store.systemHealth)
+                    case .details: DetailsGridView(s: s, e: e, health: store.systemHealth, limitSlider: store.chargeLimit.supported)
                     case .history: HistoryChartView(history: store.history, ui: ui)
                     case .processes: TopProcessesView(store: store)
                     case .peripherals: PeripheralsView(store: store.peripherals, settings: settings)
@@ -91,7 +89,7 @@ struct PanelView: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.borderless)
-            .help("結束電池監控")
+            .help("結束\(AppEdition.current.appName)")
         }
     }
 }
@@ -142,7 +140,8 @@ private struct HeaderView: View {
         case .full:
             return ("電源供電", "已充飽")
         case .limitReached:
-            return ("充電上限", s.chargeLimit.map { "\($0.limit)%" } ?? "—")
+            // 上限數值已在狀態文字與滑桿上，這裡改顯示供電狀況
+            return ("電源供電", s.drainingAboveLimit ? "放電到上限" : "暫停充電")
         }
     }
 }
@@ -152,13 +151,24 @@ private struct TimeCard: View {
     let e: Estimates
     let unpluggedAt: Date?
     let fullThreshold: Int
+    /// 充電上限滑桿（支援調整的 Mac 才有），放在卡片最上方
+    var chargeLimit: SystemChargeLimit?
+
+    /// 上限數值只在滑桿顯示，卡片其他地方不再重複
+    private var limitShownAbove: Bool { chargeLimit != nil }
 
     var body: some View {
         Card {
-            switch e.state {
-            case .discharging: discharging
-            case .charging: charging
-            case .pluggedIdle, .full, .limitReached: plugged
+            VStack(alignment: .leading, spacing: 10) {
+                if let chargeLimit {
+                    ChargeLimitSlider(control: chargeLimit)
+                    Divider()
+                }
+                switch e.state {
+                case .discharging: discharging
+                case .charging: charging
+                case .pluggedIdle, .full, .limitReached: plugged
+                }
             }
         }
     }
@@ -204,7 +214,7 @@ private struct TimeCard: View {
         VStack(alignment: .leading, spacing: 6) {
             CardTitle("充電預估", systemImage: "bolt")
             if let limit = s.chargeLimit?.limit {
-                row("充到上限 (\(limit)%)", Format.duration(e.toLimit))
+                row(limitShownAbove ? "充到上限" : "充到上限 (\(limit)%)", Format.duration(e.toLimit))
             } else {
                 row("充滿 (100%)", Format.duration(e.toFull))
             }
@@ -223,7 +233,9 @@ private struct TimeCard: View {
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
             if let limit = s.chargeLimit?.limit {
-                row("充電上限", "\(limit)%（系統設定）")
+                if !limitShownAbove {
+                    row("充電上限", "\(limit)%（系統設定）")
+                }
                 if let minutes = minutesToDrain(to: limit) {
                     row("降到上限約需", Format.duration(minutes))
                 }
@@ -252,7 +264,7 @@ private struct TimeCard: View {
             if s.percent > limit {
                 return "已超過系統設定的充電上限，電池暫停充電、由變壓器供電。電量降到 \(limit)% 以下後才會再充到上限。"
             }
-            return "已達系統設定的充電上限，電池暫停充電，目前由變壓器供電。"
+            return "電池已充到上限，暫停充電，目前由變壓器供電。"
         case .full:
             return "電池已充飽，目前由變壓器供電。"
         case .pluggedIdle where e.drainingOnAC:

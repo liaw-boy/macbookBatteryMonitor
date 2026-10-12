@@ -64,7 +64,22 @@ enum SnapshotCommand {
         store.setHardwareSampling(active: false)
         renderMonitors(directory: dir)
         renderUpdateCard(directory: dir)
+        renderPluggedPanels(directory: dir)
         print("已輸出到 \(dir.path)")
+    }
+
+    /// 接著電源時（充電中、已達充電上限）的主面板，用示範數據
+    private static func renderPluggedPanels(directory dir: URL) {
+        let store = BatteryStore()
+        let ui = PanelState()
+        ui.isVisible = true
+        for (name, atLimit) in [("charging", false), ("limit", true)] {
+            store.loadPluggedPreview(atLimit: atLimit)
+            let view = RootView(store: store, settings: .shared, ui: ui)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, .dark)
+            render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("panel-plugged-\(name)-dark.png"))
+        }
     }
 
     /// 設定頁的「更新」卡片在各狀態下的樣子

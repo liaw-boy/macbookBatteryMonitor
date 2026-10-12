@@ -4,6 +4,8 @@ import SwiftUI
 struct DisplayItemsView: View {
     let settings: AppSettings
     let ui: PanelState
+    /// 主面板有充電上限滑桿（充電上限不列在詳細資訊）
+    var limitSlider = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -39,13 +41,18 @@ struct DisplayItemsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("詳細資訊欄位", systemImage: "list.bullet.rectangle")
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                        let fields = DetailField.allCases
+                        let fields = DetailField.available(limitSlider: limitSlider)
                         ForEach(Array(stride(from: 0, to: fields.count, by: 2)), id: \.self) { index in
                             GridRow {
                                 checkbox(fields[index])
                                 if index + 1 < fields.count { checkbox(fields[index + 1]) }
                             }
                         }
+                    }
+                    if limitSlider {
+                        Text("充電上限顯示在主面板的滑桿上，這裡不再重複。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
