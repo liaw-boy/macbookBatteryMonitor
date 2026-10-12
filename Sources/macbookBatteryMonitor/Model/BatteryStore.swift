@@ -17,6 +17,8 @@ final class BatteryStore {
     let peripherals = PeripheralStore()
     /// 一鍵更新
     let updater = Updater()
+    /// 主面板的充電上限滑桿（調整 macOS 系統設定裡的充電上限）
+    let chargeLimit = SystemChargeLimit()
     private(set) var componentPower: ComponentPowerSample?
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()
@@ -195,6 +197,7 @@ final class BatteryStore {
         s.smcAdapterWatts = 0
         s.smcSystemWatts = 6.5
         s.chargeLimit = ChargeLimit(limit: 80, reason: "manualChargeLimit", active: false)
+        chargeLimit.loadPreview(limit: 80)
         snapshot = s
         avgDischarge = 520
         estimates = Estimator.estimates(s, avgDischarge_mA: 520, avgCharge_mA: nil)

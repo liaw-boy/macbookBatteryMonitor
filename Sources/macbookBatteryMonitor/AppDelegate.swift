@@ -66,6 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         timers.append(repeating(every: 6 * 3600) { $0.store.refreshHealth() })
         // 周邊設備電量變化很慢，每 60 秒查一次；面板停在周邊設備分頁時連所有藍牙設備一起查
         store.peripherals.refresh()
+        // 系統充電上限：啟動時讀一次，之後由系統通知、打開面板時重新讀取；在面板上調整後立即更新選單列與面板
+        store.chargeLimit.onChange = { [weak self] in self?.refresh() }
+        store.chargeLimit.start()
         // 自動檢查更新：啟動 15 秒後與之後每 6 小時看一次，距離上次檢查超過一天才真的連線
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
             guard let self, self.settings.autoCheckUpdates else { return }
@@ -324,6 +327,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         ui.page = page
         ui.isVisible = true
         store.panelVisible = true
+        store.chargeLimit.panelOpened()
         refresh()
         // 面板每次打開才建立、關掉就釋放，關著時不會有任何 SwiftUI 畫面在背景更新
         let hosting = NSHostingController(rootView: RootView(store: store, settings: settings, ui: ui))

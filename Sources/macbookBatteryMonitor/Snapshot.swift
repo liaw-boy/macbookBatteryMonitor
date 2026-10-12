@@ -16,6 +16,9 @@ enum SnapshotCommand {
         store.refreshHealth()
         store.resolveUnpluggedDateIfNeeded()
         store.backfillHistory()
+        // 只讀取系統充電上限，不會寫入
+        store.chargeLimit.onChange = { store.refresh() }
+        store.chargeLimit.refresh()
         store.setHardwareSampling(active: true)
         wait(1.1)
         store.setHardwareSampling(active: true)

@@ -12,7 +12,7 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater) }
+                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit) }
                 case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui) }
                 }
             }
@@ -30,6 +30,9 @@ struct PanelView: View {
         VStack(spacing: 10) {
             if let s = store.snapshot, let e = store.estimates {
                 HeaderView(s: s, e: e, lowThreshold: settings.lowThreshold)
+                if store.chargeLimit.supported {
+                    ChargeLimitCard(control: store.chargeLimit)
+                }
                 TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold)
                 PowerFlowView(s: s, e: e, breakdown: store.breakdown, ui: ui, powerSaving: settings.powerSaving)
                 Picker("", selection: ui.binding(\.tab)) {

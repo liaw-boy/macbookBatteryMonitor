@@ -4,7 +4,7 @@ import Foundation
 /// 系統設定「電池健康度與充電」裡的充電上限。
 /// powerd 把目前生效的充電策略存成 NSKeyedArchiver 格式（類別名 ChargeCtrlPolicy），
 /// 檔案權限一般使用者可讀，這裡只讀不寫。
-/// 注意：這份策略只在接電時存在，拔掉電源後會被清空；使用者設定本身存在一般權限讀不到的地方。
+/// 注意：這份策略只在接電時存在，拔掉電源後會被清空；使用者設定本身由 SystemChargeLimit 向系統的充電上限服務讀取。
 struct ChargeLimit: Codable, Equatable {
     /// 上限 %
     var limit: Int
@@ -36,13 +36,33 @@ enum ChargeLimitReader {
     /// 接電後等這麼久還沒有生效中的策略，就當作使用者已經關掉充電上限
     private static let clearAfterPlugged: TimeInterval = 120
 
-    /// 用電池時策略會被清空，所以記住最後一次讀到的值。
+    /// 系統充電上限服務讀到的設定：100 表示不限制；讀不到（不支援的 Mac）或系統暫時沒有套用時為 nil
+    private(set) static var systemLimit: Int?
+
+    /// SystemChargeLimit 讀到或調整上限後呼叫，用電池時也能顯示正確的上限
+    static func updateFromSystem(limit: Int, enabled: Bool) {
+        let defaults = UserDefaults.standard
+        if limit >= 100 {
+            systemLimit = 100
+            defaults.removeObject(forKey: lastKnownKey)
+        } else if enabled {
+            systemLimit = limit
+            if defaults.integer(forKey: lastKnownKey) != limit { defaults.set(limit, forKey: lastKnownKey) }
+        } else {
+            systemLimit = nil
+        }
+    }
+
+    /// 接電時以生效中的策略為準；用電池時策略會被清空，改用系統服務讀到的設定，再不行就用最後一次讀到的值。
     /// - Parameter pluggedSince: 這次接上電源的時間；nil 表示不判斷是否已關閉（只讀不清除）
     static func resolve(externalConnected: Bool, pluggedSince: Date?) -> ChargeLimit? {
         let defaults = UserDefaults.standard
         if let live = current() {
             if defaults.integer(forKey: lastKnownKey) != live.limit { defaults.set(live.limit, forKey: lastKnownKey) }
             return live
+        }
+        if let systemLimit {
+            return systemLimit < 100 ? ChargeLimit(limit: systemLimit, reason: "manualChargeLimit", active: false) : nil
         }
         let cached = defaults.integer(forKey: lastKnownKey)
         guard cached > 0 else { return nil }
