@@ -80,6 +80,7 @@ macOS 選單列的電池資訊 App。選單列直接顯示電量，點開就能�
 
 | 版本 | 介面 | 下載 |
 |---|---|---|
+| v1.6.0 | 充電上限滑桿（沒有已知 bug，可直接一鍵更新到最新版） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.0) |
 | v1.5.3 | 外接磁碟、風扇與溫度（沒有已知 bug，可直接一鍵更新到最新版） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.3) |
 | v1.5.0 | 一鍵更新（沒有已知 bug，可直接一鍵更新到最新版） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
 | v1.4.1 | 新 App 圖示，可換背景色 | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.1) |
@@ -321,7 +322,7 @@ IOReport 是系統私有介面，可用性依晶片與 macOS 版本而異。機�
 ```bash
 git clone https://github.com/sgeric910601/macbookBatteryMonitor.git
 cd macbookBatteryMonitor
-git checkout v1.6.0          # 或其他版本的 tag，不指定就是最新的開發版
+git checkout v1.6.1          # 或其他版本的 tag，不指定就是最新的開發版
 ./build.sh                   # 系統監控版：產生 build/macbookBatteryMonitor.app
 ./build.sh battery           # 電池版
 ./build.sh install           # 系統監控版，並安裝到 /Applications 啟動
