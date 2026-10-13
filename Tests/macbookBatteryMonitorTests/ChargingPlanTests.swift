@@ -126,6 +126,11 @@ final class ChargingPlanTests {
         XCTAssertEqual(controller.evaluate(input(start, percent: 85, limit: 80)), 100)
         controller.writeFinished(target: 100, success: true, readBack: 100, now: start)
         XCTAssertEqual(storage.saved?.startedFor, date("2026-10-14 08:00"))
+        // 剛提高上限、macOS 還沒開始充（實測約 13 秒）：顯示準備充電，不是系統暫停；超過 2 分鐘還沒充才算系統暫停
+        _ = controller.evaluate(input(start.addingTimeInterval(13), percent: 85, limit: 100, estimate: 30, paused: true))
+        XCTAssertEqual(controller.decision?.phase, .starting)
+        _ = controller.evaluate(input(start.addingTimeInterval(150), percent: 85, limit: 100, estimate: 30, paused: true))
+        XCTAssertEqual(controller.decision?.phase, .systemPaused)
         XCTAssertNil(controller.evaluate(input(start.addingTimeInterval(60), percent: 86, limit: 100, estimate: 30, charging: true)))
         XCTAssertEqual(controller.decision?.phase, .charging)
         // 充好了：通知一次

@@ -79,6 +79,8 @@ struct ChargingPlan: Codable, Equatable, Identifiable {
     var startedFor: Date?
     /// 這一輪曾把上限提高到目標（包含睡眠前提高）：有提高過才發「已充好」通知
     var raisedFor: Date?
+    /// 最近一次把上限提高到目標的時間：macOS 通常要十幾秒才開始充，這段時間不算「系統暫停」
+    var raisedAt: Date?
 
     init(schedule: ChargingSchedule, deadline: Date, targetPercent: Int, holdPercent: Int, restoreLimit: Int,
          sleepStrategy: ChargingSleepStrategy, createdAt: Date) {
