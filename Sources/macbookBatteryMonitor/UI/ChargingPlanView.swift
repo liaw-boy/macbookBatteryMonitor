@@ -90,24 +90,54 @@ struct ChargingPlanView: View {
     private var quickCard: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
-                CardTitle(controller.plan == nil ? "快速設定" : "改成新的排程", systemImage: "timer")
-                HStack(spacing: 8) {
-                    ForEach([1, 2, 3], id: \.self) { hours in
+                CardTitle(controller.plan == nil ? "多久後要用" : "改成新的排程", systemImage: "timer")
+                Text("到時候充到 \(settings.chargingTargetPercent)%（完成目標，可在下方調整）。來得及的話先維持保養上限 \(settings.chargingHoldPercent)%，算好時間才開始充；來不及就立刻開始充，並提醒可能無法準時。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach([1, 2, 3], id: \.self) { hours in
+                    let deadline = Date().addingTimeInterval(Double(hours) * 3600)
+                    HStack(spacing: 10) {
                         Button("\(hours) 小時後") {
                             store.startChargingPlan(.once(Date().addingTimeInterval(Double(hours) * 3600)))
                             ui.page = .main
                         }
-                        .frame(maxWidth: .infinity)
+                        .frame(width: 92, alignment: .leading)
+                        forecastLabel(until: deadline)
+                        Spacer(minLength: 0)
                     }
                 }
                 Divider()
                 DatePicker("完成時間", selection: ui.binding(\.chargingCustomDeadline), in: Date()...,
                            displayedComponents: [.date, .hourAndMinute])
-                Button("在這個時間前充好") {
-                    store.startChargingPlan(.once(ui.chargingCustomDeadline))
-                    ui.page = .main
+                HStack(spacing: 10) {
+                    Button("在這個時間前充好") {
+                        store.startChargingPlan(.once(ui.chargingCustomDeadline))
+                        ui.page = .main
+                    }
+                    .disabled(ui.chargingCustomDeadline.timeIntervalSinceNow < 60)
+                    forecastLabel(until: ui.chargingCustomDeadline)
                 }
-                .disabled(ui.chargingCustomDeadline.timeIntervalSinceNow < 60)
+            }
+        }
+    }
+
+    /// 依目前電量與充電速度，預估來不來得及充到完成目標
+    @ViewBuilder private func forecastLabel(until deadline: Date) -> some View {
+        let target = settings.chargingTargetPercent
+        if let forecast = store.chargingForecast(until: deadline, target: target), let percent = store.snapshot?.percent {
+            let plugged = store.snapshot?.externalConnected == true ? "" : "接上電源的話，"
+            if percent >= target {
+                Text("已達 \(target)%").font(.caption).foregroundStyle(.secondary)
+            } else if forecast.onTime {
+                Text("\(plugged)可準時充到 \(target)%（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Label("\(plugged)來不及充到 \(target)%，預計最多約 \(forecast.reachablePercent)%（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption).foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

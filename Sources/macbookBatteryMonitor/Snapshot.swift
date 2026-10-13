@@ -70,6 +70,7 @@ enum SnapshotCommand {
         store.setHardwareSampling(active: false)
         renderMonitors(directory: dir)
         renderUpdateCard(directory: dir)
+        renderChargingAppearances(directory: dir)
         renderPluggedPanels(directory: dir)
         renderDesktopPanels(directory: dir)
         print("已輸出到 \(dir.path)")
@@ -103,6 +104,45 @@ enum SnapshotCommand {
                 .environment(\.colorScheme, .dark)
             render(view, appearance: .darkAqua, settle: 0.4, to: dir.appendingPathComponent("panel-desktop-\(name)-dark.png"))
         }
+    }
+
+    /// 充電上限滑桿旁的三種外觀（充電夥伴、電池夥伴、電量條）在各種排程狀態下的樣子
+    private static func renderChargingAppearances(directory dir: URL) {
+        let now = Date()
+        let deadline = now.addingTimeInterval(9 * 3600)
+        func decision(_ phase: ChargingPlanPhase) -> ChargingPlanDecision {
+            ChargingPlanDecision(phase: phase, targetPercent: 100, deadline: deadline, startAt: deadline.addingTimeInterval(-7200),
+                                 wakeAt: nil, desiredLimit: 100, requiredMinutes: 95)
+        }
+        let states: [(String, ChargingJourneyPresentation)] = [
+            ("沒有排程", .make(percent: 78, charging: false, decision: nil, now: now)),
+            ("等待", .make(percent: 80, charging: false, decision: decision(.waiting), now: now)),
+            ("充電中", .make(percent: 86, charging: true, decision: decision(.charging), now: now)),
+            ("已準備好", .make(percent: 100, charging: false, decision: decision(.ready), now: now)),
+            ("可能延遲", .make(percent: 60, charging: true, decision: decision(.late), now: now)),
+        ]
+        let limit = SystemChargeLimit()
+        limit.loadPreview(limit: 80)
+        let view = HStack(alignment: .top, spacing: 16) {
+            ForEach(ChargingAppearance.allCases) { appearance in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(appearance.title).font(.headline)
+                    ForEach(states, id: \.0) { name, presentation in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(name).font(.caption2).foregroundStyle(.tertiary)
+                            ChargingJourneyView(presentation: presentation, appearance: appearance, animated: false, open: {}) {
+                                ChargeLimitSlider(control: limit)
+                            }
+                        }
+                    }
+                }
+                .frame(width: 330)
+            }
+        }
+        .padding(16)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .environment(\.colorScheme, .dark)
+        render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("charging-appearances-dark.png"))
     }
 
     /// 設定頁的「更新」卡片在各狀態下的樣子

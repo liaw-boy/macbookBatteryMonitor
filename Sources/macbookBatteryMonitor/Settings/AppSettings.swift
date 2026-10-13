@@ -299,9 +299,17 @@ final class AppSettings {
 enum ChargingAppearance: String, CaseIterable, Identifiable {
     /// 充電夥伴：會動的貓咪（充電時躺在充電墊上）
     case companion
+    /// 電池夥伴：有表情的電池（等待時睡覺、充電時微笑、充好時開心、延遲時擔心）
+    case mascot
     /// 電力流動：電量條
     case energy
 
     var id: String { rawValue }
-    var title: String { self == .companion ? "充電夥伴" : "電力流動" }
+    var title: String {
+        switch self {
+        case .companion: return "充電夥伴（貓咪）"
+        case .mascot: return "電池夥伴"
+        case .energy: return "電力流動"
+        }
+    }
 }

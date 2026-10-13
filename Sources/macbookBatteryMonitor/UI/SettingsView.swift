@@ -194,7 +194,7 @@ struct SettingsView: View {
                             Picker("滑桿旁顯示", selection: binding(\.chargingAppearance)) {
                                 ForEach(ChargingAppearance.allCases) { Text($0.title).tag($0) }
                             }
-                            Text("主面板充電上限滑桿的左邊顯示充電夥伴（會動的貓咪，充電時躺在充電墊上）或電量條，點一下打開智慧充電；面板關閉或省電模式時不播放動畫。")
+                            Text("主面板充電上限滑桿的左邊顯示充電夥伴（會動的貓咪，充電時躺在充電墊上）、電池夥伴（有表情的電池，會跟著充電狀態換表情）或電量條，點一下打開智慧充電；面板關閉或省電模式時不播放動畫。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)

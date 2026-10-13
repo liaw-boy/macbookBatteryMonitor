@@ -205,6 +205,18 @@ final class BatteryStore {
         chargingWake.sync(wakeAt: wakeAt, enabled: AppSettings.shared.chargingWakeEnabled)
     }
 
+    /// 建立排程前的預估：充電中用目前的充電電流換算速度，沒在充電時用最近七天的速度，都沒有就以每小時 20% 估算
+    func chargingForecast(until deadline: Date, target: Int) -> ChargingForecast? {
+        guard let s = snapshot else { return nil }
+        var rate = recentChargingRate(now: s.date) ?? ChargingRateEstimator.fallbackPercentPerHour
+        if let e = estimates, e.state == .charging, let full = s.fullCharge_mAh, full > 0,
+           let current = e.avgCharge_mA, current > 10 {
+            rate = current / Double(full) * 100
+        }
+        return ChargingForecast.make(percent: s.percent, target: target,
+                                     minutesAvailable: deadline.timeIntervalSince(s.date) / 60, percentPerHour: rate)
+    }
+
     private func recentChargingRate(now: Date) -> Double? {
         if let cached = historyRate, abs(now.timeIntervalSince(cached.date)) < 600 { return cached.value }
         let value = ChargingRateEstimator.percentPerHour(samples: history.samples, now: now)
@@ -340,7 +352,8 @@ final class BatteryStore {
         for minute in stride(from: 24 * 60, through: 0, by: -10) {
             let t = now.addingTimeInterval(-Double(minute) * 60)
             let plugged = minute > 135
-            let pct = plugged ? min(80, 45 + (24 * 60 - minute) / 12) : 80 - (135 - minute) / 60
+            // 每 3 分鐘 +1%（每小時 20%），和智慧充電沒有資料時的估算一致
+            let pct = plugged ? min(80, 45 + (24 * 60 - minute) / 3) : 80 - (135 - minute) / 60
             let watts = plugged ? 4.5 + 2 * sin(Double(minute) / 37) : 6 + 2.5 * sin(Double(minute) / 9)
             samples.append(HistorySample(t: t, pct: pct, watts: max(1, watts), plugged: plugged, charging: plugged && pct < 80))
         }

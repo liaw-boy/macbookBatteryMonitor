@@ -27,6 +27,18 @@ struct ChargingJourneyPresentation: Equatable {
     var badge: Badge?
     var animatedFlow: Bool
 
+    /// 電池夥伴的表情
+    enum Mood: Equatable { case resting, sleeping, charging, happy, worried }
+
+    var mood: Mood {
+        switch badge {
+        case .sleeping: return .sleeping
+        case .ready: return .happy
+        case .late, .paused: return .worried
+        case nil: return onPad ? .charging : .resting
+        }
+    }
+
     static func make(percent: Int, charging: Bool, decision: ChargingPlanDecision?, now: Date = Date()) -> ChargingJourneyPresentation {
         let progress = min(1, max(0, Double(percent) / 100))
         guard let decision else {
@@ -99,11 +111,16 @@ struct ChargingJourneyView<Control: View>: View {
         HStack(alignment: .center, spacing: 10) {
             Button(action: open) {
                 Group {
-                    if appearance == .companion {
+                    switch appearance {
+                    case .companion:
                         ChargingCompanion(onPad: presentation.onPad, badge: presentation.badge, tint: tint,
                                           animated: animated && !reduceMotion)
                             .frame(width: 48, height: 50)
-                    } else {
+                    case .mascot:
+                        BatteryMascot(mood: presentation.mood, level: presentation.progress, tint: tint,
+                                      animated: animated && !reduceMotion)
+                            .frame(width: 48, height: 50)
+                    case .energy:
                         energyBar
                             .frame(width: 48, height: 34)
                     }
@@ -259,5 +276,114 @@ private final class LoopingVideoView: NSView {
         looper = nil
         player.removeAllItems()
         url = nil
+    }
+}
+
+/// 電池夥伴：有表情的電池，裡面的底色是目前的電量。
+/// 等待時閉眼睡覺、準備或正在充電時微笑、充好時開心、可能延遲或系統暫停時擔心；面板開著時偶爾眨眼
+struct BatteryMascot: View {
+    let mood: ChargingJourneyPresentation.Mood
+    /// 0…1
+    let level: Double
+    let tint: Color
+    let animated: Bool
+
+    var body: some View {
+        Group {
+            if animated && mood != .sleeping {
+                // 每 4 秒眨一次眼：只在閉眼與張眼的那一刻更新，不必一直重畫；睡覺時本來就閉著眼
+                TimelineView(BlinkSchedule()) { context in
+                    face(blink: context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: BlinkSchedule.period)
+                         < BlinkSchedule.closed)
+                }
+            } else {
+                face(blink: false)
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func face(blink: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .fill(tint.opacity(0.12))
+            // 電量：從左邊填到目前的百分比
+            GeometryReader { proxy in
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(tint.opacity(0.22))
+                    .frame(width: max(6, (proxy.size.width - 6) * level))
+                    .padding(3)
+            }
+            RoundedRectangle(cornerRadius: 9, style: .continuous)
+                .strokeBorder(tint.opacity(0.7), lineWidth: 2)
+            HStack(spacing: 9) {
+                eye(closed: blink)
+                eye(closed: blink)
+            }
+            .offset(y: -4)
+            mouth
+                .stroke(tint, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .frame(width: 13, height: 7)
+                .offset(y: 7)
+            if mood == .sleeping {
+                Text("z")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .foregroundStyle(tint)
+                    .offset(x: 14, y: -11)
+            }
+        }
+        .frame(width: 40, height: 30)
+        .overlay(alignment: .trailing) {
+            Capsule().fill(tint.opacity(0.7)).frame(width: 3.5, height: 11).offset(x: 4.5)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func eye(closed: Bool) -> some View {
+        Group {
+            if mood == .sleeping || closed {
+                Capsule().fill(tint).frame(width: 7, height: 2)
+            } else {
+                Circle().fill(tint).frame(width: 4.5, height: 4.5)
+            }
+        }
+        .frame(width: 7, height: 5)
+    }
+
+    private var mouth: Path {
+        Path { path in
+            switch mood {
+            case .happy:
+                // 開心：大大的笑
+                path.move(to: CGPoint(x: 0, y: 0))
+                path.addQuadCurve(to: CGPoint(x: 13, y: 0), control: CGPoint(x: 6.5, y: 10))
+            case .charging:
+                path.move(to: CGPoint(x: 2, y: 2))
+                path.addQuadCurve(to: CGPoint(x: 11, y: 2), control: CGPoint(x: 6.5, y: 7))
+            case .worried:
+                path.move(to: CGPoint(x: 1, y: 6))
+                path.addQuadCurve(to: CGPoint(x: 12, y: 6), control: CGPoint(x: 6.5, y: 0))
+            case .resting, .sleeping:
+                path.move(to: CGPoint(x: 3, y: 4))
+                path.addLine(to: CGPoint(x: 10, y: 4))
+            }
+        }
+    }
+}
+
+/// 眨眼的時間點：每 4 秒閉眼 0.18 秒，只產生閉眼與張眼兩個時間
+private struct BlinkSchedule: TimelineSchedule {
+    static let period: TimeInterval = 4
+    static let closed: TimeInterval = 0.18
+
+    func entries(from start: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        var base = (start.timeIntervalSinceReferenceDate / Self.period).rounded(.down) * Self.period
+        var opening = false
+        return AnyIterator {
+            let date = Date(timeIntervalSinceReferenceDate: base + (opening ? Self.closed : 0))
+            if opening { base += Self.period }
+            opening.toggle()
+            return date
+        }
     }
 }

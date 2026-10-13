@@ -261,6 +261,26 @@ final class ChargingPlanTests {
         XCTAssertNil(controller.takeNotification())
     }
 
+    func testForecastBeforeCreatingAPlan() {
+        // 每小時 30%：65→80 要 30 分鐘，80→100 變慢（每小時 30/1.8 ≈ 16.7%）要 72 分鐘，共 102 分鐘
+        var forecast = ChargingForecast.make(percent: 65, target: 100, minutesAvailable: 60, percentPerHour: 30)
+        XCTAssertEqual(forecast.neededMinutes, 102)
+        XCTAssertTrue(!forecast.onTime)
+        // 一小時：前 30 分鐘到 80%，之後 30 分鐘約 +8% → 88%
+        XCTAssertEqual(forecast.reachablePercent, 88)
+        forecast = ChargingForecast.make(percent: 65, target: 100, minutesAvailable: 120, percentPerHour: 30)
+        XCTAssertTrue(forecast.onTime)
+        XCTAssertEqual(forecast.reachablePercent, 100)
+        // 80% 以下的目標不必算變慢
+        forecast = ChargingForecast.make(percent: 50, target: 80, minutesAvailable: 30, percentPerHour: 60)
+        XCTAssertEqual(forecast.neededMinutes, 30)
+        XCTAssertTrue(forecast.onTime)
+        // 已經在 80% 以上
+        forecast = ChargingForecast.make(percent: 85, target: 90, minutesAvailable: 10, percentPerHour: 30)
+        XCTAssertEqual(forecast.neededMinutes, 18)
+        XCTAssertEqual(forecast.reachablePercent, 87)
+    }
+
     func testChargingRateFromHistory() {
         let start = date("2026-10-13 20:00")
         var samples: [HistorySample] = []

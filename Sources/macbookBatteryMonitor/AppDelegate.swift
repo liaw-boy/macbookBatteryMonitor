@@ -73,7 +73,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // 周邊設備電量變化很慢，每 60 秒查一次；面板停在周邊設備分頁時連所有藍牙設備一起查
         store.peripherals.refresh()
         // 系統充電上限：啟動時讀一次，之後由系統通知、打開面板時重新讀取；在面板上調整後立即更新選單列與面板
-        store.chargeLimit.onChange = { [weak self] in self?.refresh() }
+        // 睡眠交界時（例如智慧充電在睡前寫入上限）系統也會發出變更通知，睡眠中不重新整理
+        store.chargeLimit.onChange = { [weak self] in
+            guard let self, !self.sleeping else { return }
+            self.refresh()
+        }
         store.chargeLimit.start()
         // 智慧充電：繼續上次的排程；精準喚醒的開關改變時排定或取消喚醒
         store.startChargingPlan()

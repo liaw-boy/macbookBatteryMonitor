@@ -201,6 +201,37 @@ enum ChargingPlanEngine {
     }
 }
 
+/// 建立排程前的預估：照目前的充電速度，來不來得及在指定時間前充到目標
+struct ChargingForecast: Equatable {
+    /// 從目前電量充到目標需要的分鐘數（80% 以上變慢的部分已算進去）
+    var neededMinutes: Int
+    /// 來得及
+    var onTime: Bool
+    /// 到時候最多能充到幾 %
+    var reachablePercent: Int
+
+    /// - Parameter percentPerHour: 80% 以下的充電速度（每小時幾 %）
+    static func make(percent: Int, target: Int, minutesAvailable: Double, percentPerHour: Double) -> ChargingForecast {
+        let rate = max(1, percentPerHour)
+        let slowRate = rate / ChargingPlanEngine.taperFactor
+        let start = min(max(0, percent), 100)
+        // 80% 以下用一般速度，80% 以上變慢
+        let fastPart = Double(max(0, min(target, 80) - start))
+        let slowPart = Double(max(0, target - max(start, 80)))
+        let needed = Int((fastPart / rate * 60 + slowPart / slowRate * 60).rounded(.up))
+        let minutes = max(0, minutesAvailable)
+        let minutesTo80 = Double(max(0, 80 - start)) / rate * 60
+        let reachable: Double
+        if minutes <= minutesTo80 {
+            reachable = Double(start) + rate * minutes / 60
+        } else {
+            reachable = Double(max(start, 80)) + slowRate * (minutes - minutesTo80) / 60
+        }
+        return ChargingForecast(neededMinutes: needed, onTime: Double(needed) <= minutes,
+                                reachablePercent: min(100, Int(reachable.rounded(.down))))
+    }
+}
+
 /// 最近七天實際的充電速度（每小時幾 %），系統沒有預估時用來推算需要的時間。
 /// 電量歷史每分鐘一筆、電量是整數，大部分相鄰兩筆的電量相同，所以不能只看電量有上升的那幾筆
 /// （那樣每一段都會算成每分鐘 1%）：以每一段連續充電「總共充了幾 % ÷ 總共花了多久」計算，再取各段的中位數
