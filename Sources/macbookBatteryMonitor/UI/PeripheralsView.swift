@@ -18,6 +18,7 @@ struct PeripheralsView: View {
                         Text("支援會回報電量的藍牙鍵盤、滑鼠、觸控板與耳機")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        if BLEBatteryReader.denied { bluetoothDenied }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -27,6 +28,7 @@ struct PeripheralsView: View {
                         }
                     }
                 }
+                if BLEBatteryReader.denied, !store.devices.isEmpty { bluetoothDenied }
                 HStack {
                     Text(footerText)
                         .font(.caption2)
@@ -44,6 +46,22 @@ struct PeripheralsView: View {
             }
         }
         .onAppear { store.refreshIfStale() }
+    }
+
+    /// 藍牙權限被拒絕：羅技、Razer 等藍牙低功耗滑鼠與鍵盤的電量讀不到
+    private var bluetoothDenied: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("沒有藍牙權限，讀不到羅技、Razer 等藍牙低功耗滑鼠與鍵盤的電量（Apple 的設備與耳機不受影響）。")
+                .font(.caption)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("打開系統設定的藍牙權限") {
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") {
+                    NSWorkspace.shared.open(url)
+                }
+            }
+            .font(.caption)
+        }
     }
 
     private var footerText: String {

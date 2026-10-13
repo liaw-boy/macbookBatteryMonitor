@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self?.popover?.behavior = pending ? .applicationDefined : .transient
         }
         Notifier.shared.setup()
+        // 藍牙權限還沒決定時 macOS 會跳出詢問（第一次啟動時問一次）；已經允許就直接在背景讀；拒絕過就不再問
+        if !BLEBatteryReader.denied { store.peripherals.startBluetoothLE() }
         // 用新版覆蓋 App 後，自訂的 App 圖示會消失，套回使用者選的顏色
         AppIconChanger.restoreIfNeeded(settings.appIconColor)
 
