@@ -66,7 +66,8 @@ struct PanelView: View {
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            if let release = store.updater.available {
+            // Beta 是使用者手動找到的，不在面板上提示
+            if let release = store.updater.available, !release.isBeta {
                 Button {
                     ui.page = .settings
                 } label: {

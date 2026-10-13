@@ -191,10 +191,10 @@ struct SettingsView: View {
                 }
             }
 
-            UpdateCard(updater: updater, settings: settings)
+            UpdateCard(updater: updater, settings: settings, ui: ui)
 
             HStack {
-                Text("\(AppEdition.current.appName) \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                Text("\(AppEdition.current.appName) \(updater.currentVersion)")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()

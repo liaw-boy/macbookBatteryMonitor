@@ -20,13 +20,17 @@ final class Updater {
     private(set) var state: State = .idle
     private(set) var lastChecked: Date?
 
-    static let releasesAPI = URL(string: "https://api.github.com/repos/sgeric910601/macbookBatteryMonitor/releases/latest")!
+    /// 最近的 Release 清單（包含 Beta）；正式版只看 releases/latest 會漏掉 Beta
+    static let releasesAPI = URL(string: "https://api.github.com/repos/sgeric910601/macbookBatteryMonitor/releases?per_page=20")!
     static let releasesPage = URL(string: "https://github.com/sgeric910601/macbookBatteryMonitor/releases/latest")!
     /// 自動檢查的間隔
     static let checkInterval: TimeInterval = 24 * 3600
     private static let lastCheckKey = "lastUpdateCheck"
 
-    var currentVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
+    /// 執行中的版本（Beta 會帶序號）
+    let current = AppVersion.current()
+    /// 畫面上顯示的目前版本：1.6.3、1.7.0 beta 1
+    var currentVersion: String { current.text }
 
     var available: ReleaseInfo? {
         switch state {
@@ -65,12 +69,20 @@ final class Updater {
             guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
             lastChecked = Date()
             UserDefaults.standard.set(lastChecked, forKey: Self.lastCheckKey)
-            guard let release = UpdateLogic.release(json: data, edition: AppEdition.current.rawValue),
-                  let current = UpdateLogic.version(currentVersion) else {
+            let releases = UpdateLogic.releases(json: data, edition: AppEdition.current.rawValue)
+            guard !releases.isEmpty else {
                 state = userInitiated ? .failed("找不到這個版本別的下載檔") : .idle
                 return
             }
-            state = UpdateLogic.isNewer(release.version, than: current) ? .available(release) : .upToDate
+            let found = UpdateLogic.choose(releases, current: current)
+            if let stable = found.stable {
+                state = .available(stable)
+            } else if let beta = found.beta, userInitiated {
+                // Beta 只在手動檢查時列出，安裝前會再確認一次
+                state = .available(beta)
+            } else {
+                state = .upToDate
+            }
         } catch {
             state = userInitiated ? .failed("無法連線到 GitHub，請稍後再試") : .idle
         }
@@ -151,7 +163,8 @@ final class Updater {
         guard let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any],
               info["CFBundleIdentifier"] as? String == "com.kuan.batterymonitor",
               info["MBMEdition"] as? String == AppEdition.current.rawValue,
-              (info["CFBundleShortVersionString"] as? String).flatMap(UpdateLogic.version) == release.version else {
+              (info["CFBundleShortVersionString"] as? String).flatMap(UpdateLogic.version) == release.version,
+              AppVersion.current(info: info).beta == release.beta else {
             throw UpdateError(message: "下載的 App 與目前的版本別或版本號不符")
         }
         guard run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]) == 0 else {

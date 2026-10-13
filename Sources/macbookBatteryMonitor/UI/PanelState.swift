@@ -46,6 +46,8 @@ final class PanelState {
     var historyRange: HistoryRange = .day
     /// 設定頁等可捲動頁面量到的內容高度，下次打開直接用，面板不必先撐到最高再縮回來
     var pageHeights: [PanelPage: CGFloat] = [:]
+    /// 設定 → 更新：按了「安裝 Beta…」，等使用者再確認一次
+    var confirmingBetaInstall = false
     var loginStatus: LoginItem.Status = .disabled
     var loginError: String?
 
