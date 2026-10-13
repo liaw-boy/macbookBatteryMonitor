@@ -25,6 +25,11 @@ final class Updater {
     /// 自動檢查的間隔
     static let checkInterval: TimeInterval = 24 * 3600
     private static let lastCheckKey = "lastUpdateCheck"
+    /// 上次發過通知（或手動檢查時已經看到）的新版本
+    private static let notifiedKey = "lastNotifiedUpdate"
+
+    /// 自動檢查發現新版本時呼叫，每個版本只呼叫一次；手動檢查時使用者已經看到，不呼叫
+    @ObservationIgnored var onNewRelease: ((ReleaseInfo) -> Void)?
 
     var currentVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0" }
 
@@ -67,10 +72,19 @@ final class Updater {
             UserDefaults.standard.set(lastChecked, forKey: Self.lastCheckKey)
             guard let release = UpdateLogic.release(json: data, edition: AppEdition.current.rawValue),
                   let current = UpdateLogic.version(currentVersion) else {
-                state = userInitiated ? .failed("找不到這個版本別的下載檔") : .idle
+                state = userInitiated ? .failed("找不到新版的下載檔") : .idle
                 return
             }
-            state = UpdateLogic.isNewer(release.version, than: current) ? .available(release) : .upToDate
+            guard UpdateLogic.isNewer(release.version, than: current) else {
+                state = .upToDate
+                return
+            }
+            state = .available(release)
+            let defaults = UserDefaults.standard
+            if UpdateLogic.shouldNotify(release.version, lastNotified: defaults.string(forKey: Self.notifiedKey)) {
+                defaults.set(release.tag, forKey: Self.notifiedKey)
+                if !userInitiated { onNewRelease?(release) }
+            }
         } catch {
             state = userInitiated ? .failed("無法連線到 GitHub，請稍後再試") : .idle
         }
@@ -148,11 +162,11 @@ final class Updater {
         let unpacked = work.appendingPathComponent("unpacked")
         guard run("/usr/bin/ditto", ["-x", "-k", zip.path, unpacked.path]) == 0 else { throw UpdateError(message: "解壓縮失敗") }
         let app = unpacked.appendingPathComponent("macbookBatteryMonitor.app")
+        // v1.7.0 起只有一個 App，系統監控是設定裡的開關，不再比對版本別
         guard let info = NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any],
               info["CFBundleIdentifier"] as? String == "com.kuan.batterymonitor",
-              info["MBMEdition"] as? String == AppEdition.current.rawValue,
               (info["CFBundleShortVersionString"] as? String).flatMap(UpdateLogic.version) == release.version else {
-            throw UpdateError(message: "下載的 App 與目前的版本別或版本號不符")
+            throw UpdateError(message: "下載的 App 與這個 App 或版本號不符")
         }
         guard run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]) == 0 else {
             throw UpdateError(message: "新版 App 的簽章驗證失敗")

@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class BatteryStore {
     private(set) var snapshot: BatterySnapshot?
+    /// 桌上型 Mac（沒有電池）的整機耗電；有電池的 Mac 一直是 nil
+    private(set) var desktop: DesktopPower?
     private(set) var estimates: Estimates?
     private(set) var systemHealth: SystemHealth?
     private(set) var topProcesses: [EnergyProcess] = []
@@ -23,15 +25,21 @@ final class BatteryStore {
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()
     @ObservationIgnored private var samplingGate = SamplingGate()
+    /// 截圖用的示範數據：不啟動真實的硬體取樣，免得蓋掉示範值
+    @ObservationIgnored private var previewing = false
+
+    /// Intel 的 powermetrics 沒有 CPU Power 這一行，而且 SMC 已經直接提供 CPU 功耗，不使用管理員取樣
+    private static var adminCPUEnabled: Bool { AppSettings.shared.adminCPUSampling && !ChipInfo.isIntel }
 
     func setHardwareSampling(active: Bool) {
-        adminCPU.update(active: active, enabled: AppSettings.shared.adminCPUSampling)
+        guard !previewing else { return }
+        adminCPU.update(active: active, enabled: Self.adminCPUEnabled)
         let changed = samplingGate.active != active
         samplingGate.setActive(active)
         if !active {
             if changed {
                 componentPower = nil
-                breakdown = PowerBreakdown(systemWatts: estimates?.systemWatts, status: .sampling)
+                breakdown = PowerBreakdown(systemWatts: estimates?.systemWatts ?? desktop?.systemWatts, status: .sampling)
                 let generation = samplingGate.generation
                 Task { await hardwareWorker.stop(generation: generation) }
             }
@@ -41,7 +49,7 @@ final class BatteryStore {
         Task {
             let result = await hardwareWorker.sample(generation: ticket)
             guard samplingGate.finish(ticket), var result else { return }
-            if AppSettings.shared.adminCPUSampling { result.cpuWatts = adminCPU.watts }
+            if Self.adminCPUEnabled { result.cpuWatts = adminCPU.watts }
             componentPower = result
             breakdown = PowerBreakdown.make(systemWatts: result.systemWatts,
                 components: result, now: ProcessInfo.processInfo.systemUptime)
@@ -74,6 +82,7 @@ final class BatteryStore {
             estimates = nil
             chargingPresentation = ChargingPresentation()
             flowPresentation = PowerFlowPresentation()
+            if !BatteryReader.hasBattery { refreshDesktop() }
             return
         }
         if s.externalConnected {
@@ -114,7 +123,25 @@ final class BatteryStore {
         estimates = computed
     }
 
+    /// 桌上型 Mac：只讀一個 SMC 值（整機耗電），平均方式與 MacBook 的平均放電相同
+    private func refreshDesktop() {
+        let now = Date()
+        let watts = BatteryReader.desktopSystemWatts()
+        let dt = desktop.map { now.timeIntervalSince($0.date) } ?? 0
+        let average = watts.map { ema(desktop?.averageWatts, $0, dt) } ?? desktop?.averageWatts
+        desktop = DesktopPower(date: now, systemWatts: watts, averageWatts: average,
+                               lowPowerMode: ProcessInfo.processInfo.isLowPowerModeEnabled,
+                               processor: ChipInfo.shortName, model: ChipInfo.model,
+                               uptime: ProcessInfo.processInfo.systemUptime, hasBuiltInDisplay: ChipInfo.hasBuiltInDisplay)
+    }
+
     func recordHistory() {
+        if let desktop {
+            // 桌上型 Mac 沒有電量，pct 記為 -1，歷史圖只畫耗電
+            guard let watts = desktop.systemWatts else { return }
+            history.add(HistorySample(t: desktop.date, pct: -1, watts: watts, plugged: true, charging: false))
+            return
+        }
         guard let s = snapshot, let e = estimates else { return }
         history.add(HistorySample(
             t: s.date,
@@ -134,6 +161,8 @@ final class BatteryStore {
     }
 
     func backfillHistory() {
+        // pmset 的電量紀錄只有 MacBook 才有
+        guard BatteryReader.hasBattery else { return }
         Task {
             history.backfill(await PowerLog.chargeHistory())
         }
@@ -180,6 +209,7 @@ final class BatteryStore {
 
     /// 截圖用的示範數據（README、版本說明）：不含任何使用者的真實資料
     func loadPreview(now: Date = Date()) {
+        previewing = true
         var s = BatterySnapshot()
         s.date = now
         s.percent = 78
@@ -219,6 +249,36 @@ final class BatteryStore {
             EnergyProcess(id: "mail", name: "郵件", power: 3.2, appPath: "/System/Applications/Mail.app"),
             EnergyProcess(id: "photos", name: "照片", power: 2.1, appPath: "/System/Applications/Photos.app"),
             EnergyProcess(id: "finder", name: "Finder", power: 0.9, appPath: "/System/Library/CoreServices/Finder.app"),
+        ]
+        processesLoaded = true
+    }
+
+    /// 桌上型 Mac 的示範數據（截圖用）：整機約 38 W，CPU 21 W、GPU 2 W，一天的耗電歷史
+    func loadDesktopPreview(now: Date = Date()) {
+        snapshot = nil
+        estimates = nil
+        previewing = true
+        desktop = DesktopPower(date: now, systemWatts: 38.4, averageWatts: 36.2, processor: "Apple M2 Pro", model: "Mac14,12",
+                               uptime: (3 * 24 + 4) * 3600, hasBuiltInDisplay: false)
+        let uptime = ProcessInfo.processInfo.systemUptime
+        // 像 Mac mini：沒有內建螢幕（沒有背光感測器），ANE 閒置
+        var sample = ComponentPowerSample(uptime: uptime, interval: 1, backlightWatts: nil, cpuWatts: 21.3, gpuWatts: 2.1,
+                                          aneWatts: 0, systemWatts: 38.4, systemWindowAligned: true)
+        sample.backlightAvailable = false
+        componentPower = sample
+        breakdown = PowerBreakdown.make(systemWatts: 38.4, components: sample, now: uptime)
+        var samples: [HistorySample] = []
+        for minute in stride(from: 24 * 60, through: 0, by: -10) {
+            let t = now.addingTimeInterval(-Double(minute) * 60)
+            let busy = (9 * 60...18 * 60).contains((24 * 60 - minute + 8 * 60) % (24 * 60))
+            let watts = (busy ? 42 : 24) + 6 * sin(Double(minute) / 23)
+            samples.append(HistorySample(t: t, pct: -1, watts: watts, plugged: true, charging: false))
+        }
+        history.loadPreview(samples)
+        topProcesses = [
+            EnergyProcess(id: "safari", name: "Safari", power: 12.4, appPath: "/Applications/Safari.app"),
+            EnergyProcess(id: "music", name: "音樂", power: 6.8, appPath: "/System/Applications/Music.app"),
+            EnergyProcess(id: "photos", name: "照片", power: 2.1, appPath: "/System/Applications/Photos.app"),
         ]
         processesLoaded = true
     }

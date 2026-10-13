@@ -155,6 +155,30 @@ enum ByteFormat {
         return (value < 9.95 && value > 0 && index > 0 ? String(format: "%.1f", value) : String(format: "%.0f", value)) + units[index]
     }
 
+    /// 圖表刻度用：低於 1 KB 直接寫位元組（"500B"），不會被四捨五入成 "0K"；個位數保留一位小數（"2.5M"）
+    static func axisRate(_ bytesPerSecond: Double) -> String {
+        let value = max(0, bytesPerSecond)
+        if value == 0 { return "0" }
+        if value < 1000 { return String(format: "%.0fB", value) }
+        let units = ["K", "M", "G"]
+        var scaled = value / 1000
+        var index = 0
+        while scaled >= 999.5, index < units.count - 1 {
+            scaled /= 1000
+            index += 1
+        }
+        let text = scaled < 9.95 && scaled.rounded() != scaled ? String(format: "%.1f", scaled) : String(format: "%.0f", scaled)
+        return text + units[index]
+    }
+
+    /// 圖表 Y 軸的上限：往上取到 1、2、5 × 10ⁿ，刻度才會落在好讀的整數，最高的資料也不會超出最上面的格線
+    static func niceAxisMax(_ value: Double, minimum: Double = 1000) -> Double {
+        let target = max(minimum, value.isFinite ? value : 0)
+        let magnitude = pow(10, floor(log10(target)))
+        for step in [1.0, 2, 5, 10] where step * magnitude >= target { return step * magnitude }
+        return 10 * magnitude
+    }
+
     static func percent(_ fraction: Double) -> String {
         String(format: "%.0f%%", (fraction * 100).rounded())
     }
@@ -398,6 +422,19 @@ enum ThermalMath {
         return .init(average: valid.reduce(0, +) / Double(valid.count), maximum: valid.max() ?? 0)
     }
 
+    /// 備援鍵依序取第一個有效的晶片溫度
+    static func firstValid(_ values: [Double?]) -> TemperatureSummary.Stat? {
+        guard let value = values.compactMap({ $0 }).first(where: isValidDieTemperature) else { return nil }
+        return .init(average: value, maximum: value)
+    }
+
+    /// SSD、電池等不會休眠的感測器：合理範圍內的值取平均與最高
+    static func plainStatistic(_ values: [Double?]) -> TemperatureSummary.Stat? {
+        let valid = values.compactMap { $0 }.filter(isPlausible)
+        guard !valid.isEmpty else { return nil }
+        return .init(average: valid.reduce(0, +) / Double(valid.count), maximum: valid.max() ?? 0)
+    }
+
     /// 同名感測器（一個名稱常有兩個服務）先平均成一點，再依類別彙整
     static func summary(_ readings: [(name: String, value: Double)]) -> TemperatureSummary {
         var perName: [String: [Double]] = [:]
@@ -420,6 +457,13 @@ enum ThermalMath {
 struct ThermalKeys: Equatable {
     var cpu: [String]
     var gpu: [String]
+    /// 核心鍵都讀不到時改用的 CPU 鍵，依序取第一個有效的（Intel：PECI、die、proximity）
+    var cpuFallback: [String] = []
+    /// 系統溫度感測器（HID）讀不到時改用的 SMC 鍵（Intel 沒有 HID 溫度感測器）
+    var storage: [String] = []
+    var battery: [String] = []
+    /// 核心群組會斷電休眠（Apple 晶片）：讀不到時顯示「休眠中」；Intel 沒有這種情況
+    var coresSleep = true
 }
 
 enum ThermalKeyTable {
@@ -427,10 +471,22 @@ enum ThermalKeyTable {
     /// 節能核心（Tp1h／Tp1l／Tp1p／Tp1t）在 CPU 負載下明顯升溫，Tg0f／Tg0j 隨 GPU 負載升溫
     static func keys(forChip brand: String) -> ThermalKeys? {
         let name = brand.trimmingCharacters(in: .whitespaces)
+        if name.hasPrefix("Intel") { return intel }
         let isM2 = name == "Apple M2" || name.hasPrefix("Apple M2 ")
         guard isM2 else { return nil }
         return ThermalKeys(
             cpu: ["Tp01", "Tp05", "Tp09", "Tp0D", "Tp0X", "Tp0b", "Tp0f", "Tp0j", "Tp1h", "Tp1t", "Tp1p", "Tp1l"],
             gpu: ["Tg0f", "Tg0j"])
     }
+
+    /// Intel Mac（Mac mini 2018 i5-8500B 實測）：TC1C 起每個核心一個鍵（沒有的核心回報 -127，會被過濾），
+    /// TCXC 是 PECI 回報的 CPU 溫度、TC0F 是 die、TC0P 是 proximity；內顯是 TCGC（PECI），
+    /// 有獨立顯卡的機型另有 TG0D／TG0P；SSD 是 TH0a／TH0b；MacBook 的電池是 TB0T 系列
+    static let intel = ThermalKeys(
+        cpu: (1...8).map { "TC\($0)C" },
+        gpu: ["TG0D", "TG0P", "TCGC"],
+        cpuFallback: ["TCXC", "TC0F", "TC0D", "TC0E", "TC0P"],
+        storage: ["TH0a", "TH0b"],
+        battery: ["TB0T", "TB1T", "TB2T"],
+        coresSleep: false)
 }

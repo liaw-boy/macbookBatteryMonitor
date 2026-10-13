@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// `--screenshots <資料夾>`：用示範數據畫出兩個版本、省電模式與周邊設備的介紹圖（README 與版本說明用），不含使用者的真實資料
+/// `--screenshots <資料夾>`：用示範數據畫出只看電池、電池＋系統監控、省電模式、周邊設備與桌上型 Mac 的介紹圖（README 與版本說明用），不含使用者的真實資料
 @MainActor
 enum ScreenshotCommand {
     static func run(directory: String) {
@@ -53,6 +53,19 @@ enum ScreenshotCommand {
         }
         SnapshotCommand.render(peripherals, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("peripherals.png"))
         ui.tab = .details
+
+        // 桌上型 Mac（沒有電池）：選單列電腦圖示加系統耗電，面板是系統耗電與耗電細項
+        let desktopStore = BatteryStore()
+        desktopStore.loadDesktopPreview(now: now)
+        let desktopUI = PanelState()
+        desktopUI.isVisible = true
+        let desktopIcon = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)?
+            .withSymbolConfiguration(.init(pointSize: 14, weight: .regular)) ?? NSImage()
+        desktopIcon.isTemplate = true
+        let desktop = Showcase(menuItems: [MenuItem(image: desktopIcon, text: "38 W")]) {
+            Popover { RootView(store: desktopStore, settings: settings, ui: desktopUI) }
+        }
+        SnapshotCommand.render(desktop, appearance: .darkAqua, settle: 0.6, to: dir.appendingPathComponent("desktop.png"))
         print("已輸出到 \(dir.path)")
     }
 

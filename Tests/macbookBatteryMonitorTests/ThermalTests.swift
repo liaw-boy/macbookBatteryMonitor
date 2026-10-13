@@ -56,7 +56,21 @@ final class ThermalTests {
         XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M1"))
         XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M3 Max"))
         XCTAssertNil(ThermalKeyTable.keys(forChip: "Apple M20"))
-        XCTAssertNil(ThermalKeyTable.keys(forChip: "Intel(R) Core(TM) i7"))
+        // Intel 用 SMC 鍵：每個核心 TC1C 起，核心鍵讀不到時改用 PECI／die／proximity
+        let intel = ThermalKeyTable.keys(forChip: "Intel(R) Core(TM) i5-8500B CPU @ 3.00GHz")
+        XCTAssertEqual(intel?.cpu.first, "TC1C")
+        XCTAssertEqual(intel?.cpuFallback.first, "TCXC")
+        XCTAssertTrue(intel?.gpu.contains("TCGC") == true)
+        XCTAssertTrue(intel?.coresSleep == false)
+    }
+
+    func testIntelFallbackAndPlainSensors() {
+        // 不存在的核心回報 -127：過濾掉；備援鍵取第一個有效的
+        XCTAssertEqual(ThermalMath.dieStatistic([82, 73, -127].filter(ThermalMath.isValidDieTemperature))?.maximum, 82)
+        XCTAssertEqual(ThermalMath.firstValid([nil, -127, 80.2, 56.1])?.average, 80.2)
+        XCTAssertNil(ThermalMath.firstValid([nil, 0]))
+        XCTAssertEqual(ThermalMath.plainStatistic([52.1, 50.9, nil, 0])?.maximum, 52.1)
+        XCTAssertNil(ThermalMath.plainStatistic([nil, -127]))
     }
 
     func testEachSensorKeepsItsLastValidValue() {

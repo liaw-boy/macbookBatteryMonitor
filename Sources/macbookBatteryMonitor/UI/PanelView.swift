@@ -12,7 +12,8 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: PanelView(store: store, settings: settings, ui: ui)
-                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit) }
+                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit,
+                                                                                     hasBattery: store.snapshot != nil) }
                 case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui, limitSlider: store.chargeLimit.supported) }
                 }
             }
@@ -48,8 +49,11 @@ struct PanelView: View {
                 }
                 .frame(height: 231, alignment: .top)
                 footer(updated: s.date)
+            } else if let desktop = store.desktop {
+                DesktopPanelView(store: store, desktop: desktop, settings: settings, ui: ui)
+                footer(updated: desktop.date)
             } else {
-                ContentUnavailableView("找不到電池", systemImage: "battery.0percent", description: Text("這台 Mac 沒有內建電池。"))
+                ContentUnavailableView("找不到電池", systemImage: "battery.0percent", description: Text("讀不到這台 Mac 的電池與耗電資訊。"))
                 footer(updated: nil)
             }
         }
@@ -89,7 +93,7 @@ struct PanelView: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.borderless)
-            .help("結束\(AppEdition.current.appName)")
+            .help("結束\(AppEdition.appName)")
         }
     }
 }
@@ -299,16 +303,24 @@ struct ScrollingPage<Content: View>: View {
     private var maxHeight: CGFloat { max(300, (NSScreen.main?.visibleFrame.height ?? 800) - 40) }
 
     var body: some View {
-        ScrollView {
-            content
-                .background(GeometryReader { proxy in
-                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
-                })
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(ui.pageHeights[page] ?? maxHeight, maxHeight))
-        .onPreferenceChange(ContentHeightKey.self) { height in
-            if height > 0, ui.pageHeights[page] != height { ui.pageHeights[page] = height }
+        ScrollViewReader { proxy in
+            ScrollView {
+                content
+                    .background(GeometryReader { proxy in
+                        Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                    })
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: min(ui.pageHeights[page] ?? maxHeight, maxHeight))
+            .onPreferenceChange(ContentHeightKey.self) { height in
+                if height > 0, ui.pageHeights[page] != height { ui.pageHeights[page] = height }
+            }
+            .onAppear {
+                guard let target = ui.scrollTarget else { return }
+                ui.scrollTarget = nil
+                // 等版面排好再捲
+                DispatchQueue.main.async { proxy.scrollTo(target, anchor: .top) }
+            }
         }
     }
 }

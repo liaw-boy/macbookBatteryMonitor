@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import UserNotifications
 
 @MainActor
@@ -12,6 +13,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     private var sawChargingSincePlugged = false
     private var fullFired = false
 
+    /// 點新版本通知時呼叫（打開設定的「更新」）
+    var onOpenUpdate: (() -> Void)?
+    /// 通知內容 userInfo 的 kind：點通知時用來分辨是哪一種
+    nonisolated private static let kindKey = "kind"
+    nonisolated private static let updateKind = "update"
+    nonisolated private static let log = Logger(subsystem: "com.kuan.batterymonitor", category: "notifications")
+
     /// 沒打包成 .app（例如直接 swift run）時沒有 bundle id，通知中心會直接 crash
     private var available: Bool { Bundle.main.bundleIdentifier != nil }
 
@@ -21,6 +29,19 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center.delegate = self
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
+
+    /// macOS 是否關閉了這個 App 的通知（關閉時所有提醒都不會出現，系統也不會再詢問）
+    func checkBlocked(_ completion: @escaping @MainActor (Bool) -> Void) {
+        guard available else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            let blocked = settings.authorizationStatus == .denied
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { completion(blocked) }
+            }
+        }
+    }
+
+    static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
 
     /// 每次跨過門檻只通知一次，離開門檻一段距離後才會再通知
     func evaluate(_ s: BatterySnapshot, state: PowerState, settings: AppSettings) {
@@ -79,18 +100,27 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         post(title: "\(device.name) 電量偏低：\(level)%", body: "已低於你設定的 \(threshold)%\(detail)，建議充電。")
     }
 
-    func sendTest() {
-        post(title: AppEdition.current.appName, body: "通知功能正常 👍")
+    func notifyUpdate(_ release: ReleaseInfo, currentVersion: String) {
+        post(title: "\(AppEdition.appName) 有新版本 v\(release.versionText)",
+             body: "目前是 \(currentVersion)。點這則通知打開設定，按「一鍵更新」就能升級。",
+             kind: Self.updateKind)
     }
 
-    private func post(title: String, body: String) {
+    func sendTest() {
+        post(title: AppEdition.appName, body: "通知功能正常 👍")
+    }
+
+    private func post(title: String, body: String, kind: String? = nil) {
         guard available else { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let kind { content.userInfo = [Self.kindKey: kind] }
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request)
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error { Self.log.error("通知送出失敗：\(error.localizedDescription, privacy: .public)") }
+        }
     }
 
     nonisolated func userNotificationCenter(
@@ -99,5 +129,21 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let kind = response.notification.request.content.userInfo[Self.kindKey] as? String
+        let opensUpdate = kind == Self.updateKind && response.actionIdentifier == UNNotificationDefaultActionIdentifier
+        Self.log.notice("點了通知：kind=\(kind ?? "-", privacy: .public) action=\(response.actionIdentifier, privacy: .public)")
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if opensUpdate { Notifier.shared.onOpenUpdate?() }
+            }
+            completionHandler()
+        }
     }
 }

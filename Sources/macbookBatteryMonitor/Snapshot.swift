@@ -30,8 +30,14 @@ enum SnapshotCommand {
             ("processes", { ui.page = .main; ui.tab = .processes }),
             // 周邊設備用示範數據，才看得到有設備時的版面
             ("peripherals", { ui.page = .main; ui.tab = .peripherals; store.peripherals.loadPreview() }),
-            ("settings", { ui.page = .settings }),
-            ("display-items", { ui.page = .displayItems }),
+            ("settings", { ui.notificationsBlocked = false; ui.page = .settings }),
+            // 點新版本通知打開設定時，捲到「更新」卡片
+            ("settings-update", { ui.page = .main; ui.scrollTarget = UpdateCard.anchor; ui.page = .settings }),
+            // macOS 關閉了 App 的通知時的提醒
+            ("settings-notifications-off", {
+                ui.page = .main; ui.notificationsBlocked = true; ui.scrollTarget = UpdateCard.anchor; ui.page = .settings
+            }),
+            ("display-items", { ui.notificationsBlocked = false; ui.page = .displayItems }),
         ]
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let suffix = appearance == .aqua ? "light" : "dark"
@@ -65,6 +71,7 @@ enum SnapshotCommand {
         renderMonitors(directory: dir)
         renderUpdateCard(directory: dir)
         renderPluggedPanels(directory: dir)
+        renderDesktopPanels(directory: dir)
         print("已輸出到 \(dir.path)")
     }
 
@@ -79,6 +86,22 @@ enum SnapshotCommand {
                 .background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, .dark)
             render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("panel-plugged-\(name)-dark.png"))
+        }
+    }
+
+    /// 桌上型 Mac（沒有電池）的主面板，用示範數據
+    private static func renderDesktopPanels(directory dir: URL) {
+        let store = BatteryStore()
+        let ui = PanelState()
+        ui.isVisible = true
+        store.loadDesktopPreview()
+        for (name, tab, level) in [("details", BottomTab.details, PowerFlowLevel.overview), ("history", .history, .chip)] {
+            ui.tab = tab
+            ui.powerFlowLevel = level
+            let view = RootView(store: store, settings: .shared, ui: ui)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, .dark)
+            render(view, appearance: .darkAqua, settle: 0.4, to: dir.appendingPathComponent("panel-desktop-\(name)-dark.png"))
         }
     }
 
@@ -109,6 +132,8 @@ enum SnapshotCommand {
         cpuTop.start()
         memoryTop.start()
         cpu.setThermalActive(true)
+        // 磁碟健康狀態（SMART）平常只在面板開著時查，截圖時也要先開始查，不然會停在「讀取中…」
+        disk.setHealthActive(true)
         for _ in 0..<4 {
             let now = Date()
             cpu.sample(at: now)

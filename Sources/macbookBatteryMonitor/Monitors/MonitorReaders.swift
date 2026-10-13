@@ -53,7 +53,10 @@ enum GPUReader {
         guard let performance = IORegistryEntryCreateCFProperty(service, "PerformanceStatistics" as CFString, kCFAllocatorDefault, 0)?
             .takeRetainedValue() as? [String: Any] else { return (nil, nil) }
         let utilization = (performance["Device Utilization %"] as? NSNumber).map { min(1, max(0, $0.doubleValue / 100)) }
-        let memory = (performance["In use system memory"] as? NSNumber).map { $0.uint64Value }
+        // Apple 晶片是 "In use system memory"，Intel 內顯是 inUseSysMemoryBytes；
+        // Intel 負載時偶爾會讀到負數被當成極大值（實測 2⁶⁴ − 1.7 億），超過實體記憶體就當成讀不到
+        let raw = (performance["In use system memory"] ?? performance["inUseSysMemoryBytes"]) as? NSNumber
+        let memory = raw.map { $0.uint64Value }.flatMap { $0 <= ProcessInfo.processInfo.physicalMemory ? $0 : nil }
         return (utilization, memory)
     }
 }

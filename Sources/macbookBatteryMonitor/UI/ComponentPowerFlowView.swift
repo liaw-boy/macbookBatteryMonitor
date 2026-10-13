@@ -5,6 +5,9 @@ struct ComponentPowerFlowView: View {
     let ui: PanelState
     /// 省電模式關掉流動動畫
     var animated = true
+    /// 桌上型 Mac 的面板：來源畫成桌機；值是有沒有內建螢幕（iMac 有，Mac mini 沒有），沒有時「其他」不含螢幕
+    var desktopWithDisplay: Bool? = nil
+    private var desktop: Bool { desktopWithDisplay != nil }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
@@ -33,7 +36,9 @@ struct ComponentPowerFlowView: View {
     }
     private var otherName: String {
         if breakdown.otherIncludesMissing { return "未分類（估算）" }
-        return breakdown.backlightAvailable ? "其他（估算）" : "其他（含螢幕）"
+        if breakdown.backlightAvailable { return "其他（估算）" }
+        // 沒有背光感測器：MacBook、iMac 的螢幕算在其他裡；Mac mini 這類沒有內建螢幕的桌上型 Mac 就只是其他
+        return desktopWithDisplay ?? true ? "其他（含螢幕）" : "其他（估算）"
     }
     private var chipComplete: Bool {
         breakdown.cpuWatts != nil && breakdown.gpuWatts != nil && (breakdown.aneWatts != nil || !breakdown.aneAvailable)
@@ -44,7 +49,7 @@ struct ComponentPowerFlowView: View {
         VStack(spacing: 4) {
             HStack(spacing: 0) {
                 VStack(spacing: 5) {
-                    Image(systemName: chip ? "cpu" : "laptopcomputer").font(.system(size: 21))
+                    Image(systemName: chip ? "cpu" : (desktop ? "desktopcomputer" : "laptopcomputer")).font(.system(size: 21))
                     Text(Format.watts(chip ? breakdown.chipWatts : breakdown.systemWatts))
                         .font(.system(size: 10, weight: .semibold)).monospacedDigit()
                     Text(chip ? (chipComplete ? "晶片合計" : "已取得合計") : "系統負載").font(.system(size: 9)).foregroundStyle(.secondary)

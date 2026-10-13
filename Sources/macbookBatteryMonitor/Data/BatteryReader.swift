@@ -225,6 +225,20 @@ enum BatteryReader {
     }
 
     /// 只讀 PowerTelemetryData 的 SystemLoad（W）。不碰任何共用快取，可以在背景執行緒呼叫
+    /// 這台 Mac 有沒有內建電池（桌上型 Mac 沒有）
+    static let hasBattery: Bool = {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != IO_OBJECT_NULL else { return false }
+        IOObjectRelease(service)
+        return true
+    }()
+
+    /// 桌上型 Mac 的整機耗電（SMC PSTR）
+    static func desktopSystemWatts() -> Double? {
+        guard let watts = smc?.read("PSTR"), watts.isFinite, watts >= 0, watts < 2000 else { return nil }
+        return watts
+    }
+
     static func systemLoadWatts() -> Double? {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
         guard service != IO_OBJECT_NULL else { return nil }

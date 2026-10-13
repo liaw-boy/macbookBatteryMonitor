@@ -4,6 +4,11 @@ import SwiftUI
 struct UpdateCard: View {
     let updater: Updater
     let settings: AppSettings
+    /// macOS 關閉了這個 App 的通知
+    var notificationsBlocked = false
+
+    /// 點新版本通知時捲到這張卡片
+    static let anchor = "update"
 
     var body: some View {
         Card {
@@ -26,11 +31,28 @@ struct UpdateCard: View {
                         .toggleStyle(.switch)
                         .controlSize(.small)
                 }
-                Text("每天檢查一次 GitHub 上有沒有新版本，只會提示，不會自動安裝。更新時會下載同一個版本別（\(AppEdition.current.title)），驗證後換上新版並重新開啟，設定與歷史資料都會保留。")
+                HStack {
+                    Text("有新版本時通知")
+                    Spacer()
+                    Toggle("有新版本時通知", isOn: Binding(get: { settings.updateNotification }, set: { settings.updateNotification = $0 }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+                .disabled(!settings.autoCheckUpdates)
+                if notificationsBlocked, settings.autoCheckUpdates, settings.updateNotification {
+                    Text("macOS 已關閉這個 App 的通知，請先到上方「通知」打開，才會收到新版本通知。")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text("每天檢查一次 GitHub 上有沒有新版本，只會提示，不會自動安裝：面板底部會出現「有新版本」，開啟通知時也會發一則通知（每個版本只通知一次，點通知直接打開這裡）。更新時會下載通用版（Apple 晶片與 Intel 都能用），驗證後換上新版並重新開啟，設定與歷史資料都會保留。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .id(Self.anchor)
     }
 
     @ViewBuilder private var status: some View {

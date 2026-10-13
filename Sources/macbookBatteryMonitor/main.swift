@@ -1,4 +1,5 @@
 import AppKit
+import UserNotifications
 
 if CommandLine.arguments.contains("--dump-monitors") {
     MainActor.assumeIsolated { MonitorDebug.dump() }
@@ -23,6 +24,21 @@ if CommandLine.arguments.contains("--dump-peripherals") {
 if let index = CommandLine.arguments.firstIndex(of: "--dump-sensors") {
     let next = CommandLine.arguments.dropFirst(index + 1).first
     SensorDump.run(count: min(600, max(1, next.flatMap { Int($0) } ?? 1)))
+    exit(0)
+}
+
+/// 開發用：印出這個 App 的通知權限（要執行 .app 裡的執行檔，系統才認得是哪個 App）
+if CommandLine.arguments.contains("--notification-status") {
+    let done = DispatchSemaphore(value: 0)
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+        let status = ["尚未詢問", "已拒絕", "已允許", "暫時允許", "短暫允許"]
+        let style = ["無", "橫幅", "提示"]
+        let toggle = ["不支援", "關閉", "開啟"]
+        print("通知權限：\(status[safe: settings.authorizationStatus.rawValue])")
+        print("提示樣式：\(style[safe: settings.alertStyle.rawValue])・橫幅／提示：\(toggle[safe: settings.alertSetting.rawValue])・通知中心：\(toggle[safe: settings.notificationCenterSetting.rawValue])・聲音：\(toggle[safe: settings.soundSetting.rawValue])")
+        done.signal()
+    }
+    done.wait()
     exit(0)
 }
 
@@ -60,4 +76,8 @@ MainActor.assumeIsolated {
     app.delegate = delegate
     app.setActivationPolicy(.accessory)
     app.run()
+}
+
+private extension Array where Element == String {
+    subscript(safe index: Int) -> String { indices.contains(index) ? self[index] : "未知（\(index)）" }
 }

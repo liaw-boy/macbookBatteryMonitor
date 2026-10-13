@@ -3,6 +3,7 @@ import Observation
 
 struct HistorySample: Codable {
     var t: Date
+    /// 電量 %；桌上型 Mac 沒有電池，記為 -1
     var pct: Int
     /// 系統耗電（W）。從 pmset 紀錄回填的資料沒有功率
     var watts: Double?

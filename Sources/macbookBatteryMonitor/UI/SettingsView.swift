@@ -6,6 +6,8 @@ struct SettingsView: View {
     let adminCPU: AdminCPUSampler
     let updater: Updater
     let chargeLimit: SystemChargeLimit
+    /// 桌上型 Mac 沒有電池：不顯示電池通知與充電上限
+    var hasBattery = true
 
     private var limitText: String {
         if chargeLimit.supported { return chargeLimit.limit >= 100 ? "不限制（100%）" : "\(chargeLimit.limit)%" }
@@ -32,6 +34,12 @@ struct SettingsView: View {
                     CardTitle("選單列", systemImage: "menubar.rectangle")
                     Picker("顯示方式", selection: binding(\.display)) {
                         ForEach(MenuBarDisplay.allCases) { Text($0.title).tag($0) }
+                    }
+                    if !hasBattery {
+                        Text("這台 Mac 沒有電池：選單列顯示系統耗電（瓦數），有百分比或時間的選項都會改顯示瓦數，「只有圖示」則不顯示數字。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                     Button("選擇面板顯示的項目…") { ui.page = .displayItems }
                         .help("電力流向細項（螢幕背光、晶片、CPU／GPU／ANE）與詳細資訊欄位")
@@ -83,81 +91,105 @@ struct SettingsView: View {
                 }
             }
 
-            if AppEdition.current.hasSystemMonitors {
-                Card {
-                    VStack(alignment: .leading, spacing: 8) {
-                        CardTitle("系統監控", systemImage: "gauge.with.dots.needle.33percent")
-                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
-                            GridRow {
-                                SwitchRow("CPU／GPU", isOn: binding(\.monitorCPU))
-                                SwitchRow("記憶體", isOn: binding(\.monitorMemory))
-                            }
-                            GridRow {
-                                SwitchRow("磁碟", isOn: binding(\.monitorDisk))
-                                SwitchRow("網路", isOn: binding(\.monitorNetwork))
-                            }
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("系統監控", systemImage: "gauge.with.dots.needle.33percent")
+                    SwitchRow("在選單列顯示系統監控", isOn: binding(\.systemMonitors))
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 6) {
+                        GridRow {
+                            SwitchRow("CPU／GPU", isOn: binding(\.monitorCPU))
+                            SwitchRow("記憶體", isOn: binding(\.monitorMemory))
                         }
-                        Text("開啟的模組在選單列各有一個圖示，\(settings.updateText)。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        GridRow {
+                            SwitchRow("磁碟", isOn: binding(\.monitorDisk))
+                            SwitchRow("網路", isOn: binding(\.monitorNetwork))
+                        }
                     }
+                    .disabled(!settings.systemMonitors)
+                    Text(settings.systemMonitors
+                         ? "開啟的模組在選單列各有一個圖示，\(settings.updateText)。"
+                         : "關閉時選單列只有\(hasBattery ? "電池" : "耗電")圖示，四個模組都不會取樣，最省電。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("CPU 功耗", systemImage: "cpu")
-                    SwitchRow("管理員 CPU 取樣", isOn: binding(\.adminCPUSampling))
-                    Text("選用功能，預設關閉。開啟時需輸入管理員密碼，安裝只讀取 CPU 功耗的系統服務；只在主面板開啟時取樣（\(settings.updateText)），面板關閉後不通訊，服務閒置會自行結束。關閉此選項會移除服務。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text(adminCPU.status).font(.caption).foregroundStyle(.secondary)
+            // Intel 直接由 SMC 讀 CPU 功耗，不需要管理員取樣
+            if !ChipInfo.isIntel {
+                Card {
+                    VStack(alignment: .leading, spacing: 8) {
+                        CardTitle("CPU 功耗", systemImage: "cpu")
+                        SwitchRow("管理員 CPU 取樣", isOn: binding(\.adminCPUSampling))
+                        Text("選用功能，預設關閉。開啟時需輸入管理員密碼，安裝只讀取 CPU 功耗的系統服務；只在主面板開啟時取樣（\(settings.updateText)），面板關閉後不通訊，服務閒置會自行結束。關閉此選項會移除服務。")
+                            .font(.caption).foregroundStyle(.secondary)
+                        Text(adminCPU.status).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
 
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("通知", systemImage: "bell")
-                    SwitchRow("低電量提醒", isOn: binding(\.lowAlertEnabled))
-                    Stepper("電量低於 \(settings.lowThreshold)% 時提醒", value: binding(\.lowThreshold), in: 5...50, step: 5)
-                        .disabled(!settings.lowAlertEnabled)
-                    Divider()
-                    SwitchRow("充電完成提醒", isOn: binding(\.fullAlertEnabled))
-                    Stepper("充到 \(settings.fullThreshold)% 時提醒", value: binding(\.fullThreshold), in: 50...100, step: 5)
-                        .disabled(!settings.fullAlertEnabled)
-                    Button("傳送測試通知") {
-                        Notifier.shared.sendTest()
+                    if hasBattery {
+                        SwitchRow("低電量提醒", isOn: binding(\.lowAlertEnabled))
+                        Stepper("電量低於 \(settings.lowThreshold)% 時提醒", value: binding(\.lowThreshold), in: 5...50, step: 5)
+                            .disabled(!settings.lowAlertEnabled)
+                        Divider()
+                        SwitchRow("充電完成提醒", isOn: binding(\.fullAlertEnabled))
+                        Stepper("充到 \(settings.fullThreshold)% 時提醒", value: binding(\.fullThreshold), in: 50...100, step: 5)
+                            .disabled(!settings.fullAlertEnabled)
+                    } else {
+                        Text("這台 Mac 沒有電池，只會有周邊設備低電量與新版本通知。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if ui.notificationsBlocked {
+                        Text("macOS 已關閉這個 App 的通知，低電量、充電完成、周邊設備與新版本通知都不會出現。請到系統設定 → 通知找到「\(AppEdition.appName)」，打開「允許通知」。")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("打開系統設定的通知") {
+                            NSWorkspace.shared.open(Notifier.settingsURL)
+                        }
+                    } else {
+                        Button("傳送測試通知") {
+                            Notifier.shared.sendTest()
+                        }
                     }
                 }
             }
 
-            Card {
-                VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("充電上限", systemImage: "checkmark.shield")
-                    HStack {
-                        Text("系統充電上限")
-                        Spacer()
-                        Text(limitText)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                    }
-                    if chargeLimit.supported {
-                        Text("可在主面板電量下方的滑桿調整（80–100%），與系統設定「電池」裡的充電上限是同一個設定，改哪一邊都會同步。實際停在上限由 macOS 控制，這個 App 不會另外控制充電。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    } else {
-                        if ChargeLimitReader.lastKnown()?.active == false {
-                            Text("用電池時 macOS 不會套用上限，數值是上次接電時讀到的。")
+            // 桌上型 Mac 沒有電池，也沒有充電上限
+            if hasBattery {
+                Card {
+                    VStack(alignment: .leading, spacing: 8) {
+                        CardTitle("充電上限", systemImage: "checkmark.shield")
+                        HStack {
+                            Text("系統充電上限")
+                            Spacer()
+                            Text(limitText)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        if chargeLimit.supported {
+                            Text("可在主面板電量下方的滑桿調整（80–100%），與系統設定「電池」裡的充電上限是同一個設定，改哪一邊都會同步。實際停在上限由 macOS 控制，這個 App 不會另外控制充電。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else {
+                            if ChargeLimitReader.lastKnown()?.active == false {
+                                Text("用電池時 macOS 不會套用上限，數值是上次接電時讀到的。")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text("這台 Mac 或系統版本無法從 App 調整充電上限，這裡只讀取並顯示。")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        Text("這台 Mac 或系統版本無法從 App 調整充電上限，這裡只讀取並顯示。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Button("在系統設定中修改") {
-                        if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
-                            NSWorkspace.shared.open(url)
+                        Button("在系統設定中修改") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.Battery-Settings.extension") {
+                                NSWorkspace.shared.open(url)
+                            }
                         }
                     }
                 }
@@ -191,20 +223,21 @@ struct SettingsView: View {
                 }
             }
 
-            UpdateCard(updater: updater, settings: settings)
+            UpdateCard(updater: updater, settings: settings, notificationsBlocked: ui.notificationsBlocked)
 
             HStack {
-                Text("\(AppEdition.current.appName) \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                Text("\(AppEdition.appName) \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                 Spacer()
-                Button("結束\(AppEdition.current.appName)") {
+                Button("結束\(AppEdition.appName)") {
                     NSApp.terminate(nil)
                 }
             }
         }
         .padding(14)
         .onAppear {
+            Notifier.shared.checkBlocked { ui.notificationsBlocked = $0 }
             ui.loginStatus = LoginItem.status
         }
     }

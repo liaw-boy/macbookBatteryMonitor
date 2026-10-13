@@ -35,6 +35,18 @@ enum UpdateLogic {
         return false
     }
 
+    /// 新版本比上次通知過的版本新才通知（同一個版本只通知一次）
+    static func shouldNotify(_ candidate: [Int], lastNotified: String?) -> Bool {
+        guard let last = lastNotified.flatMap(version) else { return true }
+        return isNewer(candidate, than: last)
+    }
+
+    /// v1.7.0 起的通用版（Apple 晶片與 Intel）
+    static func universalAssetName(tag: String) -> String {
+        "macbookBatteryMonitor-\(tag)-macOS-universal.zip"
+    }
+
+    /// v1.6.1 以前的電池版／系統監控版檔名。每次發布仍會附上，舊版的一鍵更新才找得到
     static func assetName(tag: String, edition: String) -> String {
         "macbookBatteryMonitor-\(tag)-\(edition)-macOS-arm64.zip"
     }
@@ -45,7 +57,7 @@ enum UpdateLogic {
         return host == "github.com" || host == "api.github.com" || host.hasSuffix(".githubusercontent.com")
     }
 
-    /// 解析 GET /repos/{owner}/{repo}/releases/latest 的回應；找不到這個版本別的 zip 就回傳 nil
+    /// 解析 GET /repos/{owner}/{repo}/releases/latest 的回應：優先用通用版，沒有通用版的 Release 才用舊檔名；都找不到就回傳 nil
     static func release(json: Data, edition: String) -> ReleaseInfo? {
         guard let root = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
               let tag = root["tag_name"] as? String, let version = version(tag),
@@ -57,8 +69,9 @@ enum UpdateLogic {
                   let url = (item["browser_download_url"] as? String).flatMap(URL.init(string:)), isTrusted(url) else { return nil }
             return (url, item["size"] as? Int ?? 0)
         }
-        let name = assetName(tag: tag, edition: edition)
-        guard let zip = asset(name) else { return nil }
+        let legacyEdition = edition == "battery" ? "battery" : "status"
+        let candidates = [universalAssetName(tag: tag), assetName(tag: tag, edition: legacyEdition)]
+        guard let name = candidates.first(where: { asset($0) != nil }), let zip = asset(name) else { return nil }
         return ReleaseInfo(tag: tag, version: version, pageURL: page, assetName: name, assetURL: zip.url,
                            assetSize: zip.size, checksumURL: asset(checksumFile)?.url)
     }

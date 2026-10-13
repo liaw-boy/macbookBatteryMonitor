@@ -67,7 +67,7 @@ struct MonitorPanel: View {
                 Image(systemName: "power")
             }
             .buttonStyle(.borderless)
-            .help("結束\(AppEdition.current.appName)")
+            .help("結束\(AppEdition.appName)")
         }
     }
 }
@@ -201,13 +201,14 @@ private struct MonitorChart: View {
             }
         }
         .chartXAxis(.hidden)
-        .chartYScale(domain: percent ? 0...1 : 0...max(1, yMax))
+        .chartYScale(domain: 0...axisMax)
         .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
+            // 固定三條刻度：0、一半、上限（上限往上取整數，最高的資料不會超出格線）
+            AxisMarks(position: .trailing, values: axisTicks) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let v = value.as(Double.self) {
-                        Text(percent ? ByteFormat.percent(v) : ByteFormat.compactRate(v))
+                        Text(percent ? ByteFormat.percent(v) : ByteFormat.axisRate(v))
                             .font(.system(size: 9))
                             .foregroundStyle(.tertiary)
                     }
@@ -216,8 +217,13 @@ private struct MonitorChart: View {
         }
     }
 
-    private var yMax: Double {
-        points.map { max($0.a, $0.b) }.max() ?? 1
+    private var axisMax: Double {
+        percent ? 1 : ByteFormat.niceAxisMax(points.map { max($0.a, $0.b) }.max() ?? 0)
+    }
+
+    private var axisTicks: [Double] {
+        let top = axisMax
+        return [0, top / 2, top]
     }
 
     private func legend(_ name: String, _ color: Color) -> some View {
@@ -579,7 +585,7 @@ private struct NetworkPanel: View {
     var body: some View {
         VStack(spacing: 10) {
             PanelHeader(symbol: "network", title: network.kind.map { "\($0)（\(network.interface ?? "")）" } ?? "網路",
-                        value: "↓ " + ByteFormat.compactRate(network.downloadRate),
+                        value: "↓ " + ByteFormat.rate(network.downloadRate),
                         detail: network.interface == nil ? "未連線" : "IP \(network.address ?? "—")")
             Card {
                 VStack(alignment: .leading, spacing: 8) {

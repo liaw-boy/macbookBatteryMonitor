@@ -15,6 +15,11 @@ enum BottomTab: String, CaseIterable {
     case history = "電量歷史"
     case processes = "耗電排行"
     case peripherals = "周邊設備"
+
+    /// 桌上型 Mac 沒有電量，歷史分頁改叫「耗電歷史」
+    func title(desktop: Bool) -> String {
+        desktop && self == .history ? "耗電歷史" : rawValue
+    }
 }
 
 enum HistoryRange: String, CaseIterable, Identifiable {
@@ -46,6 +51,10 @@ final class PanelState {
     var historyRange: HistoryRange = .day
     /// 設定頁等可捲動頁面量到的內容高度，下次打開直接用，面板不必先撐到最高再縮回來
     var pageHeights: [PanelPage: CGFloat] = [:]
+    /// 打開可捲動頁面時要捲到的卡片（例如點新版本通知時的「更新」）
+    var scrollTarget: String?
+    /// macOS 關閉了這個 App 的通知（設定頁打開時檢查）
+    var notificationsBlocked = false
     var loginStatus: LoginItem.Status = .disabled
     var loginError: String?
 

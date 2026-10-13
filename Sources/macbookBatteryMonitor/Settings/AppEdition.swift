@@ -1,31 +1,19 @@
 import Foundation
 
-/// 每次發布都編出兩個版本讓使用者選：
-/// - 電池版（battery）：只有電池資訊
-/// - 系統監控版（status）：另外有 CPU／GPU、記憶體、磁碟、網路模組
-/// build.sh 把版本寫進 Info.plist 的 MBMEdition；直接執行未打包的執行檔（開發時）視為系統監控版
+/// 打包時寫進 Info.plist 的 MBMEdition。
+/// v1.7.0 起只有一個 App（Apple 晶片與 Intel 通用），系統監控改成可在設定開關，第一次啟動時詢問。
+/// 發布時仍附上舊檔名的 battery／status zip，讓 v1.5.0～v1.6.1 的一鍵更新找得到檔案（舊版會檢查 MBMEdition）；
+/// 從舊版升級的使用者依原本的版本別決定系統監控預設開或關，不再詢問
 enum AppEdition: String {
     case battery
     case status
+    case universal
 
+    /// 直接執行未打包的執行檔（開發時）視為通用版
     static let current: AppEdition = {
-        (Bundle.main.object(forInfoDictionaryKey: "MBMEdition") as? String).flatMap(AppEdition.init(rawValue:)) ?? .status
+        (Bundle.main.object(forInfoDictionaryKey: "MBMEdition") as? String).flatMap(AppEdition.init(rawValue:)) ?? .universal
     }()
 
-    var hasSystemMonitors: Bool { self == .status }
-
-    var title: String {
-        switch self {
-        case .battery: return "電池版"
-        case .status: return "系統監控版"
-        }
-    }
-
     /// App 名稱（與 build.sh 寫進各語言 InfoPlist.strings 的繁體中文名稱相同）
-    var appName: String {
-        switch self {
-        case .battery: return "電池監控"
-        case .status: return "電池與系統監控"
-        }
-    }
+    static let appName = "電池與系統監控"
 }

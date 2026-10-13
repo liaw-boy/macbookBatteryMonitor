@@ -38,14 +38,7 @@ final class ThermalReader: @unchecked Sendable {
 
     private let smc = SMC()
     /// 這台 Mac 的 CPU／GPU 溫度鍵；晶片世代不在表內時為 nil
-    private lazy var dieKeys: ThermalKeys? = {
-        var size = 0
-        sysctlbyname("machdep.cpu.brand_string", nil, &size, nil, 0)
-        guard size > 0 else { return nil }
-        var buffer = [CChar](repeating: 0, count: size)
-        guard sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0) == 0 else { return nil }
-        return ThermalKeyTable.keys(forChip: String(cString: buffer))
-    }()
+    private lazy var dieKeys: ThermalKeys? = ThermalKeyTable.keys(forChip: ChipInfo.brand)
     private var fanCount: Int?
     /// 每個核心感測器最近一次有效的讀值
     private var heldDieValues: [String: (value: Double, date: Date)] = [:]
@@ -93,17 +86,20 @@ final class ThermalReader: @unchecked Sendable {
             return (sensor.name, api.floatValue(event, Self.temperatureField))
         }
         var summary = ThermalMath.summary(readings)
-        // HID 沒有核心感測器的機型（例如 M2 Pro），改用 SMC 的核心溫度鍵
+        // HID 沒有核心感測器的機型（例如 M2 Pro、Intel），改用 SMC 的溫度鍵
         if let smc, let keys = dieKeys {
             if summary.cpu == nil {
                 let values = ThermalMath.effectiveDieValues(keys.cpu.map { ($0, smc.read($0)) }, held: &heldDieValues, now: now)
                 summary.cpu = ThermalMath.dieStatistic(values)
+                    ?? ThermalMath.firstValid(keys.cpuFallback.map { smc.read($0) })
             }
             if summary.gpu == nil {
                 let values = ThermalMath.effectiveDieValues(keys.gpu.map { ($0, smc.read($0)) }, held: &heldDieValues, now: now)
                 summary.gpu = ThermalMath.dieStatistic(values)
             }
-            summary.coreSensorsAsleep = summary.cpu == nil && summary.gpu == nil
+            if summary.storage == nil { summary.storage = ThermalMath.plainStatistic(keys.storage.map { smc.read($0) }) }
+            if summary.battery == nil { summary.battery = ThermalMath.plainStatistic(keys.battery.map { smc.read($0) }) }
+            summary.coreSensorsAsleep = keys.coresSleep && summary.cpu == nil && summary.gpu == nil
         }
         return summary
     }

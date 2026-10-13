@@ -69,7 +69,20 @@ final class AppSettings {
         didSet { defaults.set(monitorNetwork, forKey: Keys.monitorNetwork); onMonitorsChange?() }
     }
 
+    /// 系統監控總開關：關閉時選單列只有電池（桌上型為耗電）圖示，四個模組都不取樣，和以前的電池版一樣省電
+    var systemMonitors: Bool {
+        didSet { defaults.set(systemMonitors, forKey: Keys.systemMonitors); onMonitorsChange?() }
+    }
+    /// 全新安裝、還沒選過要不要開系統監控（第一次啟動時詢問）
+    private(set) var needsModeChoice = false
+
+    func chooseMode(systemMonitors: Bool) {
+        needsModeChoice = false
+        self.systemMonitors = systemMonitors
+    }
+
     func isMonitorEnabled(_ kind: MonitorKind) -> Bool {
+        guard systemMonitors else { return false }
         switch kind {
         case .cpu: return monitorCPU
         case .memory: return monitorMemory
@@ -122,6 +135,10 @@ final class AppSettings {
     var autoCheckUpdates: Bool {
         didSet { defaults.set(autoCheckUpdates, forKey: Keys.autoCheckUpdates) }
     }
+    /// 自動檢查發現新版本時發通知（每個版本只通知一次）
+    var updateNotification: Bool {
+        didSet { defaults.set(updateNotification, forKey: Keys.updateNotification) }
+    }
 
     var display: MenuBarDisplay {
         didSet { defaults.set(display.rawValue, forKey: Keys.display); onChange?() }
@@ -149,6 +166,7 @@ final class AppSettings {
         static let monitorMemory = "monitorMemory"
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
+        static let systemMonitors = "systemMonitors"
         static let powerSaving = "powerSaving"
         static let updateInterval = "updateInterval"
         static let hiddenFlowItems = "hiddenFlowItems"
@@ -156,7 +174,16 @@ final class AppSettings {
         static let peripheralThresholds = "peripheralThresholds"
         static let appIconColor = "appIconColor"
         static let autoCheckUpdates = "autoCheckUpdates"
+        static let updateNotification = "updateNotification"
         static let adminCPUSampling = "adminCPUSampling"
+    }
+
+    /// 這台 Mac 以前用過這個 App（有設定或電量歷史），從舊版升級時不再詢問
+    private static func usedBefore(_ defaults: UserDefaults) -> Bool {
+        if let id = Bundle.main.bundleIdentifier, let domain = defaults.persistentDomain(forName: id), !domain.isEmpty { return true }
+        let history = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("BatteryMonitor/history.json")
+        return FileManager.default.fileExists(atPath: history.path)
     }
 
     private init() {
@@ -174,6 +201,7 @@ final class AppSettings {
             Keys.updateInterval: 1,
             Keys.adminCPUSampling: false,
             Keys.autoCheckUpdates: true,
+            Keys.updateNotification: true,
         ])
         adminCPUSampling = defaults.bool(forKey: Keys.adminCPUSampling)
         display = MenuBarDisplay(rawValue: defaults.string(forKey: Keys.display) ?? "") ?? .iconAndPercent
@@ -185,6 +213,17 @@ final class AppSettings {
         monitorMemory = defaults.bool(forKey: Keys.monitorMemory)
         monitorDisk = defaults.bool(forKey: Keys.monitorDisk)
         monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
+        if defaults.object(forKey: Keys.systemMonitors) != nil {
+            systemMonitors = defaults.bool(forKey: Keys.systemMonitors)
+        } else if Self.usedBefore(defaults) {
+            // 從 v1.6.1 以前升級：電池版維持只看電池，系統監控版維持開著，不再詢問
+            let previous = AppEdition.current != .battery
+            systemMonitors = previous
+            defaults.set(previous, forKey: Keys.systemMonitors)
+        } else {
+            systemMonitors = true
+            needsModeChoice = true
+        }
         powerSaving = defaults.bool(forKey: Keys.powerSaving)
         let interval = defaults.integer(forKey: Keys.updateInterval)
         updateInterval = Self.updateIntervals.contains(interval) ? interval : 1
@@ -193,5 +232,6 @@ final class AppSettings {
         peripheralThresholds = defaults.dictionary(forKey: Keys.peripheralThresholds) as? [String: Int] ?? [:]
         appIconColor = AppIconColor(rawValue: defaults.string(forKey: Keys.appIconColor) ?? "") ?? .mint
         autoCheckUpdates = defaults.bool(forKey: Keys.autoCheckUpdates)
+        updateNotification = defaults.bool(forKey: Keys.updateNotification)
     }
 }

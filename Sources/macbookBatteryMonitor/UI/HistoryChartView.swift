@@ -4,6 +4,8 @@ import SwiftUI
 struct HistoryChartView: View {
     let history: HistoryStore
     let ui: PanelState
+    /// 桌上型 Mac：沒有電量，只畫耗電
+    var desktop = false
 
     private var range: HistoryRange { ui.historyRange }
 
@@ -27,15 +29,18 @@ struct HistoryChartView: View {
                 legend
             }
 
-            if points.count < 2 {
-                VStack(spacing: 6) {
-                    Image(systemName: "chart.xyaxis.line")
-                        .font(.title2)
-                    Text("資料收集中，每分鐘記錄一次…")
-                        .font(.callout)
+            if desktop {
+                if wattPoints.count < 2 {
+                    collecting
+                } else {
+                    wattsChart(wattPoints, domain: domain, showsTime: true)
+                        .frame(height: 150)
+                    Text(desktopSummary(wattPoints))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if points.count < 2 {
+                collecting
             } else {
                 Chart(points) { p in
                     LineMark(
@@ -67,27 +72,8 @@ struct HistoryChartView: View {
                 .frame(height: wattPoints.isEmpty ? 140 : 100)
 
                 if !wattPoints.isEmpty {
-                Chart(wattPoints) { p in
-                    AreaMark(
-                        x: .value("時間", p.t),
-                        y: .value("功率", p.watts ?? 0),
-                        series: .value("段", p.wattsSegment)
-                    )
-                    .foregroundStyle(Color.orange.opacity(0.35).gradient)
-                    .interpolationMethod(.monotone)
-                }
-                .chartXScale(domain: domain)
-                .chartXAxis(.hidden)
-                .chartYAxis {
-                    AxisMarks(position: .leading, values: .automatic(desiredCount: 2)) { value in
-                        AxisGridLine()
-                        AxisValueLabel {
-                            if let v = value.as(Double.self) { Text("\(Int(v))W") }
-                        }
-                    }
-                }
-                .padding(.trailing, 10)
-                .frame(height: 42)
+                    wattsChart(wattPoints, domain: domain, showsTime: false)
+                        .frame(height: 42)
                 }
 
                 Text(summary(points))
@@ -98,10 +84,54 @@ struct HistoryChartView: View {
         }
     }
 
+    private var collecting: some View {
+        VStack(spacing: 6) {
+            Image(systemName: "chart.xyaxis.line")
+                .font(.title2)
+            Text("資料收集中，每分鐘記錄一次…")
+                .font(.callout)
+        }
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 耗電面積圖；桌上型 Mac 時是主圖，要顯示時間軸
+    private func wattsChart(_ points: [ChartPoint], domain: ClosedRange<Date>, showsTime: Bool) -> some View {
+        Chart(points) { p in
+            AreaMark(
+                x: .value("時間", p.t),
+                y: .value("功率", p.watts ?? 0),
+                series: .value("段", p.wattsSegment)
+            )
+            .foregroundStyle(Color.orange.opacity(0.35).gradient)
+            .interpolationMethod(.monotone)
+        }
+        .chartXScale(domain: domain)
+        .chartXAxis {
+            if showsTime {
+                AxisMarks(values: axisDates(domain)) { _ in
+                    AxisGridLine()
+                    AxisValueLabel(format: xFormat)
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: showsTime ? 3 : 2)) { value in
+                AxisGridLine()
+                AxisValueLabel {
+                    if let v = value.as(Double.self) { Text("\(Int(v))W") }
+                }
+            }
+        }
+        .padding(.trailing, 10)
+    }
+
     private var legend: some View {
         HStack(spacing: 8) {
-            legendItem(.blue, "用電池")
-            legendItem(.green, "接電源")
+            if !desktop {
+                legendItem(.blue, "用電池")
+                legendItem(.green, "接電源")
+            }
             legendItem(.orange, "耗電")
         }
         .font(.caption2)
@@ -146,6 +176,12 @@ struct HistoryChartView: View {
 
     private var xFormat: Date.FormatStyle {
         range == .week ? .dateTime.month(.defaultDigits).day() : .dateTime.hour().minute()
+    }
+
+    private func desktopSummary(_ points: [ChartPoint]) -> String {
+        let watts = points.compactMap(\.watts)
+        let average = watts.reduce(0, +) / Double(max(1, watts.count))
+        return "平均耗電 \(Format.watts(average)) · 最高 \(Format.watts(watts.max()))"
     }
 
     private func summary(_ points: [ChartPoint]) -> String {

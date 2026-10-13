@@ -43,12 +43,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         settings.onChange = { [weak self] in self?.updateStatusItem() }
         settings.onIntervalChange = { [weak self] in self?.applySampleInterval() }
-        // 電池版不建立任何系統監控圖示與計時器
-        if AppEdition.current.hasSystemMonitors {
-            settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
-            monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
-            monitors.start()
-        }
+        // 全新安裝：先問要不要開系統監控，再建立模組圖示
+        if settings.needsModeChoice { askForMode() }
+        // 系統監控關閉時不建立任何模組圖示與計時器
+        settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
+        monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
+        monitors.start()
         store.adminCPU.authorizationChanged = { [weak self] pending in
             self?.popover?.behavior = pending ? .applicationDefined : .transient
         }
@@ -69,6 +69,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // 系統充電上限：啟動時讀一次，之後由系統通知、打開面板時重新讀取；在面板上調整後立即更新選單列與面板
         store.chargeLimit.onChange = { [weak self] in self?.refresh() }
         store.chargeLimit.start()
+        // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定的「更新」
+        store.updater.onNewRelease = { [weak self] release in
+            guard let self, self.settings.updateNotification else { return }
+            Notifier.shared.notifyUpdate(release, currentVersion: self.store.updater.currentVersion)
+        }
+        Notifier.shared.onOpenUpdate = { [weak self] in
+            // 點通知時前景是通知中心：先把 App 帶到前景，等通知收起來再開面板，否則面板一打開就會被當成點到外面而關閉
+            NSApp.activate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                guard let self else { return }
+                self.ui.scrollTarget = UpdateCard.anchor
+                self.showPopover(page: .settings)
+            }
+        }
         // 自動檢查更新：啟動 15 秒後與之後每 6 小時看一次，距離上次檢查超過一天才真的連線
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
             guard let self, self.settings.autoCheckUpdates else { return }
@@ -93,6 +107,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         registerLoginItemIfNeeded()
         runPanelSelfTestIfRequested()
         runUpdateSelfTestIfRequested()
+    }
+
+    /// 第一次啟動：只看電池（和以前的電池版一樣），還是另外在選單列加上系統監控
+    private func askForMode() {
+        let battery = BatteryReader.hasBattery
+        let alert = NSAlert()
+        alert.messageText = "要在選單列顯示哪些資訊？"
+        alert.informativeText = (battery
+            ? "「電池＋系統監控」會另外在選單列加上 CPU／GPU、記憶體、磁碟與網路圖示；「只看電池」只有一個電池圖示，最省電。"
+            : "「耗電＋系統監控」會另外在選單列加上 CPU／GPU、記憶體、磁碟與網路圖示；「只看耗電」只有一個顯示系統耗電的圖示，最省電。")
+            + "\n\n之後可以在設定 →「系統監控」隨時更改。"
+        alert.addButton(withTitle: battery ? "電池＋系統監控" : "耗電＋系統監控")
+        alert.addButton(withTitle: battery ? "只看電池" : "只看耗電")
+        NSApp.activate()
+        settings.chooseMode(systemMonitors: alert.runModal() == .alertFirstButtonReturn)
     }
 
     /// 開發用：`--selftest-update` 檢查 GitHub 上的新版本，有就直接一鍵更新（App 會結束並由安裝程序重新開啟）
@@ -171,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func applySampleInterval() {
         scheduleRefresh(every: interval)
         if processTimer != nil { scheduleProcessCheck() }
-        if AppEdition.current.hasSystemMonitors { monitors.applySampleInterval() }
+        monitors.applySampleInterval()
     }
 
     private func scheduleRefresh(every interval: TimeInterval) {
@@ -248,12 +277,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     // MARK: - Status item
 
+    /// 桌上型 Mac：電腦圖示加整機耗電（取整數，數字才不會每秒跳動）；「只有圖示」時不顯示瓦數
+    private func updateDesktopStatusItem(_ button: NSStatusBarButton, watts: Double) {
+        let text = "\(Int(watts.rounded())) W"
+        let key = "desktop|\(text)|\(settings.display)"
+        guard key != lastStatusKey else { return }
+        lastStatusKey = key
+        // 和 MacBook 的「78% 加電池圖示」一樣，數字在圖示左邊
+        button.imagePosition = .imageTrailing
+        button.image = settings.display == .percentOnly ? nil
+            : NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "系統耗電")
+        button.title = settings.display == .iconOnly ? "" : text
+        button.toolTip = "系統耗電 \(Format.watts(watts))"
+    }
+
     private func updateStatusItem() {
         guard let button = statusItem?.button else { return }
+        if store.snapshot == nil, let desktop = store.desktop, let watts = desktop.systemWatts {
+            updateDesktopStatusItem(button, watts: watts)
+            return
+        }
         guard let s = store.snapshot, let e = store.estimates else {
             guard lastStatusKey != "noBattery" else { return }
-            button.image = NSImage(systemSymbolName: "battery.0percent", accessibilityDescription: "找不到電池")
+            // 桌上型 Mac（Mac mini、iMac 等）沒有電池：不要畫成空電池，免得看起來像沒電
+            button.image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: "這台 Mac 沒有電池")
             button.title = ""
+            button.toolTip = "這台 Mac 沒有電池・點一下打開面板與設定"
             lastStatusKey = "noBattery"
             return
         }
@@ -349,7 +398,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         menu.addItem(withTitle: "打開面板", action: #selector(openPanel), keyEquivalent: "").target = self
         menu.addItem(withTitle: "設定…", action: #selector(openSettings), keyEquivalent: ",").target = self
         menu.addItem(.separator())
-        menu.addItem(withTitle: "結束\(AppEdition.current.appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "結束\(AppEdition.appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem.menu = menu
         statusItem.button?.performClick(nil)
         statusItem.menu = nil

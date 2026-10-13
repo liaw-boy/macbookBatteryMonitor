@@ -37,6 +37,13 @@ enum SensorDump {
             return (heldValue, text)
         }
 
+        // Intel 的溫度鍵不同，改列 Intel 對應表的鍵
+        if let keys = ThermalKeyTable.keys(forChip: ChipInfo.brand), !keys.coresSleep {
+            print("晶片：\(ChipInfo.brand)")
+            runIntel(count: count, smc: smc, keys: keys, thermal: thermal)
+            return
+        }
+
         for i in 0..<max(1, count) {
             let stamp = DateFormatter()
             stamp.dateFormat = "HH:mm:ss"
@@ -77,6 +84,36 @@ enum SensorDump {
                 s.map { String(format: "平均 %.1f／最高 %.1f", $0.average, $0.maximum) } ?? "—"
             }
             print("-- 面板顯示值（各感測器保留 120 秒） CPU \(stat(panel.cpu))  GPU \(stat(panel.gpu))  SoC \(stat(panel.soc))")
+            if i + 1 < count { Thread.sleep(forTimeInterval: 1) }
+        }
+    }
+
+    /// Intel：每個鍵的原始值與是否採用（核心鍵 -127 之類的無效值不採用）
+    private static func runIntel(count: Int, smc: SMC, keys: ThermalKeys, thermal: ThermalReader) {
+        let groups: [(String, [String], Bool)] = [
+            ("CPU 核心", keys.cpu, true), ("CPU 備援", keys.cpuFallback, true), ("GPU", keys.gpu, true),
+            ("儲存裝置", keys.storage, false), ("電池", keys.battery, false),
+        ]
+        for i in 0..<max(1, count) {
+            print("===== 第 \(i + 1) 次 =====")
+            for (group, groupKeys, die) in groups {
+                for key in groupKeys {
+                    guard let raw = smc.read(key) else {
+                        print(String(format: "%-10@ %@  —", group as NSString, key as NSString))
+                        continue
+                    }
+                    let valid = die ? ThermalMath.isValidDieTemperature(raw) : ThermalMath.isPlausible(raw)
+                    print(String(format: "%-10@ %@  %6.1f  %@", group as NSString, key as NSString, raw, valid ? "採用" : "無效" as NSString))
+                }
+            }
+            for fan in thermal.fans() {
+                print(String(format: "%-10@ %5.0f RPM  %4.0f%%", fan.name as NSString, fan.rpm, fan.fraction * 100))
+            }
+            let panel = thermal.temperatures()
+            func stat(_ s: TemperatureSummary.Stat?) -> String {
+                s.map { String(format: "平均 %.1f／最高 %.1f", $0.average, $0.maximum) } ?? "—"
+            }
+            print("-- 面板顯示值 CPU \(stat(panel.cpu))  GPU \(stat(panel.gpu))  儲存 \(stat(panel.storage))  電池 \(stat(panel.battery))")
             if i + 1 < count { Thread.sleep(forTimeInterval: 1) }
         }
     }

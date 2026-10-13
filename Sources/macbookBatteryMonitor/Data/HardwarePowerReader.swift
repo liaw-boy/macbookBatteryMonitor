@@ -5,6 +5,8 @@ final class HardwarePowerReader {
     private let smc = SMC()
     /// 有沒有螢幕背光功率感測器（例如 M1 MacBook Air 沒有 PDBR／PBwo）；沒有就不顯示背光，其他功耗改為包含螢幕
     private lazy var backlightAvailable = smc.map { $0.hasKey("PDBR") || $0.hasKey("PBwo") } ?? false
+    /// Intel Mac 沒有 IOReport 的能量模型，但 SMC 直接提供 CPU 核心（PCPC）與內顯（PCPG）功率
+    private lazy var smcChipPower = smc?.hasKey("PCPC") ?? false
     private var delta = EnergyDelta()
     private var previousSystem: Double?
     private var previousBacklight: Double?
@@ -33,9 +35,11 @@ final class HardwarePowerReader {
         previousBacklight = backlight
         // 在背景執行緒，只讀需要的那一個值；BatteryReader.read 會動到主執行緒共用的快取
         let fallback = system == nil ? BatteryReader.systemLoadWatts() : nil
+        let cpu = EnergyCounter.updatedCPUWatts(watts["cpu"]) ?? (smcChipPower ? valid(smc?.read("PCPC")) : nil)
+        let gpu = watts["gpu"] ?? (smcChipPower ? valid(smc?.read("PCPG")) : nil)
         return ComponentPowerSample(uptime: now, interval: interval,
             backlightWatts: backlightAverage,
-            cpuWatts: EnergyCounter.updatedCPUWatts(watts["cpu"]), gpuWatts: watts["gpu"], aneWatts: watts["ane"],
+            cpuWatts: cpu, gpuWatts: gpu, aneWatts: watts["ane"],
             systemWatts: systemAverage ?? valid(fallback), systemWindowEstimated: estimated,
             systemPowerSource: system != nil ? "SMC PSTR" : "Battery SystemLoad",
             sampling: interval == nil && !energy.isEmpty,
