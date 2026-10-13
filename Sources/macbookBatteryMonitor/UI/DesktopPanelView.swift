@@ -7,7 +7,15 @@ struct DesktopPanelView: View {
     let settings: AppSettings
     let ui: PanelState
 
+    /// 面板開著時，標題、詳細資訊與耗電細項都用同一次硬體取樣的整機耗電，數字才會對得起來
+    private var current: DesktopPower {
+        var value = desktop
+        if let watts = store.breakdown.systemWatts { value.systemWatts = watts }
+        return value
+    }
+
     var body: some View {
+        let desktop = current
         VStack(spacing: 10) {
             DesktopHeaderView(desktop: desktop)
             DesktopPowerSection(breakdown: store.breakdown, ui: ui, powerSaving: settings.powerSaving,
