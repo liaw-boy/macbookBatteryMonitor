@@ -130,7 +130,12 @@ struct ChargingPlanView: View {
             if percent >= target {
                 Text("已達 \(target)%").font(.caption).foregroundStyle(.secondary)
             } else if forecast.onTime {
-                Text("\(plugged)可準時充到 \(target)%（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）")
+                // 和排程相同：往前推需要的時間再加緩衝，就是開始充電的時間
+                let start = deadline.addingTimeInterval(-Double(forecast.neededMinutes + ChargingPlanEngine.bufferMinutes) * 60)
+                let hold = min(settings.chargingHoldPercent, target)
+                Text(start.timeIntervalSinceNow > 60
+                     ? "\(plugged)可準時充到 \(target)%：先維持 \(hold)%，約 \(ChargingJourneyPresentation.time(start, now: Date())) 開始充"
+                     : "\(plugged)可準時充到 \(target)%，會立刻開始充（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
