@@ -47,9 +47,9 @@ final class ChargingWakeScheduler {
             status = "未開啟"
             return
         }
-        guard CPUHelperInstaller.installed else {
+        guard CPUHelperInstaller.supportsChargingWake else {
             if launching {
-                // 開 App 時不跳出授權：服務不在或版本不符就關掉選項
+                // 開 App 時不跳出授權：服務不在、或是只有 CPU 取樣的舊服務，就關掉選項
                 AppSettings.shared.chargingWakeEnabled = false
                 lastEnabled = false
                 status = "管理員服務已更新或不存在，已改用優先準時完成；需要時請重新選擇精準喚醒並授權"
@@ -93,7 +93,7 @@ final class ChargingWakeScheduler {
                     self.installLease = nil
                     self.authorizing = false
                     guard AppSettings.shared.chargingWakeEnabled else { return }
-                    guard succeeded, CPUHelperInstaller.installed else {
+                    guard succeeded, CPUHelperInstaller.supportsChargingWake else {
                         AppSettings.shared.chargingWakeEnabled = false
                         self.lastEnabled = false
                         self.status = "授權已取消或安裝失敗，已改用優先準時完成"

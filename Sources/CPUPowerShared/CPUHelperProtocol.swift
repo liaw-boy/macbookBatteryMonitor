@@ -10,8 +10,9 @@ public enum CPUHelperConstants {
     /// 智慧充電喚醒事件的固定識別碼（`pmset -g sched` 會顯示）
     public static let chargingWakeIdentifier = "com.kuan.batterymonitor.charging"
     public static let launchDaemon = "/Library/LaunchDaemons/" + label + ".plist"
-    /// 通訊協定改變時加一；舊版服務會被視為未安裝，需要重新授權
-    public static let version = 4
+    /// 通訊協定改變時加一；舊版服務會被視為未安裝，需要重新授權。
+    /// 智慧充電喚醒是額外加的功能，不改版本號：舊服務照樣提供 CPU 取樣，要用喚醒時才重新安裝（見 chargingWake）
+    public static let version = 3
     /// 沒有任何取樣租約多久後服務自行結束（launchd 會在下次連線時再啟動）
     public static let idleExit: TimeInterval = 30
 
@@ -49,7 +50,9 @@ public enum ChargingWakePolicy {
 public struct CPUHelperConfiguration: Codable {
     public let uid: UInt32
     public let version: Int
-    public init(uid: UInt32) { self.uid = uid; version = CPUHelperConstants.version }
+    /// 這個服務能排定智慧充電喚醒（v1.7.0 起安裝的服務；舊服務的設定沒有這個值）
+    public let chargingWake: Bool?
+    public init(uid: UInt32) { self.uid = uid; version = CPUHelperConstants.version; chargingWake = true }
 }
 
 public struct CPUHelperReply: Codable {

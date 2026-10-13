@@ -231,7 +231,7 @@ final class AdminCPUSampler {
         reading = nil
         desiredActive = false
         // 智慧充電的精準喚醒也用這個服務：只斷線，不移除
-        if AppSettings.shared.chargingWakeEnabled, CPUHelperInstaller.installed, process == nil {
+        if AppSettings.shared.chargingWakeEnabled, CPUHelperInstaller.supportsChargingWake, process == nil {
             disconnect()
             status = "已關閉 CPU 取樣；智慧充電的精準喚醒仍使用管理員服務"
             return
