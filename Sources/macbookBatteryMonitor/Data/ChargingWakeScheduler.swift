@@ -20,6 +20,8 @@ final class ChargingWakeScheduler {
     @ObservationIgnored private var requested: Date?
     @ObservationIgnored private var cancelled = false
     @ObservationIgnored private var lastEnabled: Bool?
+    @ObservationIgnored private var helperReady = false
+    @ObservationIgnored private var helperCheckedAt: Date?
     @ObservationIgnored private let helperBundle: Bundle
     @ObservationIgnored private let log: (String) -> Void
     /// 只有正式打包的 App 才會安裝或連線管理員服務（開發用指令讀的是另一組設定）
@@ -44,10 +46,15 @@ final class ChargingWakeScheduler {
         guard enabled else {
             // 開 App 時選項本來就關著：不連線、不動系統裡的任何東西
             if changed && !launching { cancel(removeHelperIfUnused: true) }
-            status = "未開啟"
+            setStatus("未開啟")
             return
         }
-        guard CPUHelperInstaller.supportsChargingWake else {
+        // 服務是否可用不必每秒查檔案：選項改變、授權完成或每分鐘才重新確認
+        if changed || helperCheckedAt.map({ Date().timeIntervalSince($0) > 60 }) ?? true {
+            helperReady = CPUHelperInstaller.supportsChargingWake
+            helperCheckedAt = Date()
+        }
+        guard helperReady else {
             if launching {
                 // 開 App 時不跳出授權：服務不在、或是只有 CPU 取樣的舊服務，就關掉選項
                 AppSettings.shared.chargingWakeEnabled = false
@@ -61,11 +68,16 @@ final class ChargingWakeScheduler {
         }
         guard let wakeAt, wakeAt.timeIntervalSinceNow >= ChargingWakePolicy.earliest else {
             if !cancelled { cancel(removeHelperIfUnused: false) }
-            status = "已授權，目前不需要喚醒"
+            setStatus("已授權，目前不需要喚醒")
             return
         }
         guard ChargingWakePolicy.shouldReplace(existing: requested ?? scheduledAt, with: wakeAt) else { return }
         schedule(wakeAt)
+    }
+
+    /// 每秒都會呼叫 sync：狀態文字沒變就不寫，畫面不必重畫
+    private func setStatus(_ text: String) {
+        if status != text { status = text }
     }
 
     func stop() {
@@ -102,6 +114,8 @@ final class ChargingWakeScheduler {
                         return
                     }
                     self.status = "已授權"
+                    self.helperReady = true
+                    self.helperCheckedAt = Date()
                     self.log("精準喚醒：已授權")
                     self.onAuthorized?()
                 }
