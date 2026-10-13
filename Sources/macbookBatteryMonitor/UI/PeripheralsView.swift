@@ -48,6 +48,19 @@ struct PeripheralsView: View {
         .onAppear { store.refreshIfStale() }
     }
 
+    /// 「左／右／盒」小標籤加電量；沒有這顆電池時不顯示，低於通知門檻時紅色（充電盒不通知，所以不變紅）
+    @ViewBuilder private func levelColumn(_ label: String, _ level: Int?, threshold: Int) -> some View {
+        if let level {
+            VStack(spacing: 0) {
+                Text(label).font(.system(size: 9)).foregroundStyle(.secondary)
+                Text("\(level)%")
+                    .font(.callout.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(threshold > 0 && level <= threshold ? Color.red : Color.primary)
+            }
+        }
+    }
+
     /// 藍牙權限被拒絕：羅技、Razer 等藍牙低功耗滑鼠與鍵盤的電量讀不到
     private var bluetoothDenied: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -77,17 +90,21 @@ struct PeripheralsView: View {
                 .font(.system(size: 17))
                 .frame(width: 24)
                 .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(device.name).lineLimit(1)
-                if let detail = device.detailText {
-                    Text(detail).font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            Text(device.name).lineLimit(1)
+            Spacer(minLength: 6)
+            if device.detailText != nil {
+                // 耳機：左耳、右耳、充電盒各一欄，不再另外只顯示一個數字
+                HStack(spacing: 10) {
+                    levelColumn("左", device.left, threshold: threshold)
+                    levelColumn("右", device.right, threshold: threshold)
+                    levelColumn("盒", device.caseLevel, threshold: 0)
                 }
+            } else {
+                Text(device.lowest.map { "\($0)%" } ?? "—")
+                    .font(.callout.weight(.semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(low ? Color.red : Color.primary)
             }
-            Spacer()
-            Text(device.lowest.map { "\($0)%" } ?? "—")
-                .font(.callout.weight(.semibold))
-                .monospacedDigit()
-                .foregroundStyle(low ? Color.red : Color.primary)
             Menu {
                 Picker("低電量通知", selection: Binding(get: { threshold }, set: { settings.setPeripheralThreshold($0, for: device.id) })) {
                     ForEach(AppSettings.peripheralThresholdChoices, id: \.self) { value in
