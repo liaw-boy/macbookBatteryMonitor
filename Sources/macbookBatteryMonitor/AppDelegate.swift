@@ -75,6 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // 系統充電上限：啟動時讀一次，之後由系統通知、打開面板時重新讀取；在面板上調整後立即更新選單列與面板
         store.chargeLimit.onChange = { [weak self] in self?.refresh() }
         store.chargeLimit.start()
+        // 智慧充電：繼續上次的排程；精準喚醒的開關改變時排定或取消喚醒
+        store.startChargingPlan()
+        settings.onChargingWakeChange = { [weak self] in self?.store.syncChargingWake() }
         // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定的「更新」
         store.updater.onNewRelease = { [weak self] release in
             guard let self, self.settings.updateNotification else { return }
@@ -210,6 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         store.adminCPU.stop()
+        store.chargingWake.stop()
         store.history.save()
     }
 
@@ -228,6 +232,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         updateStatusItem()
         if let s = store.snapshot, let e = store.estimates {
             Notifier.shared.evaluate(s, state: e.state, settings: settings)
+        }
+        if let note = store.chargingPlan.takeNotification(), let plan = store.chargingPlan.plan {
+            Notifier.shared.notifyChargingPlan(note, plan: plan)
         }
     }
 
@@ -294,6 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func willSleep() {
+        if store.chargingPlan.isActive { ChargingPlanLog.shared.write("系統即將睡眠") }
         sleeping = true
         powerTransitionTask?.cancel()
         store.setHardwareSampling(active: false)
@@ -303,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func didWake() {
+        if store.chargingPlan.isActive { ChargingPlanLog.shared.write("系統已喚醒") }
         sleeping = false
         monitors.setSleeping(false)
         refresh()
