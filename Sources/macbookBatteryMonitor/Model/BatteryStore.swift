@@ -26,6 +26,9 @@ final class BatteryStore {
     /// 智慧充電的精準喚醒（選用，需要管理員授權）
     let chargingWake = ChargingWakeScheduler()
     @ObservationIgnored private let sleepGate = SleepGate()
+    /// 智慧充電只在正式執行的 App 裡運作（AppDelegate 呼叫 startChargingPlan 之後）；
+    /// --snapshot、--dump 等開發指令也會建立 BatteryStore，絕不能因此寫入充電上限或改動排程
+    @ObservationIgnored private var chargingPlanRunning = false
     private(set) var componentPower: ComponentPowerSample?
     private(set) var breakdown = PowerBreakdown(systemWatts: nil, status: .sampling)
     @ObservationIgnored private let hardwareWorker = HardwarePowerWorker()
@@ -132,6 +135,7 @@ final class BatteryStore {
     /// App 啟動時呼叫（只有 MacBook）：手動調整上限時結束排程、睡眠前先套用排程需要的上限
     func startChargingPlan() {
         guard BatteryReader.hasBattery, !previewing else { return }
+        chargingPlanRunning = true
         chargeLimit.onUserCommit = { [weak self] value in self?.chargingPlan.userChangedLimit(to: value) }
         chargingWake.onAuthorized = { [weak self] in self?.evaluateChargingPlan(.refresh) }
         chargingWake.onUnavailable = { [weak self] in
@@ -150,7 +154,7 @@ final class BatteryStore {
 
     /// 依目前電量與排程判斷，需要時寫入充電上限；completion 在寫入（或判斷）結束後呼叫
     func evaluateChargingPlan(_ event: ChargingPlanEvent, completion: (() -> Void)? = nil) {
-        guard !previewing, let input = chargingPlanInput() else {
+        guard chargingPlanRunning, !previewing, let input = chargingPlanInput() else {
             completion?()
             return
         }
@@ -169,6 +173,7 @@ final class BatteryStore {
 
     /// 建立排程（快速、指定時間或每週）
     func startChargingPlan(_ schedule: ChargingSchedule) {
+        guard chargingPlanRunning else { return }
         let settings = AppSettings.shared
         guard chargingPlan.start(schedule, target: settings.chargingTargetPercent, hold: settings.chargingHoldPercent,
                                  currentLimit: chargeLimit.limit, strategy: settings.chargingSleepStrategy) else { return }
@@ -181,7 +186,7 @@ final class BatteryStore {
     }
 
     func cancelChargingPlan() {
-        guard let input = chargingPlanInput(), let target = chargingPlan.cancel(input) else { return }
+        guard chargingPlanRunning, let input = chargingPlanInput(), let target = chargingPlan.cancel(input) else { return }
         Task {
             let result = await chargeLimit.applyAutomatically(target)
             chargingPlan.writeFinished(target: target, success: result.success, readBack: result.readBack)
@@ -190,6 +195,7 @@ final class BatteryStore {
 
     /// 精準喚醒：選項打開、排程用精準喚醒時排定（或改排）喚醒，其他情況取消
     func syncChargingWake() {
+        guard chargingPlanRunning else { return }
         let decision = chargingPlan.decision
         let wakeAt = chargingPlan.plan?.sleepStrategy == .preciseWake ? decision?.wakeAt : nil
         chargingWake.sync(wakeAt: wakeAt, enabled: AppSettings.shared.chargingWakeEnabled)
