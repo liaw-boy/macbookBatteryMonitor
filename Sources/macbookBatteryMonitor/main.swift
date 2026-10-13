@@ -11,6 +11,13 @@ if CommandLine.arguments.contains("--dump-peripherals") {
     let start = Date()
     let services = PeripheralReader.hidServices()
     let audio = PeripheralReader.bluetoothAudioConnected()
+    // 藍牙低功耗設備（羅技、Razer 等）：要從 .app 啟動才會用這個 App 的藍牙權限；最多等 6 秒讀到電量
+    if !BLEBatteryReader.denied {
+        BLEBatteryReader.shared.start()
+        let deadline = Date().addingTimeInterval(6)
+        while Date() < deadline, BLEBatteryReader.shared.currentReadings().isEmpty { Thread.sleep(forTimeInterval: 0.3) }
+    }
+    print("藍牙權限：\(BLEBatteryReader.authorized ? "已允許" : BLEBatteryReader.denied ? "已拒絕" : "尚未決定")・藍牙低功耗電量 \(BLEBatteryReader.shared.currentReadings().count) 個")
     let devices = PeripheralReader.read(includeAllBluetooth: true)
     print("HID 電量服務 \(services.count) 個・藍牙音訊裝置連線中：\(audio)・耗時 \(Int(Date().timeIntervalSince(start) * 1000)) ms")
     for device in devices {
