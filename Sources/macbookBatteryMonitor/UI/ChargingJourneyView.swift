@@ -43,8 +43,9 @@ struct ChargingJourneyPresentation: Equatable {
     static func make(percent: Int, charging: Bool, decision: ChargingPlanDecision?, now: Date = Date()) -> ChargingJourneyPresentation {
         let progress = min(1, max(0, Double(percent) / 100))
         guard let decision else {
+            // 沒有排程時也跟著充電狀態變色：充電中是綠色（電量條、電池夥伴與光點的光暈）
             return .init(title: "智慧充電", detail: "指定時間前充好，平常維持保養上限",
-                         progress: progress, tint: .neutral, onPad: charging, badge: nil, animatedFlow: charging)
+                         progress: progress, tint: charging ? .green : .neutral, onPad: charging, badge: nil, animatedFlow: charging)
         }
         let deadline = time(decision.deadline, now: now)
         let target = "\(decision.targetPercent)%"
