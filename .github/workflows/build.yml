@@ -52,7 +52,8 @@ jobs:
             tag="$INPUT_TAG"
           else
             tag="v$(plutil -extract CFBundleShortVersionString raw -o - Resources/Info.plist)"
-            prerelease="$(plutil -extract MBMPrerelease raw -o - Resources/Info.plist 2>/dev/null || true)"
+            # 沒有這個 key 時 macOS 15 的 plutil 會把錯誤印到標準輸出，所以看結束碼，不看輸出
+            prerelease="$(plutil -extract MBMPrerelease raw -o - Resources/Info.plist 2>/dev/null)" || prerelease=""
             [[ -n "$prerelease" ]] && tag="$tag-$prerelease"
             if [[ ! -f ".github/release-notes/$tag.md" ]]; then
               echo "沒有 .github/release-notes/$tag.md，不發布"
@@ -93,7 +94,7 @@ jobs:
           fi
           git worktree add ../legacy FETCH_HEAD
           legacy="v$(plutil -extract CFBundleShortVersionString raw -o - ../legacy/Resources/Info.plist)"
-          legacy_prerelease="$(plutil -extract MBMPrerelease raw -o - ../legacy/Resources/Info.plist 2>/dev/null || true)"
+          legacy_prerelease="$(plutil -extract MBMPrerelease raw -o - ../legacy/Resources/Info.plist 2>/dev/null)" || legacy_prerelease=""
           [[ -n "$legacy_prerelease" ]] && legacy="$legacy-$legacy_prerelease"
           if [[ "$legacy" != "$TAG" ]]; then
             echo "舊系統版本是 ${legacy}，和 ${TAG} 不同，這次不附"
