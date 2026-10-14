@@ -530,16 +530,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     // MARK: - Login item
 
     /// 從 /Applications 啟動、而且這個位置還沒註冊過開機自啟動時（第一次安裝、App 改名或搬移）自動註冊。
-    /// 使用者在設定裡關掉後就不再自動開啟。
+    /// macOS 13 用新版覆蓋 App 後（簽章不同）系統會清掉登錄，所以換了版本、登錄又不見時也再註冊一次；
+    /// 同一個版本在系統設定移除後不會被加回來。使用者在 App 的設定裡關掉後就不再自動開啟。
     private func registerLoginItemIfNeeded() {
         let defaults = UserDefaults.standard
         let path = Bundle.main.bundlePath
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        let moved = defaults.string(forKey: LoginItem.registeredPathKey) != path
+        let updatedAndDropped = defaults.string(forKey: LoginItem.registeredBuildKey) != build && LoginItem.status == .disabled
         guard LoginItem.isInApplications,
               !defaults.bool(forKey: LoginItem.disabledByUserKey),
-              defaults.string(forKey: LoginItem.registeredPathKey) != path else { return }
-        // 登錄成功才記下位置，失敗的話下次啟動會再試
+              moved || updatedAndDropped else { return }
+        // 登錄成功才記下位置與版本，失敗的話下次啟動會再試
         if (try? LoginItem.setEnabled(true)) != nil {
             defaults.set(path, forKey: LoginItem.registeredPathKey)
+            defaults.set(build, forKey: LoginItem.registeredBuildKey)
         }
     }
 }

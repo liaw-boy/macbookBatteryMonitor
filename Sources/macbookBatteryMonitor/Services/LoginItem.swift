@@ -12,6 +12,8 @@ enum LoginItem {
     private static let label = "com.kuan.batterymonitor"
     /// 上次自動註冊時 App 的位置
     static let registeredPathKey = "loginItemRegisteredPath"
+    /// 上次自動註冊時 App 的版本（CFBundleVersion）
+    static let registeredBuildKey = "loginItemRegisteredBuild"
     /// 使用者在設定裡手動關掉
     static let disabledByUserKey = "loginItemDisabledByUser"
 
