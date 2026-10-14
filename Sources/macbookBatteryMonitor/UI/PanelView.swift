@@ -53,7 +53,8 @@ struct PanelView: View {
         VStack(spacing: 10) {
             if let s = store.snapshot, let e = store.estimates {
                 HeaderView(s: s, e: e, lowThreshold: settings.lowThreshold)
-                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, fullThreshold: settings.fullThreshold,
+                TimeCard(s: s, e: e, unpluggedAt: store.unpluggedAt, pluggedInAt: store.pluggedInAt,
+                         fullThreshold: settings.fullThreshold,
                          chargeLimit: store.chargeLimit.supported ? store.chargeLimit : nil,
                          planActive: store.chargingPlan.isActive,
                          journey: store.chargeLimit.supported
@@ -187,6 +188,8 @@ private struct TimeCard: View {
     let s: BatterySnapshot
     let e: Estimates
     let unpluggedAt: Date?
+    /// App 執行中插上電源的時間：剛插電、macOS 還沒開始充電時改用另一段說明
+    var pluggedInAt: Date?
     let fullThreshold: Int
     /// 充電上限滑桿（支援調整的 Mac 才有），放在卡片最上方
     var chargeLimit: SystemChargeLimit?
@@ -264,15 +267,16 @@ private struct TimeCard: View {
     private var charging: some View {
         VStack(alignment: .leading, spacing: 6) {
             CardTitle("充電預估", systemImage: "bolt")
+            // 剛開始充電的頭一分鐘還沒有平均電流，macOS 也還在估算
             if let limit = s.chargeLimit?.limit {
-                row(limitShownAbove ? "充到上限" : "充到上限 (\(limit)%)", Format.duration(e.toLimit))
+                row(limitShownAbove ? "充到上限" : "充到上限 (\(limit)%)", e.toLimit.map { Format.duration($0) } ?? "計算中…")
             } else {
-                row("充滿 (100%)", Format.duration(e.toFull))
+                row("充滿 (100%)", e.toFull.map { Format.duration($0) } ?? "計算中…")
             }
             if fullThreshold < 100, s.percent < fullThreshold {
                 row("充到 \(fullThreshold)%", Format.duration(Estimator.minutesToCharge(to: fullThreshold, snapshot: s, estimates: e)))
             }
-            row("近 3 分鐘平均充電電流", Format.milliamps(e.avgCharge_mA))
+            row("近 3 分鐘平均充電電流", e.avgCharge_mA.map { Format.milliamps($0) } ?? "計算中…")
             row("充入功率", Format.watts(max(0, e.batteryWatts)))
         }
     }
@@ -305,6 +309,10 @@ private struct TimeCard: View {
         return Int((Double(full) * Double(s.percent - limit) / 100 / current * 60).rounded())
     }
 
+    private var justPlugged: Bool {
+        pluggedInAt.map { s.date.timeIntervalSince($0) < 30 } ?? false
+    }
+
     private var pluggedMessage: String {
         switch e.state {
         case .limitReached:
@@ -318,6 +326,9 @@ private struct TimeCard: View {
             return "電池已充到上限，暫停充電，目前由變壓器供電。"
         case .full:
             return "電池已充飽，目前由變壓器供電。"
+        case .pluggedIdle where justPlugged:
+            // Intel 的充電器要十幾秒才開始充電，這段期間電池可能還在放電
+            return "剛接上電源，macOS 通常會在幾秒到十幾秒內開始充電。"
         case .pluggedIdle where e.drainingOnAC:
             return "已接上電源，但供電不足，電池仍在放電（充電器功率不夠或負載太高）。預估剩餘 \(Format.duration(e.headlineToEmpty))。"
         default:

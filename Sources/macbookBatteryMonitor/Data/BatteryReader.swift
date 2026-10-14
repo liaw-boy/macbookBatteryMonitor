@@ -29,6 +29,8 @@ struct BatterySnapshot: Codable, Equatable {
     var avgTimeToFull: Int?
     var psTimeToEmpty: Int?
     var psTimeToFull: Int?
+    /// macOS 的電源資訊有剩餘時間欄位（-1 代表還在估算）。有的話以它為準，不改用電池晶片的平均時間
+    var psReportsTime = false
     var temperature_C: Double?
     var notChargingReason: Int?
     var adapter: AdapterInfo?
@@ -194,6 +196,7 @@ enum BatteryReader {
         s.avgTimeToFull = validMinutes(int(reg["AvgTimeToFull"]))
         s.psTimeToEmpty = validMinutes(int(ps["Time to Empty"]))
         s.psTimeToFull = validMinutes(int(ps["Time to Full Charge"]))
+        s.psReportsTime = ps["Time to Empty"] != nil || ps["Time to Full Charge"] != nil
         s.notChargingReason = int(charger["NotChargingReason"]) ?? int(reg["NotChargingReason"])
         s.systemLoad_mW = positive(int(telemetry["SystemLoad"]))
         s.systemPowerIn_mW = positive(int(telemetry["SystemPowerIn"]))

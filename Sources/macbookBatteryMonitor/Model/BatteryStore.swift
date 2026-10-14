@@ -77,6 +77,10 @@ final class BatteryStore {
     @ObservationIgnored private var flowPresentation = PowerFlowPresentation()
     /// 這次接上電源的時間（判斷充電上限是否已被關掉用）
     @ObservationIgnored private var pluggedSince: Date?
+    /// App 執行中實際插上電源的時間（啟動時就接著電源則為 nil），剛插電還沒開始充電時的說明用
+    @ObservationIgnored private(set) var pluggedInAt: Date?
+    /// 這段充電開始的時間。剛開始充電時電流還在爬升，頭一分鐘不納入平均，否則充滿時間會一直往下掉
+    @ObservationIgnored private var chargingSince: Date?
     @ObservationIgnored private var processStream: ProcessEnergyStream?
     /// 面板開著才允許跑 top，避免關掉後還在背景取樣
     @ObservationIgnored var panelVisible = false
@@ -97,8 +101,10 @@ final class BatteryStore {
         }
         if s.externalConnected {
             if pluggedSince == nil { pluggedSince = s.date }
+            if snapshot?.externalConnected == false { pluggedInAt = s.date }
         } else {
             pluggedSince = nil
+            pluggedInAt = nil
         }
         s.chargeLimit = ChargeLimitReader.resolve(externalConnected: s.externalConnected, pluggedSince: pluggedSince)
         let state = chargingPresentation.state(s, uptime: ProcessInfo.processInfo.systemUptime)
@@ -109,6 +115,8 @@ final class BatteryStore {
                 avgDischarge = nil
                 avgCharge = nil
             }
+            // App 啟動時已在充電，電流已經穩定，不必等
+            chargingSince = state == .charging ? (lastState == nil ? .distantPast : s.date) : nil
             if state == .discharging {
                 if lastState != nil { unpluggedAt = s.date }
             } else {
@@ -118,7 +126,7 @@ final class BatteryStore {
         let current = Double(abs(s.effectiveAmperage_mA))
         if s.effectiveAmperage_mA < 0 {
             avgDischarge = ema(avgDischarge, current, dt)
-        } else if s.effectiveAmperage_mA > 0 {
+        } else if s.effectiveAmperage_mA > 0, s.date.timeIntervalSince(chargingSince ?? .distantPast) >= 60 {
             avgCharge = ema(avgCharge, current, dt)
         }
         lastDate = s.date

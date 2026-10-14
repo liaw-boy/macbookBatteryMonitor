@@ -79,7 +79,8 @@ enum Estimator {
         let pct = s.percent
         e.drainingOnAC = state == .pluggedIdle && s.effectiveAmperage_mA < -50
         if state == .discharging || e.drainingOnAC {
-            e.systemToEmpty = s.psTimeToEmpty ?? s.avgTimeToEmpty
+            // macOS 還在估算時不改用電池晶片的平均時間：剛拔電時平均電流還沒跟上，Intel 實測會算出 12 小時以上
+            e.systemToEmpty = s.psTimeToEmpty ?? (s.psReportsTime ? nil : s.avgTimeToEmpty)
             if let total = e.systemToEmpty, pct > 0 {
                 e.systemTo10 = max(0, total * (pct - reservePercent) / pct)
             }
@@ -91,7 +92,7 @@ enum Estimator {
         }
 
         if state == .charging {
-            if let t = s.psTimeToFull ?? s.avgTimeToFull {
+            if let t = s.psTimeToFull ?? (s.psReportsTime ? nil : s.avgTimeToFull) {
                 e.toFull = t
             } else if let full = s.fullCharge_mAh, let remaining = s.remaining_mAh, let current = avgCharge_mA, current > 10 {
                 e.toFull = Int((Double(max(0, full - remaining)) / current * 60).rounded())
