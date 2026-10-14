@@ -207,6 +207,24 @@ final class ChargingPresentationTests {
         XCTAssertEqual(Estimator.estimates(c, avgDischarge_mA: nil, avgCharge_mA: 3166, displayState: .charging).toFull, 34)
     }
 
+    /// Intel 快要充滿、充電電流很小時，SMC 推算的電池功率是小負值：晶片明確回報在充電就算充電，不顯示「供電不足」
+    func testIntelTrickleChargeFollowsBatteryChip() {
+        var s = BatterySnapshot(percent: 86, isCharging: true, externalConnected: true, voltage_mV: 8200, amperage_mA: 95)
+        s.applyLivePower(battery: nil, adapter: 12, system: 15)
+        // Apple 晶片照舊以 SMC 為準
+        XCTAssertEqual(Estimator.state(s), .pluggedIdle)
+        XCTAssertTrue(Estimator.estimates(s, avgDischarge_mA: nil, avgCharge_mA: nil).drainingOnAC)
+        s.isIntel = true
+        XCTAssertEqual(Estimator.state(s), .charging)
+        XCTAssertEqual(s.effectiveAmperage_mA, 95)
+        let e = Estimator.estimates(s, avgDischarge_mA: nil, avgCharge_mA: nil)
+        XCTAssertTrue(!e.drainingOnAC)
+        XCTAssertTrue(e.batteryWatts > 0)
+        // 晶片沒說在充電時仍以 SMC 為準
+        s.isCharging = false
+        XCTAssertEqual(Estimator.state(s), .pluggedIdle)
+    }
+
     /// 電量高於上限、macOS 讓電池放電到上限時，流向圖要畫出電池一起供電，與狀態文字一致
     func testDrainingAboveLimitIsNotHeld() {
         var s = BatterySnapshot(percent: 97, externalConnected: true, voltage_mV: 12600, amperage_mA: 0)

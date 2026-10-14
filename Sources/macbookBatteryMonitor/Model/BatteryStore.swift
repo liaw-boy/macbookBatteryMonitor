@@ -81,6 +81,8 @@ final class BatteryStore {
     @ObservationIgnored private(set) var pluggedInAt: Date?
     /// 這段充電開始的時間。剛開始充電時電流還在爬升，頭一分鐘不納入平均，否則充滿時間會一直往下掉
     @ObservationIgnored private var chargingSince: Date?
+    /// Intel 剛拔電的時間：頭一分鐘的放電電流偏低，不納入平均，否則剩餘時間會一直往下掉（實測 31 秒少 9 分鐘）
+    @ObservationIgnored private var dischargingSince: Date?
     @ObservationIgnored private var processStream: ProcessEnergyStream?
     /// 面板開著才允許跑 top，避免關掉後還在背景取樣
     @ObservationIgnored var panelVisible = false
@@ -99,6 +101,7 @@ final class BatteryStore {
             if !BatteryReader.hasBattery { refreshDesktop() }
             return
         }
+        s.isIntel = ChipInfo.isIntel
         if s.externalConnected {
             if pluggedSince == nil { pluggedSince = s.date }
             if snapshot?.externalConnected == false { pluggedInAt = s.date }
@@ -117,6 +120,7 @@ final class BatteryStore {
             }
             // App 啟動時已在充電，電流已經穩定，不必等
             chargingSince = state == .charging ? (lastState == nil ? .distantPast : s.date) : nil
+            dischargingSince = state == .discharging && s.isIntel && lastState != nil ? s.date : nil
             if state == .discharging {
                 if lastState != nil { unpluggedAt = s.date }
             } else {
@@ -124,7 +128,7 @@ final class BatteryStore {
             }
         }
         let current = Double(abs(s.effectiveAmperage_mA))
-        if s.effectiveAmperage_mA < 0 {
+        if s.effectiveAmperage_mA < 0, s.date.timeIntervalSince(dischargingSince ?? .distantPast) >= 60 {
             avgDischarge = ema(avgDischarge, current, dt)
         } else if s.effectiveAmperage_mA > 0, s.date.timeIntervalSince(chargingSince ?? .distantPast) >= 60 {
             avgCharge = ema(avgCharge, current, dt)
