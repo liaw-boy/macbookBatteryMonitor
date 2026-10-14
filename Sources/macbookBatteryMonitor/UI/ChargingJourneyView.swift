@@ -128,8 +128,9 @@ struct ChargingJourneyView<Control: View>: View {
                                       animated: animated && !reduceMotion)
                             .frame(width: 48, height: 50)
                     case .energy:
+                        // 和貓咪同高，切換外觀時下面的內容不會跟著移動
                         energyBar
-                            .frame(width: 48, height: 34)
+                            .frame(width: 48, height: 50)
                     }
                 }
                 .contentShape(Rectangle())
