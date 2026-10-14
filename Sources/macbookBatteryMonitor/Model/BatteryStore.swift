@@ -426,7 +426,7 @@ final class BatteryStore {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
         let deadline = calendar.date(bySettingHour: 7, minute: 30, second: 0, of: tomorrow) ?? now
         let plan = ChargingPlan(schedule: .weekly(weekdays: [2, 3, 4, 5, 6], minuteOfDay: 7 * 60 + 30), deadline: deadline,
-                                targetPercent: 100, holdPercent: 80, restoreLimit: 80, sleepStrategy: .preciseWake, createdAt: now)
+                                targetPercent: 95, holdPercent: 80, restoreLimit: 95, sleepStrategy: .preciseWake, createdAt: now)
         let input = ChargingPlanInput(now: now, percent: snapshot?.percent ?? 80, connected: true, limitSupported: true,
                                       currentLimit: 80, estimatedMinutes: nil, isCharging: false, systemPaused: true)
         chargingPlan.loadPreview(plan, decision: ChargingPlanEngine.evaluate(plan, input: input))
