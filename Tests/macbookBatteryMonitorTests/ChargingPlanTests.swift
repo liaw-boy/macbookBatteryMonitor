@@ -67,6 +67,25 @@ final class ChargingPlanTests {
         XCTAssertEqual(capped.holdPercent, 85)
     }
 
+    /// 電量已高於保養上限時不把上限降到電量以下（macOS 會先放電再充回來）：進位到 5% 一格，不超過完成目標
+    func testHoldNeverBelowCurrentLevel() {
+        let deadline = date("2026-10-15 03:24")
+        let plan = ChargingPlan(schedule: .once(deadline), deadline: deadline, targetPercent: 100, holdPercent: 80,
+                                restoreLimit: 95, sleepStrategy: .readinessFirst, createdAt: date("2026-10-15 00:24"))
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(plan, percent: 60), 80)
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(plan, percent: 80), 80)
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(plan, percent: 81), 85)
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(plan, percent: 93), 95)
+        let decision = ChargingPlanEngine.evaluate(plan, input: input(date("2026-10-15 00:25"), percent: 93, limit: 95))
+        XCTAssertEqual(decision.phase, .waiting)
+        XCTAssertEqual(decision.desiredLimit, 95)
+        // 完成目標是原本的上限（95%）：93% 時直接維持 95%，不會降到 80%
+        var original = plan
+        original.targetPercent = 95
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(original, percent: 93), 95)
+        XCTAssertEqual(ChargingPlanEngine.holdLimit(original, percent: 98), 95)
+    }
+
     func testEnginePhases() {
         let deadline = date("2026-10-14 08:00")
         let plan = ChargingPlan(schedule: .once(deadline), deadline: deadline, targetPercent: 100, holdPercent: 80,
@@ -110,20 +129,20 @@ final class ChargingPlanTests {
         var lines: [String] = []
         let controller = ChargingPlanController(storage: storage, calendar: calendar, log: { lines.append($0) })
         let now = date("2026-10-13 21:00")
-        // 原本上限 90%：排程 8:00 前充到 100%，等待時維持 80%
+        // 原本上限 90%、電量 78%：排程 8:00 前充到 100%，等待時維持 80%
         XCTAssertTrue(controller.start(.once(date("2026-10-14 08:00")), target: 100, hold: 80, currentLimit: 90,
                                        strategy: .readinessFirst, now: now))
         XCTAssertEqual(storage.saved?.restoreLimit, 90)
-        XCTAssertEqual(controller.evaluate(input(now, percent: 85, limit: 90)), 80)
+        XCTAssertEqual(controller.evaluate(input(now, percent: 78, limit: 90)), 80)
         // 寫入中不重複要求
-        XCTAssertNil(controller.evaluate(input(now, percent: 85, limit: 90)))
+        XCTAssertNil(controller.evaluate(input(now, percent: 78, limit: 90)))
         controller.writeFinished(target: 80, success: true, readBack: 80, now: now)
         XCTAssertEqual(storage.saved?.appliedLimit, 80)
-        XCTAssertNil(controller.evaluate(input(now.addingTimeInterval(60), percent: 85, limit: 80)))
+        XCTAssertNil(controller.evaluate(input(now.addingTimeInterval(60), percent: 80, limit: 80)))
         XCTAssertEqual(controller.decision?.phase, .waiting)
         // 開始時間到了：提高到 100%
         let start = date("2026-10-14 06:30")
-        XCTAssertEqual(controller.evaluate(input(start, percent: 85, limit: 80)), 100)
+        XCTAssertEqual(controller.evaluate(input(start, percent: 80, limit: 80)), 100)
         controller.writeFinished(target: 100, success: true, readBack: 100, now: start)
         XCTAssertEqual(storage.saved?.startedFor, date("2026-10-14 08:00"))
         // 剛提高上限、macOS 還沒開始充（實測約 13 秒）：顯示準備充電，不是系統暫停；超過 2 分鐘還沒充才算系統暫停
@@ -201,13 +220,13 @@ final class ChargingPlanTests {
         XCTAssertNil(controller.evaluate(input(now, percent: 80, limit: 80)))
         XCTAssertEqual(controller.evaluate(input(now, percent: 80, limit: 80), event: .willSleep), 100)
         controller.writeFinished(target: 100, success: true, readBack: 100, now: now)
-        // 醒來後還在等待：回到保養上限
-        XCTAssertEqual(controller.evaluate(input(now.addingTimeInterval(3600), percent: 84, limit: 100), event: .didWake), 80)
-        controller.writeFinished(target: 80, success: true, readBack: 80, now: now.addingTimeInterval(3600))
+        // 醒來後還在等待：回到保養上限，但已經充到 84%，維持在 85%，不先放電到 80%
+        XCTAssertEqual(controller.evaluate(input(now.addingTimeInterval(3600), percent: 84, limit: 100), event: .didWake), 85)
+        controller.writeFinished(target: 85, success: true, readBack: 85, now: now.addingTimeInterval(3600))
         // 精準喚醒：已經排好喚醒就維持保養上限；喚醒沒排好時退回優先準時完成
         controller.setSleepStrategy(.preciseWake)
-        XCTAssertNil(controller.evaluate(input(now.addingTimeInterval(3700), percent: 84, limit: 80), event: .willSleep, preciseWakeReady: true))
-        XCTAssertEqual(controller.evaluate(input(now.addingTimeInterval(3700), percent: 84, limit: 80), event: .willSleep, preciseWakeReady: false), 100)
+        XCTAssertNil(controller.evaluate(input(now.addingTimeInterval(3700), percent: 84, limit: 85), event: .willSleep, preciseWakeReady: true))
+        XCTAssertEqual(controller.evaluate(input(now.addingTimeInterval(3700), percent: 84, limit: 85), event: .willSleep, preciseWakeReady: false), 100)
     }
 
     func testWeeklyPlanMovesToNextDeadline() {
@@ -235,10 +254,10 @@ final class ChargingPlanTests {
         let controller = ChargingPlanController(storage: MemoryChargingPlanStorage(), calendar: calendar, log: { _ in })
         let now = date("2026-10-13 21:00")
         controller.start(.once(date("2026-10-14 08:00")), target: 100, hold: 80, currentLimit: 90, strategy: .readinessFirst, now: now)
-        // 95% 還要 27 分鐘，7:18 才開始；之前維持保養上限
-        XCTAssertEqual(controller.evaluate(input(date("2026-10-14 07:00"), percent: 95, limit: 90)), 80)
-        controller.writeFinished(target: 80, success: true, readBack: 80)
-        XCTAssertEqual(controller.evaluate(input(date("2026-10-14 07:30"), percent: 95, limit: 80)), 100)
+        // 95% 還要 27 分鐘，7:18 才開始；之前維持保養上限，但電量已經 95%，維持 95%、不先放電
+        XCTAssertEqual(controller.evaluate(input(date("2026-10-14 07:00"), percent: 95, limit: 90)), 95)
+        controller.writeFinished(target: 95, success: true, readBack: 95)
+        XCTAssertEqual(controller.evaluate(input(date("2026-10-14 07:30"), percent: 95, limit: 95)), 100)
         controller.writeFinished(target: 100, success: true, readBack: 100)
         // 一直沒拔電：完成時間後 2 小時還原
         XCTAssertNil(controller.evaluate(input(date("2026-10-14 09:30"), percent: 100, limit: 100)))

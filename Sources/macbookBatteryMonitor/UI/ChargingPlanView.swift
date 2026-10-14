@@ -71,7 +71,9 @@ struct ChargingPlanView: View {
                 Text(ChargingJourneyPresentation.time(plan.deadline, now: Date()))
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
-                Text("前充到 \(plan.targetPercent)%・等待時維持 \(plan.holdPercent)%・結束後還原為 \(plan.restoreLimit)%")
+                Text(plan.targetPercent == plan.restoreLimit
+                     ? "前充到 \(plan.targetPercent)%（原本的上限）・等待時維持 \(ChargingPlanEngine.holdLimit(plan, percent: store.snapshot?.percent ?? 0))%"
+                     : "前充到 \(plan.targetPercent)%・等待時維持 \(ChargingPlanEngine.holdLimit(plan, percent: store.snapshot?.percent ?? 0))%・結束後還原為 \(plan.restoreLimit)%")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -102,7 +104,7 @@ struct ChargingPlanView: View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 CardTitle(controller.plan == nil ? "多久後要用" : "改成新的排程", systemImage: "timer")
-                Text("到時候充到 \(settings.chargingTargetPercent)%（完成目標，可在下方調整）。來得及的話先維持保養上限 \(settings.chargingHoldPercent)%，算好時間才開始充；來不及就立刻開始充，並提醒可能無法準時。")
+                Text("到時候充到 \(store.chargingTarget)%（完成目標，預設是原本的上限，可在下方調整）。來得及的話先維持保養上限 \(min(settings.chargingHoldPercent, store.chargingTarget))%，算好時間才開始充；電量已經比較高時就維持目前的電量，不會先放電再充回來。來不及就立刻開始充，並提醒可能無法準時。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -135,7 +137,7 @@ struct ChargingPlanView: View {
 
     /// 依目前電量與充電速度，預估來不來得及充到完成目標
     @ViewBuilder private func forecastLabel(until deadline: Date) -> some View {
-        let target = settings.chargingTargetPercent
+        let target = store.chargingTarget
         if let forecast = store.chargingForecast(until: deadline, target: target), let percent = store.snapshot?.percent {
             let plugged = store.snapshot?.externalConnected == true ? "" : "接上電源的話，"
             if percent >= target {
@@ -143,8 +145,11 @@ struct ChargingPlanView: View {
             } else if forecast.onTime {
                 // 和排程相同：往前推需要的時間再加緩衝，就是開始充電的時間
                 let start = deadline.addingTimeInterval(-Double(forecast.neededMinutes + ChargingPlanEngine.bufferMinutes) * 60)
-                let hold = min(settings.chargingHoldPercent, target)
-                Text(start.timeIntervalSinceNow > 60
+                // 和排程相同：電量已高於保養上限時維持目前的電量（進位到 5%），不先放電
+                let hold = min(target, max(min(settings.chargingHoldPercent, target), Int((Double(percent) / 5).rounded(.up)) * 5))
+                Text(hold >= target
+                     ? "\(plugged)會直接充到 \(target)%（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）"
+                     : start.timeIntervalSinceNow > 60
                      ? "\(plugged)可準時充到 \(target)%：先維持 \(hold)%，約 \(ChargingJourneyPresentation.time(start, now: Date())) 開始充"
                      : "\(plugged)可準時充到 \(target)%，會立刻開始充（約需 \(ChargingJourneyPresentation.duration(forecast.neededMinutes))）")
                     .font(.caption).foregroundStyle(.secondary)
@@ -190,7 +195,7 @@ struct ChargingPlanView: View {
                     ui.page = .main
                 }
                 .disabled(ui.chargingWeekdays.isEmpty)
-                Text("例如上班日 8:00 前充到 100%，其他時間維持保養上限。")
+                Text("例如上班日 8:00 前充到完成目標，其他時間維持保養上限。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -204,12 +209,13 @@ struct ChargingPlanView: View {
             VStack(alignment: .leading, spacing: 10) {
                 CardTitle("目標與保養上限", systemImage: "slider.horizontal.3")
                 Picker("完成目標", selection: targetBinding) {
+                    Text("原本的上限（\(originalLimit)%）").tag(AppSettings.originalLimitTarget)
                     ForEach(options, id: \.self) { Text("\($0)%").tag($0) }
                 }
                 Picker("保養上限", selection: holdBinding) {
-                    ForEach(options.filter { $0 <= settings.chargingTargetPercent }, id: \.self) { Text("\($0)%").tag($0) }
+                    ForEach(options.filter { $0 <= store.chargingTarget }, id: \.self) { Text("\($0)%").tag($0) }
                 }
-                Text("新的排程使用這裡的設定。")
+                Text("新的排程使用這裡的設定。完成目標預設是原本的上限：充好後就停在平常的上限，不會多充到 100%。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Divider()
@@ -233,12 +239,18 @@ struct ChargingPlanView: View {
 
     private var options: [Int] { store.chargeLimit.options.filter { $0 >= 50 } }
 
+    /// 排程開始前的系統充電上限（排程進行中顯示排程開始前的上限）
+    private var originalLimit: Int { controller.plan?.restoreLimit ?? store.chargeLimit.limit }
+
     private var targetBinding: Binding<Int> {
-        Binding(get: { nearest(settings.chargingTargetPercent, in: options) }, set: { settings.chargingTargetPercent = $0 })
+        Binding(get: {
+            settings.chargingTargetPercent == AppSettings.originalLimitTarget
+                ? AppSettings.originalLimitTarget : nearest(settings.chargingTargetPercent, in: options)
+        }, set: { settings.chargingTargetPercent = $0 })
     }
 
     private var holdBinding: Binding<Int> {
-        Binding(get: { nearest(settings.chargingHoldPercent, in: options.filter { $0 <= settings.chargingTargetPercent }) },
+        Binding(get: { nearest(settings.chargingHoldPercent, in: options.filter { $0 <= store.chargingTarget }) },
                 set: { settings.chargingHoldPercent = $0 })
     }
 

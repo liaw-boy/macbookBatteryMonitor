@@ -175,12 +175,19 @@ enum ChargingPlanEngine {
         guard input.connected else { return decide(.unplugged, limit: nil) }
         if input.percent >= plan.targetPercent { return decide(.ready, limit: plan.targetPercent) }
         if input.now >= plan.deadline { return decide(.late, limit: plan.targetPercent) }
-        if input.now < start, plan.startedFor != plan.deadline { return decide(.waiting, limit: plan.holdPercent) }
+        if input.now < start, plan.startedFor != plan.deadline { return decide(.waiting, limit: holdLimit(plan, percent: input.percent)) }
         if input.now.addingTimeInterval(Double(needed) * 60) > plan.deadline { return decide(.late, limit: plan.targetPercent) }
         if input.isCharging { return decide(.charging, limit: plan.targetPercent) }
         // 剛提高上限時 macOS 可能還沒開始充：上限還沒是目標就是「準備充電」，已經是目標卻沒在充才算系統暫停
         if input.systemPaused && input.currentLimit == plan.targetPercent { return decide(.systemPaused, limit: plan.targetPercent) }
         return decide(.starting, limit: plan.targetPercent)
+    }
+
+    /// 等待時的上限：保養上限，但不低於目前電量（進位到 5% 一格，不超過完成目標）。
+    /// 電量已高於保養上限時把上限降下去，macOS 會讓電池先放電到保養上限再充回來，白白多一次充放電
+    static func holdLimit(_ plan: ChargingPlan, percent: Int) -> Int {
+        let current = Int((Double(max(0, percent)) / 5).rounded(.up)) * 5
+        return min(plan.targetPercent, max(plan.holdPercent, current))
     }
 
     /// 鋰電池充到 80% 以上會變慢（定電壓階段）：線性估算的這一段時間乘上這個倍數

@@ -115,13 +115,17 @@ final class AppSettings {
     var chargingAppearance: ChargingAppearance {
         didSet { defaults.set(chargingAppearance.rawValue, forKey: Keys.chargingAppearance) }
     }
-    /// 智慧充電的完成目標與保養上限（建立排程時的預設值）
+    /// 智慧充電的完成目標與保養上限（建立排程時的預設值）。完成目標預設是「原本的上限」（存成 0）：
+    /// 建立排程時的系統充電上限，充好後就停在平常的上限，不會多充到 100%
     var chargingTargetPercent: Int {
         didSet {
             defaults.set(chargingTargetPercent, forKey: Keys.chargingTargetPercent)
-            if chargingHoldPercent > chargingTargetPercent { chargingHoldPercent = chargingTargetPercent }
+            if chargingTargetPercent != Self.originalLimitTarget, chargingHoldPercent > chargingTargetPercent {
+                chargingHoldPercent = chargingTargetPercent
+            }
         }
     }
+    static let originalLimitTarget = 0
     var chargingHoldPercent: Int {
         didSet { defaults.set(chargingHoldPercent, forKey: Keys.chargingHoldPercent) }
     }
@@ -250,7 +254,7 @@ final class AppSettings {
             Keys.autoCheckUpdates: true,
             Keys.updateNotification: true,
             Keys.chargingAppearance: ChargingAppearance.companion.rawValue,
-            Keys.chargingTargetPercent: 100,
+            Keys.chargingTargetPercent: 0,
             Keys.chargingHoldPercent: 80,
             Keys.chargingSleepStrategy: ChargingSleepStrategy.readinessFirst.rawValue,
             Keys.chargingWakeEnabled: false,
@@ -287,9 +291,11 @@ final class AppSettings {
         autoCheckUpdates = defaults.bool(forKey: Keys.autoCheckUpdates)
         updateNotification = defaults.bool(forKey: Keys.updateNotification)
         chargingAppearance = ChargingAppearance(rawValue: defaults.string(forKey: Keys.chargingAppearance) ?? "") ?? .companion
-        let target = ChargingPlan.clamp(defaults.integer(forKey: Keys.chargingTargetPercent))
+        let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
+        let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)
         chargingTargetPercent = target
-        chargingHoldPercent = min(ChargingPlan.clamp(defaults.integer(forKey: Keys.chargingHoldPercent)), target)
+        let hold = ChargingPlan.clamp(defaults.integer(forKey: Keys.chargingHoldPercent))
+        chargingHoldPercent = target == Self.originalLimitTarget ? hold : min(hold, target)
         chargingSleepStrategy = ChargingSleepStrategy(rawValue: defaults.string(forKey: Keys.chargingSleepStrategy) ?? "") ?? .readinessFirst
         chargingWakeEnabled = defaults.bool(forKey: Keys.chargingWakeEnabled)
     }

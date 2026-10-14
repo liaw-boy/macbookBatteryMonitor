@@ -193,9 +193,17 @@ final class BatteryStore {
     func startChargingPlan(_ schedule: ChargingSchedule) {
         guard chargingPlanRunning else { return }
         let settings = AppSettings.shared
-        guard chargingPlan.start(schedule, target: settings.chargingTargetPercent, hold: settings.chargingHoldPercent,
+        let target = chargingTarget
+        guard chargingPlan.start(schedule, target: target, hold: min(settings.chargingHoldPercent, target),
                                  currentLimit: chargeLimit.limit, strategy: settings.chargingSleepStrategy) else { return }
         evaluateChargingPlan(.refresh)
+    }
+
+    /// 新排程的完成目標：設定成「原本的上限」時用目前的系統充電上限；排程進行中改排程時，沿用排程開始前的上限
+    var chargingTarget: Int {
+        let value = AppSettings.shared.chargingTargetPercent
+        guard value == AppSettings.originalLimitTarget else { return value }
+        return chargingPlan.plan?.restoreLimit ?? chargeLimit.limit
     }
 
     func setChargingSleepStrategy(_ strategy: ChargingSleepStrategy) {
