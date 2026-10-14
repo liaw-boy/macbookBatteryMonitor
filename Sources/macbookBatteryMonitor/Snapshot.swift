@@ -88,6 +88,21 @@ enum SnapshotCommand {
                 .environment(\.colorScheme, .dark)
             render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("panel-plugged-\(name)-dark.png"))
         }
+        // 不能調整充電上限的 Mac（Intel、macOS 26 以前）：用電池與充電中各一張
+        for (name, plugged) in [("battery", false), ("charging", true)] {
+            if plugged { store.loadPluggedPreview(atLimit: false) } else { store.loadPreview() }
+            store.chargeLimit.loadUnsupportedPreview()
+            let view = RootView(store: store, settings: .shared, ui: ui)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, .dark)
+            render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("panel-no-limit-\(name)-dark.png"))
+        }
+        // 點充電夥伴打開的頁面：只能換外觀，並說明不支援智慧充電
+        ui.page = .chargingPlan
+        let plan = RootView(store: store, settings: .shared, ui: ui)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .environment(\.colorScheme, .dark)
+        render(plan, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("smart-charging-no-limit-dark.png"))
     }
 
     /// 桌上型 Mac（沒有電池）的主面板，用示範數據

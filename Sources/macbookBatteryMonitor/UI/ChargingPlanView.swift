@@ -28,17 +28,15 @@ struct ChargingPlanView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if supported {
-                // 點貓咪進來的人最常想換外觀：直接放在最上面
-                HStack(spacing: 8) {
-                    Text("滑桿旁顯示").font(.callout)
-                    Picker("滑桿旁顯示", selection: Binding(get: { settings.chargingAppearance },
-                                                       set: { settings.chargingAppearance = $0 })) {
-                        ForEach(ChargingAppearance.allCases) { Text($0.shortTitle).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
+            // 點貓咪進來的人最常想換外觀：直接放在最上面（不支援智慧充電的 Mac 也能換）
+            HStack(spacing: 8) {
+                Text(supported ? "滑桿旁顯示" : "面板上方顯示").font(.callout)
+                Picker("外觀", selection: Binding(get: { settings.chargingAppearance },
+                                                set: { settings.chargingAppearance = $0 })) {
+                    ForEach(ChargingAppearance.allCases) { Text($0.shortTitle).tag($0) }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
             }
 
             if !supported {

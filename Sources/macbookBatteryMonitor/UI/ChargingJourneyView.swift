@@ -75,6 +75,13 @@ struct ChargingJourneyPresentation: Equatable {
         }
     }
 
+    /// 不能從 App 調整充電上限的 Mac（Intel、macOS 26 以前）：一樣顯示充電夥伴，旁邊說明沒有智慧充電
+    static func unsupported(percent: Int, charging: Bool) -> ChargingJourneyPresentation {
+        return .init(title: "充電夥伴", detail: "這台 Mac 不支援智慧充電，點一下可換外觀",
+                     progress: min(1, max(0, Double(percent) / 100)), tint: charging ? .green : .neutral,
+                     onPad: charging, badge: nil, animatedFlow: charging)
+    }
+
     /// 今天只顯示時間，明天加上「明天」，其他日子加上日期與星期
     static func time(_ date: Date, now: Date) -> String {
         let calendar = Calendar.current

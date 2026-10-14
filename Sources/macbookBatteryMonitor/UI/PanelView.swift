@@ -58,7 +58,8 @@ struct PanelView: View {
                          planActive: store.chargingPlan.isActive,
                          journey: store.chargeLimit.supported
                             ? ChargingJourneyPresentation.make(percent: s.percent, charging: e.state == .charging,
-                                                               decision: store.chargingPlan.decision, now: s.date) : nil,
+                                                               decision: store.chargingPlan.decision, now: s.date)
+                            : ChargingJourneyPresentation.unsupported(percent: s.percent, charging: e.state == .charging),
                          appearance: settings.chargingAppearance,
                          animated: ui.isVisible && !settings.powerSavingActive,
                          openPlan: { ui.page = .chargingPlan })
@@ -190,7 +191,7 @@ private struct TimeCard: View {
     /// 充電上限滑桿（支援調整的 Mac 才有），放在卡片最上方
     var chargeLimit: SystemChargeLimit?
     var planActive = false
-    /// 智慧充電（支援調整充電上限的 Mac 才有）：充電夥伴放在滑桿左邊，排程狀態放在滑桿下方
+    /// 充電夥伴與智慧充電：支援調整充電上限的 Mac 放在滑桿左邊、排程狀態在滑桿下方；不支援的 Mac 只有夥伴與說明
     var journey: ChargingJourneyPresentation?
     var appearance: ChargingAppearance = .companion
     var animated = false
@@ -207,8 +208,11 @@ private struct TimeCard: View {
                         ChargeLimitSlider(control: chargeLimit, planActive: planActive)
                     }
                     Divider()
-                } else if let chargeLimit {
-                    ChargeLimitSlider(control: chargeLimit, planActive: planActive)
+                } else if let journey {
+                    // 不能調整充電上限的 Mac：一樣有充電夥伴，只是沒有滑桿
+                    ChargingJourneyView(presentation: journey, appearance: appearance, animated: animated, open: openPlan) {
+                        EmptyView()
+                    }
                     Divider()
                 }
                 switch e.state {
@@ -362,8 +366,9 @@ struct ScrollingPage<Content: View>: View {
             .onAppear {
                 guard let target = ui.scrollTarget else { return }
                 ui.scrollTarget = nil
-                // 等版面排好再捲
+                // 等版面排好再捲；macOS 12／13 第一次排版較慢，稍後再捲一次
                 DispatchQueue.main.async { proxy.scrollTo(target, anchor: .top) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { proxy.scrollTo(target, anchor: .top) }
             }
         }
     }
