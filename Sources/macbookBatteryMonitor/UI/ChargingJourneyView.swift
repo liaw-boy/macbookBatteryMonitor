@@ -163,23 +163,29 @@ struct ChargingJourneyView<Control: View>: View {
         }
     }
 
-    /// 電力流動：電量條，充電中有一個光點往右流
+    /// 電力流動：電量條，充電中有一個光點往右流。光點用 Core Animation 播放，不逐幀更新 SwiftUI：
+    /// 逐幀更新會讓整個面板每幀重新排版、文字重畫，2015 MacBook Air 實測 CPU 約 26%
     private var energyBar: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: !animated || reduceMotion || !presentation.animatedFlow)) { context in
-            let phase = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6
-            ZStack(alignment: .leading) {
-                Capsule().fill(tint.opacity(0.18)).frame(height: 8)
-                Capsule().fill(tint.opacity(0.8)).frame(width: max(8, 48 * presentation.progress), height: 8)
-                if animated && !reduceMotion && presentation.animatedFlow {
-                    Circle().fill(.white).frame(width: 6, height: 6)
-                        .shadow(color: tint, radius: 4)
-                        .offset(x: CGFloat(phase) * 40)
-                }
-                Image(systemName: presentation.badge?.symbol ?? "bolt.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(tint)
-                    .offset(y: -14)
+        ZStack(alignment: .leading) {
+            Capsule().fill(tint.opacity(0.18)).frame(height: 8)
+            Capsule().fill(tint.opacity(0.8)).frame(width: max(8, 48 * presentation.progress), height: 8)
+            if animated && !reduceMotion && presentation.animatedFlow {
+                FlowDot(glow: nsTint, travel: 40)
+                    .frame(width: 48, height: 14)
             }
+            Image(systemName: presentation.badge?.symbol ?? "bolt.fill")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(tint)
+                .offset(y: -14)
+        }
+    }
+
+    private var nsTint: NSColor {
+        switch presentation.tint {
+        case .neutral: return .secondaryLabelColor
+        case .blue: return .systemCyan
+        case .green: return .systemGreen
+        case .orange: return .systemOrange
         }
     }
 
@@ -287,6 +293,69 @@ private final class LoopingVideoView: NSView {
         looper = nil
         player.removeAllItems()
         url = nil
+    }
+}
+
+/// 電量條上往右流的光點（1.6 秒一趟）。動畫交給 Core Animation，SwiftUI 只在設定改變時更新
+private struct FlowDot: NSViewRepresentable {
+    let glow: NSColor
+    let travel: CGFloat
+
+    func makeNSView(context: Context) -> FlowDotView { FlowDotView() }
+
+    func updateNSView(_ view: FlowDotView, context: Context) {
+        view.configure(glow: glow, travel: travel)
+    }
+}
+
+final class FlowDotView: NSView {
+    private let dot = CALayer()
+    private var glow: NSColor?
+    private var travel: CGFloat = 0
+    private var laidOut: CGRect = .zero
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        dot.bounds = CGRect(x: 0, y: 0, width: 6, height: 6)
+        dot.cornerRadius = 3
+        dot.backgroundColor = NSColor.white.cgColor
+        dot.shadowOpacity = 1
+        dot.shadowRadius = 4
+        dot.shadowOffset = .zero
+        layer?.addSublayer(dot)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    /// 面板每秒更新時也會呼叫；設定沒變就不重來，光點才不會每秒跳回起點
+    func configure(glow: NSColor, travel: CGFloat) {
+        guard glow != self.glow || travel != self.travel else { return }
+        self.glow = glow
+        self.travel = travel
+        restart()
+    }
+
+    override func layout() {
+        super.layout()
+        guard bounds != laidOut else { return }
+        laidOut = bounds
+        restart()
+    }
+
+    private func restart() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        dot.shadowColor = glow?.cgColor
+        dot.position = CGPoint(x: 3, y: bounds.midY)
+        dot.removeAnimation(forKey: "flow")
+        let flow = CABasicAnimation(keyPath: "position.x")
+        flow.fromValue = 3
+        flow.toValue = 3 + travel
+        flow.duration = 1.6
+        flow.repeatCount = .infinity
+        dot.add(flow, forKey: "flow")
+        CATransaction.commit()
     }
 }
 
