@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import VideoToolbox
 
 /// 主面板資訊卡最上方的「智慧充電」列：左邊是充電夥伴（貓咪）或電量條，右邊是排程狀態，點一下打開智慧充電頁
 struct ChargingJourneyPresentation: Equatable {
@@ -221,8 +222,10 @@ struct ChargingCompanion: View {
         .accessibilityHidden(true)
     }
 
-    /// 開發用截圖畫不出影片圖層，改用靜態圖
+    /// 開發用截圖畫不出影片圖層，改用靜態圖。沒有 HEVC 硬體解碼的 Mac（例如 2015 年的 Intel 機型）也用靜態圖：
+    /// 帶透明的 HEVC 只能用 CPU 解碼，2015 MacBook Air 實測面板開著時 CPU 約 8%
     static let videoAllowed = !CommandLine.arguments.contains { $0.hasPrefix("--snapshot") || $0.hasPrefix("--screenshots") }
+        && VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
 
     static func resource(_ onPad: Bool, _ ext: String) -> URL? {
         Bundle.main.url(forResource: onPad ? "companion-charging" : "companion-resting", withExtension: ext)
