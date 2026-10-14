@@ -168,9 +168,10 @@ enum ChargingPlanEngine {
         let raiseAt = plan.sleepStrategy == .preciseWake ? start.addingTimeInterval(-60) : start
         let wake = plan.sleepStrategy == .preciseWake && raiseAt > input.now ? raiseAt : nil
 
+        // 只有還在等待時才需要叫醒 Mac：已經充好、沒接電源或已經開始充，叫醒也沒事做（每週排程不會每天白白喚醒）
         func decide(_ phase: ChargingPlanPhase, limit: Int?) -> ChargingPlanDecision {
             ChargingPlanDecision(phase: phase, targetPercent: plan.targetPercent, deadline: plan.deadline, startAt: start,
-                                 wakeAt: wake, desiredLimit: limit, requiredMinutes: needed)
+                                 wakeAt: phase == .waiting ? wake : nil, desiredLimit: limit, requiredMinutes: needed)
         }
 
         guard input.limitSupported else { return decide(.unsupported, limit: nil) }
