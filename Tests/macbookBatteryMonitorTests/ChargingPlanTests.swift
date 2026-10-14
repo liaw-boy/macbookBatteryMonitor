@@ -97,6 +97,17 @@ final class ChargingPlanTests {
         XCTAssertEqual(decision.requiredMinutes, 108)
         XCTAssertEqual(decision.startAt, date("2026-10-14 05:57"))
         XCTAssertEqual(decision.wakeAt, date("2026-10-14 05:56"))
+        // 精準喚醒在 5:56 叫醒 Mac：醒來就提高上限，不等到 5:57（被叫醒的 Mac 可能十幾秒就又睡回去）
+        decision = ChargingPlanEngine.evaluate(plan, input: input(date("2026-10-14 05:56").addingTimeInterval(5), percent: 80, limit: 80))
+        XCTAssertEqual(decision.phase, .starting)
+        XCTAssertEqual(decision.desiredLimit, 100)
+        XCTAssertNil(decision.wakeAt)
+        // 優先準時完成照開始時間
+        var readiness = plan
+        readiness.sleepStrategy = .readinessFirst
+        decision = ChargingPlanEngine.evaluate(readiness, input: input(date("2026-10-14 05:56").addingTimeInterval(5), percent: 80, limit: 80))
+        XCTAssertEqual(decision.phase, .waiting)
+        XCTAssertNil(decision.wakeAt)
         // 到了開始時間：上限提高到目標，macOS 還沒開始充是「準備充電」
         decision = ChargingPlanEngine.evaluate(plan, input: input(date("2026-10-14 06:00"), percent: 80, limit: 80))
         XCTAssertEqual(decision.phase, .starting)

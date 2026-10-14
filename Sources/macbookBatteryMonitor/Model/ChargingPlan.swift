@@ -164,7 +164,9 @@ enum ChargingPlanEngine {
     static func evaluate(_ plan: ChargingPlan, input: ChargingPlanInput) -> ChargingPlanDecision {
         let needed = requiredMinutes(plan, input)
         let start = plan.deadline.addingTimeInterval(-Double(needed + bufferMinutes) * 60)
-        let wake = plan.sleepStrategy == .preciseWake && start > input.now ? start.addingTimeInterval(-60) : nil
+        // 精準喚醒排在開始前一分鐘，醒來就提高上限：被叫醒的 Mac 可能只醒十幾秒就又睡回去，等不到開始時間
+        let raiseAt = plan.sleepStrategy == .preciseWake ? start.addingTimeInterval(-60) : start
+        let wake = plan.sleepStrategy == .preciseWake && raiseAt > input.now ? raiseAt : nil
 
         func decide(_ phase: ChargingPlanPhase, limit: Int?) -> ChargingPlanDecision {
             ChargingPlanDecision(phase: phase, targetPercent: plan.targetPercent, deadline: plan.deadline, startAt: start,
@@ -175,7 +177,7 @@ enum ChargingPlanEngine {
         guard input.connected else { return decide(.unplugged, limit: nil) }
         if input.percent >= plan.targetPercent { return decide(.ready, limit: plan.targetPercent) }
         if input.now >= plan.deadline { return decide(.late, limit: plan.targetPercent) }
-        if input.now < start, plan.startedFor != plan.deadline { return decide(.waiting, limit: holdLimit(plan, percent: input.percent)) }
+        if input.now < raiseAt, plan.startedFor != plan.deadline { return decide(.waiting, limit: holdLimit(plan, percent: input.percent)) }
         if input.now.addingTimeInterval(Double(needed) * 60) > plan.deadline { return decide(.late, limit: plan.targetPercent) }
         if input.isCharging { return decide(.charging, limit: plan.targetPercent) }
         // 剛提高上限時 macOS 可能還沒開始充：上限還沒是目標就是「準備充電」，已經是目標卻沒在充才算系統暫停
