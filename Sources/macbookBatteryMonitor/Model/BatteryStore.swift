@@ -134,6 +134,8 @@ final class BatteryStore {
 
         snapshot = s
         var computed = Estimator.estimates(s, avgDischarge_mA: avgDischarge, avgCharge_mA: avgCharge, displayState: state)
+        // 剛插電的 30 秒內電池還在放電是充電器還沒開始充電，不算供電不足：選單列不顯示剩餘時間，流向圖也先不畫電池供電
+        if let at = pluggedInAt, s.date.timeIntervalSince(at) < 30 { computed.drainingOnAC = false }
         // 接著電源但沒在充電（滿電、到達上限、暫停）時，電池功率的小幅波動不改變流向圖，與上方的狀態文字一致
         let holding = [.full, .limitReached, .pluggedIdle].contains(state) && !computed.drainingOnAC && !s.drainingAboveLimit
         computed.displayFlow = flowPresentation.kind(connected: s.externalConnected, watts: computed.batteryWatts,

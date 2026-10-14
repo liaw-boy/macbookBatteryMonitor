@@ -194,6 +194,17 @@ final class ChargingPresentationTests {
         s.psTimeToEmpty = nil
         s.psReportsTime = false
         XCTAssertEqual(Estimator.estimates(s, avgDischarge_mA: 2000, avgCharge_mA: nil).systemToEmpty, 770)
+        // 充電中：macOS 還在估算時不用直線推算（沒考慮 80% 以上變慢，會太樂觀）
+        var c = BatterySnapshot(percent: 70, isCharging: true, externalConnected: true, voltage_mV: 8200, amperage_mA: 3100)
+        c.fullCharge_mAh = 6031
+        c.remaining_mAh = 4222
+        c.psReportsTime = true
+        XCTAssertNil(Estimator.estimates(c, avgDischarge_mA: nil, avgCharge_mA: 3166, displayState: .charging).toFull)
+        c.psTimeToFull = 80
+        XCTAssertEqual(Estimator.estimates(c, avgDischarge_mA: nil, avgCharge_mA: 3166, displayState: .charging).toFull, 80)
+        c.psTimeToFull = nil
+        c.psReportsTime = false
+        XCTAssertEqual(Estimator.estimates(c, avgDischarge_mA: nil, avgCharge_mA: 3166, displayState: .charging).toFull, 34)
     }
 
     /// 電量高於上限、macOS 讓電池放電到上限時，流向圖要畫出電池一起供電，與狀態文字一致

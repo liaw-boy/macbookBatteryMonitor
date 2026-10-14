@@ -92,9 +92,10 @@ enum Estimator {
         }
 
         if state == .charging {
+            // macOS 還在估算時也顯示「計算中…」：直線推算沒考慮 80% 以上電流變小，Intel 實測 70% 時算出 37 分、macOS 是 80 分以上
             if let t = s.psTimeToFull ?? (s.psReportsTime ? nil : s.avgTimeToFull) {
                 e.toFull = t
-            } else if let full = s.fullCharge_mAh, let remaining = s.remaining_mAh, let current = avgCharge_mA, current > 10 {
+            } else if !s.psReportsTime, let full = s.fullCharge_mAh, let remaining = s.remaining_mAh, let current = avgCharge_mA, current > 10 {
                 e.toFull = Int((Double(max(0, full - remaining)) / current * 60).rounded())
             }
             if let limit = s.chargeLimit?.limit {
