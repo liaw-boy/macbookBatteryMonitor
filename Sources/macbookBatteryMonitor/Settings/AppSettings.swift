@@ -312,4 +312,13 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .energy: return "電力流動"
         }
     }
+
+    /// 智慧充電頁上方切換外觀用的短名稱
+    var shortTitle: String {
+        switch self {
+        case .companion: return "貓咪"
+        case .mascot: return "電池夥伴"
+        case .energy: return "電量條"
+        }
+    }
 }

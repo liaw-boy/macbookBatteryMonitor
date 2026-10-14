@@ -28,6 +28,19 @@ struct ChargingPlanView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if supported {
+                // 點貓咪進來的人最常想換外觀：直接放在最上面
+                HStack(spacing: 8) {
+                    Text("滑桿旁顯示").font(.callout)
+                    Picker("滑桿旁顯示", selection: Binding(get: { settings.chargingAppearance },
+                                                       set: { settings.chargingAppearance = $0 })) {
+                        ForEach(ChargingAppearance.allCases) { Text($0.shortTitle).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                }
+            }
+
             if !supported {
                 Card {
                     Label("這台 Mac 不支援調整充電上限（需要 Apple 晶片的 MacBook，且系統設定的「電池」裡有充電上限），無法使用智慧充電。",
