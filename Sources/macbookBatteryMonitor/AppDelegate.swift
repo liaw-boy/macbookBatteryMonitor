@@ -120,6 +120,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         registerLoginItemIfNeeded()
         runPanelSelfTestIfRequested()
         runUpdateSelfTestIfRequested()
+        runPreciseWakeSelfTestIfRequested()
     }
 
     /// 第一次啟動：只看電池（和以前的電池版一樣），還是另外在選單列加上系統監控
@@ -171,6 +172,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard updater.available != nil else { return }
             await updater.install()
             print("selftest: 安裝結果 \(updater.state)")
+        }
+    }
+
+    /// 開發用：`--selftest-precise-wake <分鐘>` 用精準喚醒建立一個這麼多分鐘後完成、充到 100% 的排程（App 會一直執行），
+    /// 讓 Mac 睡著後實測是否準時醒來提高上限。提高上限 2 分鐘後自動取消排程、還原原本的上限與睡眠策略，
+    /// 不讓電池停在 100%；經過記在 charging-plan.log。完成目標的設定不變
+    private func runPreciseWakeSelfTestIfRequested() {
+        guard let index = CommandLine.arguments.firstIndex(of: "--selftest-precise-wake"),
+              let minutes = CommandLine.arguments.dropFirst(index + 1).first.flatMap({ Int($0) }), minutes > 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            let strategy = settings.chargingSleepStrategy
+            let wakeEnabled = settings.chargingWakeEnabled
+            settings.chargingSleepStrategy = .preciseWake
+            settings.chargingWakeEnabled = true
+            let target = settings.chargingTargetPercent
+            settings.chargingTargetPercent = 100
+            store.startChargingPlan(.once(Date().addingTimeInterval(Double(minutes) * 60)))
+            settings.chargingTargetPercent = target
+            let decision = store.chargingPlan.decision
+            print("selftest: 排程 \(store.chargingPlan.plan.map { "\($0.deadline)" } ?? "建立失敗")，"
+                  + "狀態 \(decision?.phase.title ?? "—")，開始 \(decision.map { "\($0.startAt)" } ?? "—")，"
+                  + "喚醒 \(decision?.wakeAt.map { "\($0)" } ?? "—")，上限 \(decision?.desiredLimit.map { "\($0)%" } ?? "不動")")
+            timers.append(repeating(every: 30) { delegate in
+                guard let plan = delegate.store.chargingPlan.plan, let raisedAt = plan.raisedAt,
+                      Date().timeIntervalSince(raisedAt) > 120 else { return }
+                print("selftest: \(raisedAt) 已提高上限，取消排程並還原")
+                delegate.store.cancelChargingPlan()
+                delegate.settings.chargingSleepStrategy = strategy
+                delegate.settings.chargingWakeEnabled = wakeEnabled
+                delegate.store.setChargingSleepStrategy(strategy)
+            })
         }
     }
 
