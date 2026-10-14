@@ -272,7 +272,7 @@ private struct TimeCard: View {
             if fullThreshold < 100, s.percent < fullThreshold {
                 row("充到 \(fullThreshold)%", Format.duration(Estimator.minutesToCharge(to: fullThreshold, snapshot: s, estimates: e)))
             }
-            row("充電電流", Format.milliamps(e.avgCharge_mA))
+            row("近 3 分鐘平均充電電流", Format.milliamps(e.avgCharge_mA))
             row("充入功率", Format.watts(max(0, e.batteryWatts)))
         }
     }
