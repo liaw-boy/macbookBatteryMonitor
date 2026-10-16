@@ -92,12 +92,16 @@ enum UpdateLogic {
         return isNewer(candidate, than: last)
     }
 
-    /// v1.7.1 起的通用版（Apple 晶片與 Intel）
+    /// v1.7.2 起給人下載、也給一鍵更新用的 DMG（macOS 14 以上的通用版）。檔名固定不帶版本號，
+    /// 「最新版本」的下載連結（releases/latest/download/…）永遠有效
+    static let dmgAssetName = "macbookBatteryMonitor.dmg"
+
+    /// v1.7.1、v1.7.2 的通用版 zip（Apple 晶片與 Intel）。v1.7.2 仍附上，v1.7.1 的一鍵更新才找得到
     static func universalAssetName(tag: String) -> String {
         "macbookBatteryMonitor-\(tag)-macOS-universal.zip"
     }
 
-    /// v1.6.1 以前的電池版／系統監控版檔名。每次發布仍會附上，舊版的一鍵更新才找得到
+    /// v1.7.2 以前附的電池版／系統監控版檔名（給 v1.5.0～v1.6.2 的一鍵更新）
     static func assetName(tag: String, edition: String) -> String {
         "macbookBatteryMonitor-\(tag)-\(edition)-macOS-arm64.zip"
     }
@@ -132,7 +136,7 @@ enum UpdateLogic {
         return (stable, beta)
     }
 
-    /// 一個 Release：優先用通用版，沒有通用版的 Release 才用舊檔名；都找不到就回傳 nil。
+    /// 一個 Release：優先用 DMG，再來是通用版 zip，都沒有的舊 Release 才用舊檔名；都找不到就回傳 nil。
     /// 標成預先發行（prerelease）的必須是 v1.8.0-beta.1 這種 tag，正式版的 tag 不能帶 Beta 序號
     static func release(_ root: [String: Any], edition: String) -> ReleaseInfo? {
         guard let tag = root["tag_name"] as? String, let parsed = AppVersion(tag),
@@ -147,10 +151,10 @@ enum UpdateLogic {
             return (url, item["size"] as? Int ?? 0)
         }
         let legacyEdition = edition == "battery" ? "battery" : "status"
-        let candidates = [universalAssetName(tag: tag), assetName(tag: tag, edition: legacyEdition)]
-        guard let name = candidates.first(where: { asset($0) != nil }), let zip = asset(name) else { return nil }
-        return ReleaseInfo(tag: tag, version: version, pageURL: page, assetName: name, assetURL: zip.url,
-                           assetSize: zip.size, checksumURL: asset(checksumFile)?.url, beta: parsed.beta)
+        let candidates = [dmgAssetName, universalAssetName(tag: tag), assetName(tag: tag, edition: legacyEdition)]
+        guard let name = candidates.first(where: { asset($0) != nil }), let file = asset(name) else { return nil }
+        return ReleaseInfo(tag: tag, version: version, pageURL: page, assetName: name, assetURL: file.url,
+                           assetSize: file.size, checksumURL: asset(checksumFile)?.url, beta: parsed.beta)
     }
 
     /// SHA256SUMS.txt 每行「<64 位十六進位>  <檔名>」

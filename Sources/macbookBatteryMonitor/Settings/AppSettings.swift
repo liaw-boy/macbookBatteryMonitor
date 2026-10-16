@@ -252,7 +252,7 @@ final class AppSettings {
         static let chargingWakeEnabled = "chargingWakeEnabled"
     }
 
-    /// 這台 Mac 以前用過這個 App（有設定或電量歷史），從舊版升級時不再詢問
+    /// 這台 Mac 以前用過這個 App（有設定或電量歷史）
     private static func usedBefore(_ defaults: UserDefaults) -> Bool {
         if let id = Bundle.main.bundleIdentifier, let domain = defaults.persistentDomain(forName: id), !domain.isEmpty { return true }
         let history = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -298,9 +298,10 @@ final class AppSettings {
         monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
         if defaults.object(forKey: Keys.systemMonitors) != nil {
             systemMonitors = defaults.bool(forKey: Keys.systemMonitors)
-        } else if Self.usedBefore(defaults) {
-            // 從 v1.6.1 以前升級：電池版維持只看電池，系統監控版維持開著，不再詢問
-            let previous = AppEdition.current != .battery
+        } else if Self.usedBefore(defaults), AppEdition.current == .battery || AppEdition.current == .status {
+            // 用舊檔名的 zip 從 v1.6.2 以前一鍵更新：電池版維持只看電池，系統監控版維持開著，不再詢問。
+            // 手動下載通用版升級的看不出原本是哪一版，和全新安裝一樣詢問
+            let previous = AppEdition.current == .status
             systemMonitors = previous
             defaults.set(previous, forKey: Keys.systemMonitors)
         } else {

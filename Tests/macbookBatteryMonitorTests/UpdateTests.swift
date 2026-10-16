@@ -51,6 +51,16 @@ final class UpdateTests {
         """)
         XCTAssertEqual(UpdateLogic.release(json: Data(universal.utf8), edition: "battery")?.assetName, "macbookBatteryMonitor-v1.5.0-macOS-universal.zip")
         XCTAssertEqual(UpdateLogic.release(json: Data(universal.utf8), edition: "universal")?.assetSize, 300)
+        // v1.7.2 起有固定檔名的 DMG：優先用 DMG，校驗檔也用同一個檔名查
+        let dmg = universal.replacingOccurrences(of: "{\"name\":\"SHA256SUMS.txt\"", with: """
+          {"name":"macbookBatteryMonitor.dmg","size":400,
+           "browser_download_url":"https://github.com/sgeric910601/macbookBatteryMonitor/releases/download/v1.5.0/macbookBatteryMonitor.dmg"},
+          {"name":"SHA256SUMS.txt"
+        """)
+        XCTAssertEqual(UpdateLogic.release(json: Data(dmg.utf8), edition: "universal")?.assetName, "macbookBatteryMonitor.dmg")
+        XCTAssertEqual(UpdateLogic.release(json: Data(dmg.utf8), edition: "battery")?.assetSize, 400)
+        XCTAssertEqual(UpdateLogic.checksum(in: "\(String(repeating: "c3", count: 32))  macbookBatteryMonitor.dmg\n", for: "macbookBatteryMonitor.dmg"),
+                       String(repeating: "c3", count: 32))
         // 預覽版、或下載網址不是 GitHub，都不更新
         XCTAssertNil(UpdateLogic.release(json: Data(json.replacingOccurrences(of: "\"prerelease\":false", with: "\"prerelease\":true").utf8), edition: "status"))
         XCTAssertNil(UpdateLogic.release(json: Data(json.replacingOccurrences(of: "https://github.com/sgeric910601/macbookBatteryMonitor/releases/download/v1.5.0/macbookBatteryMonitor-v1.5.0-status", with: "https://evil.example.com/x").utf8), edition: "status"))
