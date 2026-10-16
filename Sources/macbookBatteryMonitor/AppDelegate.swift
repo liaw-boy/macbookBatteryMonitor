@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private let ui = PanelState()
     /// CPU／GPU、記憶體、磁碟、網路模組
     private let monitors = ModuleCoordinator()
+    private lazy var desktopPet = DesktopPetController(store: store, settings: settings)
     private var statusItem: NSStatusItem!
     /// 每次打開都建立新的，關閉後整個釋放（連同視窗和 SwiftUI 畫面）
     private var popover: NSPopover?
@@ -82,6 +83,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // 智慧充電：繼續上次的排程；精準喚醒的開關改變時排定或取消喚醒
         store.startChargingPlan()
         settings.onChargingWakeChange = { [weak self] in self?.store.syncChargingWake() }
+        settings.onDesktopPetChange = { [weak self] in self?.desktopPet.sync() }
+        desktopPet.openPanel = { [weak self] in self?.showPopover(page: .main) }
+        desktopPet.sync()
         // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定的「更新」
         store.updater.onNewRelease = { [weak self] release in
             guard let self, self.settings.updateNotification else { return }
@@ -129,9 +133,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let alert = NSAlert()
         alert.messageText = "要在選單列顯示哪些資訊？"
         alert.informativeText = (battery
-            ? "「電池＋系統監控」會在選單列另外加入 CPU／GPU、記憶體、磁碟與網路圖示，並持續更新。「只看電池」只顯示電池圖示，耗電最少。"
-            : "「耗電＋系統監控」會在選單列另外加入 CPU／GPU、記憶體、磁碟與網路圖示，並持續更新。「只看耗電」只顯示系統耗電圖示，耗電最少。")
-            + "\n\n你可以隨時在「設定」>「系統監控」中更改。"
+            ? "「電池＋系統監控」會在選單列加上 CPU、記憶體、磁碟與網路圖示；「只看電池」最省電。"
+            : "「耗電＋系統監控」會在選單列加上 CPU、記憶體、磁碟與網路圖示；「只看耗電」最省電。")
+            + "\n\n之後可以在「設定」>「系統監控」更改。"
         alert.addButton(withTitle: battery ? "電池＋系統監控" : "耗電＋系統監控")
         alert.addButton(withTitle: battery ? "只看電池" : "只看耗電")
         NSApp.activate()

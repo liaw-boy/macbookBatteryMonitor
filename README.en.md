@@ -11,6 +11,7 @@ The app's interface is in Traditional Chinese.
 - **Charge limit slider**: drag the slider in the info card to change the macOS charge limit (80–100%). It is the same setting as in System Settings and stays in sync; no admin rights needed (v1.6.0+)
 - **Smart charging** (v1.7.1+): choose "charged to X% by a time" (in 1/2/3 hours, a custom time or a weekly schedule). The Mac stays at a care limit, the limit is raised just in time for macOS to charge to the target, and your original limit is restored afterwards
 - **Charging companion** (v1.7.1+): an animated cat next to the charge limit slider that breathes and swishes its tail, and lies on a glowing charging pad while charging. You can switch it to a battery buddy whose face follows the charging state, or a simple energy bar. MacBooks that can't change the charge limit (such as Intel models) show it at the top of the panel too, just without the slider
+- **Desktop pet** (v1.7.2+): puts the charging companion on your desktop at about the size of the Calendar widget; hover for a thought bubble with the current status, click for a speech bubble, and keep it above windows or on the wallpaper
 - **Today** (v1.7.1+): how much battery you used and charged today, how many times you plugged in, and how long you ran on battery
 - **No hidden charging control**: the app only changes the macOS charge limit when you drag the slider (the same as doing it in System Settings) or when you set up smart charging; macOS does the actual charging. No admin rights by default; only the optional admin CPU sampling and the smart charging "precise wake" ask for authorization
 - **Updates every second**: the menu bar and panel refresh every second by default (2, 5 or 10 seconds in Settings). With the panel closed CPU use is about 0.2% (battery only) or about 1% (all four system monitors), and the app never keeps the Mac awake
@@ -190,7 +191,7 @@ Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click up
 - **Peripherals**: the Peripherals tab at the bottom; the bell next to a device sets its alert, the arrow at the bottom right refreshes now
 - **Charge limit**: drag the slider in the info card and release to apply it to macOS; 100% means no limit
 - **Updates**: a notification and a "有新版本" (new version) button at the bottom of the panel both open Settings → Update, then press "一鍵更新"
-- **Settings**: menu bar display, app icon color, one-click update, display items, update interval and power saving, system monitor switches, admin CPU sampling (Apple silicon), notification thresholds and update notifications, charge limit and whether the companion or an energy bar sits beside the slider, launch at login
+- **Settings**: menu bar display, app icon color, one-click update, display items, update interval and power saving, system monitor switches, admin CPU sampling (Apple silicon), notification thresholds and update notifications, charge limit, the charging companion's look and the desktop pet, launch at login
 
 ## Smart charging (v1.7.1+)
 
@@ -220,11 +221,20 @@ The target and the care limit are set under "目標與保養上限" (Target and 
 
 **Log**: every status change, limit write with the value read back, sleep and wake, and wake scheduling is recorded in `~/Library/Logs/macbookBatteryMonitor/charging-plan.log` (local only; trimmed to its second half above 256 KB). `macbookBatteryMonitor --charging-plan-status` (see Development) prints the current plan, the system charge limit, the battery level, scheduled wake events and the latest log lines without changing anything.
 
-**Charging companion**: "滑桿旁顯示" (shown beside the slider; "面板上方顯示" on Macs that can't change the charge limit) at the top of the smart charging page (or in Settings → Charge limit) switches between three looks:
+**Charging companion**: "滑桿旁顯示" (shown beside the slider; "面板上方顯示" on Macs that can't change the charge limit) at the top of the smart charging page, or "外觀" (Look) in Settings → Charging companion, switches between three looks:
 
-- **Charging companion (cat, default)**: a 6-second looping HEVC animation with a transparent background: its belly rises and falls, its tail sweeps slowly now and then and the tip flicks, and the dangling front paw sways. While charging it lies on a glowing charging pad with charging waves above it; it shows a sleep badge while waiting and a check mark when done. It only plays while the panel is open and shows a still image when the panel is closed, in power saving mode, with Reduce Motion on, or on Macs without HEVC hardware decoding (such as 2015 Intel models)
+- **Charging companion (cat, default)**: a 6-second looping HEVC animation with a transparent background: its belly rises and falls, its tail sweeps slowly now and then and the tip flicks, and the dangling front paw sways. While charging it lies on a glowing charging pad with charging waves above it; it shows a sleep badge while waiting and a check mark when done. It plays while the panel is open, even with Reduce Motion on, and shows a still image when the panel is closed or in power saving mode. Older Intel Macs without HEVC hardware decoding animate too (see Performance)
 - **Battery buddy**: a battery with a face, filled to the current level. Neutral without a plan, asleep while waiting, smiling while charging, beaming when done and frowning when late or paused; it blinks now and then while the panel is open
 - **Energy bar**: a level bar with a light dot flowing right while charging
+
+**Desktop pet** (v1.7.2+, MacBooks): turn on "在桌面顯示" (Show on desktop) in Settings → Charging companion and the companion appears on your desktop (bottom right by default) at about the size of the Calendar widget.
+
+- **Look**: the same one you picked for the panel (cat, battery buddy or energy bar). It always animates except in power saving mode; the cat uses a 320-pixel-wide high-resolution animation, with a glowing charging pad under it and a charging sign above it while charging
+- **Hover**: a thought bubble shows the level and state (for example "62%・充電中，36 分鐘後到 80%" or "78%・還能用 7 小時 25 分"), plus a line for a smart charging plan if there is one
+- **Click**: a speech bubble says one line, a different one each click: its mood (low battery, charging, full, sleeping while a plan waits), today's used and recharged percentage, battery health and cycle count, and the Mac's current power draw; it hides after 4 seconds
+- **Double-click** opens the panel; **drag** to move it (the position is remembered); **right-click** to open the panel, change the look, switch where it sits or hide it
+- **Where it sits**: "浮在視窗上方" (above windows) or "放在桌布上" (on the wallpaper, at the desktop icon level, so windows cover it); it shows on every desktop but not in full-screen apps
+- The bubble is a separate window that ignores the mouse and hugs the pet (below it when there's no room above), so it never blocks what's underneath
 
 ## App icon
 
@@ -321,7 +331,7 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 - Each SMC key's format is looked up once; afterwards every value is a single SMC call, and only `PDTR` and `PSTR` are read every second
 - Adapter details are read every 30 seconds while plugged in; the system charge limit is read at launch, when the panel opens and when macOS reports a change, never every second
 - Smart charging only evaluates the plan on each update (nothing at all without a plan) and only calls macOS when the limit has to change; the precise wake service is only contacted to schedule or cancel the wake
-- The charging companion is a small hardware-decoded video (152×160 pixels) that only plays while the panel is open; Macs without HEVC hardware decoding get a still image instead of decoding it on the CPU
+- The charging companion comes from small transparent HEVC videos (152×160 pixels in the panel, 320×212 for the desktop pet). The frames are decoded once when first shown and then played frame by frame by Core Animation, so the app uses almost no CPU and needs no HEVC hardware decoding (v1.7.2+; on an M1 the always-animating desktop pet adds about 0.2% CPU and 16 MB of memory)
 - The panel is built when it opens and released completely with its window when it closes; nothing draws in the background
 - Component details and SMC temperatures are only read while the panel is open; optional admin CPU sampling only connects while the main panel is open
 - Flow animations and the energy bar's moving dot are composited by Core Animation (not redrawn frame by frame in SwiftUI) and only play while the panel is open and that path carries power; Reduce Motion is respected and power saving mode doesn't animate at all

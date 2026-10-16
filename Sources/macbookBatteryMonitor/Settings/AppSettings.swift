@@ -35,6 +35,8 @@ final class AppSettings {
     @ObservationIgnored var onIntervalChange: (() -> Void)?
     /// 智慧充電的精準喚醒開關改變時呼叫
     @ObservationIgnored var onChargingWakeChange: (() -> Void)?
+    /// 桌面寵物開關改變時
+    @ObservationIgnored var onDesktopPetChange: (() -> Void)?
 
     /// 可選的更新頻率（秒）
     static let updateIntervals = [1, 2, 5, 10]
@@ -114,6 +116,20 @@ final class AppSettings {
     /// 智慧充電：主面板那一列左邊顯示充電夥伴（貓咪）或電量條
     var chargingAppearance: ChargingAppearance {
         didSet { defaults.set(chargingAppearance.rawValue, forKey: Keys.chargingAppearance) }
+    }
+    /// 桌面寵物：把充電夥伴放在桌面上（只有 MacBook 有）
+    var desktopPet: Bool {
+        didSet {
+            defaults.set(desktopPet, forKey: Keys.desktopPet)
+            if desktopPet != oldValue { onDesktopPetChange?() }
+        }
+    }
+    /// 桌面寵物放在桌布上（會被視窗蓋住）；關閉時浮在所有視窗上方
+    var desktopPetOnWallpaper: Bool {
+        didSet {
+            defaults.set(desktopPetOnWallpaper, forKey: Keys.desktopPetOnWallpaper)
+            if desktopPetOnWallpaper != oldValue { onDesktopPetChange?() }
+        }
     }
     /// 智慧充電的完成目標與保養上限（建立排程時的預設值）。完成目標預設是「原本的上限」（存成 0）：
     /// 建立排程時的系統充電上限，充好後就停在平常的上限，不會多充到 100%
@@ -222,6 +238,8 @@ final class AppSettings {
         static let updateNotification = "updateNotification"
         static let adminCPUSampling = "adminCPUSampling"
         static let chargingAppearance = "chargingAppearance"
+        static let desktopPet = "desktopPet"
+        static let desktopPetOnWallpaper = "desktopPetOnWallpaper"
         static let chargingTargetPercent = "chargingTargetPercent"
         static let chargingHoldPercent = "chargingHoldPercent"
         static let chargingSleepStrategy = "chargingSleepStrategy"
@@ -254,6 +272,8 @@ final class AppSettings {
             Keys.autoCheckUpdates: true,
             Keys.updateNotification: true,
             Keys.chargingAppearance: ChargingAppearance.companion.rawValue,
+            Keys.desktopPet: false,
+            Keys.desktopPetOnWallpaper: false,
             Keys.chargingTargetPercent: 0,
             Keys.chargingHoldPercent: 80,
             Keys.chargingSleepStrategy: ChargingSleepStrategy.readinessFirst.rawValue,
@@ -291,6 +311,8 @@ final class AppSettings {
         autoCheckUpdates = defaults.bool(forKey: Keys.autoCheckUpdates)
         updateNotification = defaults.bool(forKey: Keys.updateNotification)
         chargingAppearance = ChargingAppearance(rawValue: defaults.string(forKey: Keys.chargingAppearance) ?? "") ?? .companion
+        desktopPet = defaults.bool(forKey: Keys.desktopPet)
+        desktopPetOnWallpaper = defaults.bool(forKey: Keys.desktopPetOnWallpaper)
         let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
         let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)
         chargingTargetPercent = target

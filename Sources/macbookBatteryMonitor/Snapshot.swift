@@ -71,6 +71,7 @@ enum SnapshotCommand {
         renderMonitors(directory: dir)
         renderUpdateCard(directory: dir)
         renderChargingAppearances(directory: dir)
+        renderDesktopPet(directory: dir)
         renderPluggedPanels(directory: dir)
         renderDesktopPanels(directory: dir)
         print("已輸出到 \(dir.path)")
@@ -118,6 +119,34 @@ enum SnapshotCommand {
                 .background(Color(nsColor: .windowBackgroundColor))
                 .environment(\.colorScheme, .dark)
             render(view, appearance: .darkAqua, settle: 0.4, to: dir.appendingPathComponent("panel-desktop-\(name)-dark.png"))
+        }
+    }
+
+    /// 桌面寵物：三種外觀，以及滑鼠移過去的想像框、點一下的對話框（上方與下方）
+    private static func renderDesktopPet(directory dir: URL) {
+        let now = Date()
+        let charging = ChargingJourneyPresentation.make(percent: 62, charging: true, decision: nil, now: now)
+        for (scheme, appearance) in [(ColorScheme.dark, NSAppearance.Name.darkAqua), (.light, .aqua)] {
+            let view = HStack(alignment: .bottom, spacing: 18) {
+                VStack(spacing: 0) {
+                    DesktopPetBubbleView(text: "62%・充電中，36 分鐘後到 80%", thought: true, tailUp: false)
+                    DesktopPetCompanion(presentation: charging, animated: false)
+                }
+                VStack(spacing: 0) {
+                    DesktopPetBubbleView(text: "今天用掉 14%，補回 3%", thought: false, tailUp: false)
+                    CompanionFigure(presentation: charging, appearance: .mascot, animated: false, width: 140)
+                }
+                VStack(spacing: 0) {
+                    DesktopPetCompanion(presentation: .make(percent: 80, charging: false, decision: nil, now: now), animated: false)
+                    DesktopPetBubbleView(text: "80%・已達充電上限，用變壓器供電\n等待開始：明天 5:54 開始充電，明天 7:30 前到 95%",
+                                         thought: false, tailUp: true)
+                }
+            }
+            .padding(16)
+            .background(Color(nsColor: .windowBackgroundColor).opacity(0.6))
+            .environment(\.colorScheme, scheme)
+            render(view, appearance: appearance, settle: 0.3,
+                   to: dir.appendingPathComponent("desktop-pet-\(scheme == .dark ? "dark" : "light").png"))
         }
     }
 

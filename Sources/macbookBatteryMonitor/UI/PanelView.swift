@@ -57,10 +57,7 @@ struct PanelView: View {
                          fullThreshold: settings.fullThreshold,
                          chargeLimit: store.chargeLimit.supported ? store.chargeLimit : nil,
                          planActive: store.chargingPlan.isActive,
-                         journey: store.chargeLimit.supported
-                            ? ChargingJourneyPresentation.make(percent: s.percent, charging: e.state == .charging,
-                                                               decision: store.chargingPlan.decision, now: s.date)
-                            : ChargingJourneyPresentation.unsupported(percent: s.percent, charging: e.state == .charging),
+                         journey: store.companionPresentation(s, e),
                          appearance: settings.chargingAppearance,
                          animated: ui.isVisible && !settings.powerSavingActive,
                          openPlan: { ui.page = .chargingPlan })
@@ -318,21 +315,21 @@ private struct TimeCard: View {
         case .limitReached:
             let limit = s.chargeLimit?.limit ?? 100
             if s.drainingAboveLimit {
-                return "電量高於充電上限，macOS 正在讓電池慢慢放電到 \(limit)%，期間由變壓器和電池一起供電。"
+                return "電量高於上限，macOS 正在讓電池慢慢降到 \(limit)%。"
             }
             if s.percent > limit {
-                return "已超過系統設定的充電上限，電池暫停充電、由變壓器供電。電量降到 \(limit)% 以下後才會再充到上限。"
+                return "已超過充電上限，暫停充電；降到 \(limit)% 以下才會再充。"
             }
-            return "電池已充到上限，暫停充電，目前由變壓器供電。"
+            return "已充到上限，暫停充電，由變壓器供電。"
         case .full:
-            return "電池已充飽，目前由變壓器供電。"
+            return "已充飽，由變壓器供電。"
         case .pluggedIdle where justPlugged:
             // Intel 的充電器要十幾秒才開始充電，這段期間電池可能還在放電
-            return "剛接上電源，macOS 通常會在幾秒到十幾秒內開始充電。"
+            return "剛接上電源，幾秒後就會開始充電。"
         case .pluggedIdle where e.drainingOnAC:
-            return "已接上電源，但供電不足，電池仍在放電（充電器功率不夠或負載太高）。預估剩餘 \(Format.duration(e.headlineToEmpty))。"
+            return "供電不足，電池仍在放電，預估剩餘 \(Format.duration(e.headlineToEmpty))。"
         default:
-            return "已接上電源，但電池目前沒有在充電。可能是「最佳化電池充電」暫停在 80%，或電池溫度保護。"
+            return "接著電源但沒有在充電，可能是最佳化電池充電或溫度保護。"
         }
     }
 
