@@ -46,13 +46,13 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         for (delay, kind) in [(2.0, MonitorKind.cpu), (12.0, .memory)] {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 guard let self, let button = items[kind]?.button else { return }
-                popover?.performClose(nil)
+                popover?.closeNow()
                 showPopover(kind, from: button)
                 print("selftest: opened \(kind.rawValue)")
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 22) { [weak self] in
-            self?.popover?.performClose(nil)
+            self?.popover?.closeNow()
             print("selftest: closed")
         }
     }
@@ -73,7 +73,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 }
                 items[kind] = item
             } else if !enabled, let item = items[kind] {
-                if openKind == kind { popover?.performClose(nil) }
+                if openKind == kind { popover?.closeNow() }
                 NSStatusBar.system.removeStatusItem(item)
                 items[kind] = nil
                 lastKeys[kind] = nil
@@ -194,13 +194,12 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
 
     /// 從第二條狀態列打開面板：面板不會因為點到第二條狀態列而自己關掉，開關交給第二條狀態列處理
     func showPanel(_ kind: MonitorKind, from view: NSView) {
-        popover?.performClose(nil)
+        popover?.closeNow()
         showPopover(kind, from: view, behavior: .applicationDefined)
     }
 
-    /// 用 close()：App 不在前景時 performClose 不一定會關
     func closePanel() {
-        popover?.close()
+        popover?.closeNow()
     }
 
     /// 面板的視窗（第二條狀態列判斷點擊是不是在面板裡）
@@ -216,7 +215,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
         if let popover, popover.isShown {
             let sameModule = openKind == kind
-            popover.performClose(sender)
+            popover.closeNow()
             if sameModule { return }
         }
         showPopover(kind, from: sender)
@@ -229,7 +228,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
                                 onSettings: { [weak self] in
-                                    self?.popover?.performClose(nil)
+                                    self?.popover?.closeNow(animated: false)
                                     self?.openSettings?()
                                 })
         let hosting = NSHostingController(rootView: root)

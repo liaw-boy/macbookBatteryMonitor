@@ -16,8 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private lazy var strip: MenuBarStrip = {
         let strip = MenuBarStrip(monitors: monitors, mergedButton: { [weak self] in self?.statusItem?.button })
         strip.openBattery = { [weak self] view in self?.showPopover(page: .main, anchor: view, behavior: .applicationDefined) }
-        // 用 close() 而不是 performClose：App 不在前景時（例如正在用別的 App），電池面板的 performClose 不會關，實測從第二條狀態列再點一次關不掉
-        strip.closeBattery = { [weak self] in self?.popover?.close() }
+        strip.closeBattery = { [weak self] in self?.popover?.closeNow() }
         strip.batteryShown = { [weak self] in self?.popover?.isShown == true }
         strip.batteryWindow = { [weak self] in self?.popover?.contentViewController?.view.window }
         return strip
@@ -187,7 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         func state(_ label: String) {
             let policy = NSApp.activationPolicy() == .regular ? "Dock" : "只在選單列"
             print("selftest: \(label)：設定視窗 \(settingsWindow.frame.map { "\(Int($0.width))×\(Int($0.height))" } ?? "關閉")、\(policy)、"
-                  + "分類 \(ui.settingsSection.title)、面板 \(popover?.isShown == true ? "開著" : "關著")")
+                  + "分類 \(ui.settingsSection.title)、面板 \(popover?.isShown == true ? "開著" : "關著")、面板取樣 \(store.panelVisible ? "進行中" : "停止")")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
             self?.showPopover(page: .main)
@@ -336,10 +335,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     print("selftest: closed sampling stopped \(self?.store.componentPower == nil)")
                 }
             }
-            print("selftest: opened \(popover?.contentSize ?? .zero)")
+            print("selftest: opened \(popover?.contentSize ?? .zero)，前景 \(NSApp.isActive)")
             DispatchQueue.main.asyncAfter(deadline: .now() + 20) { [weak self] in
-                self?.popover?.performClose(nil)
-                print("selftest: closed")
+                self?.popover?.closeNow()
+                print("selftest: closed \(self?.popover?.isShown == true ? "還開著" : "已關閉")，前景 \(NSApp.isActive)，behavior \(self?.popover?.behavior.rawValue ?? -1)")
             }
         }
     }
@@ -541,7 +540,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else if combinedMenuBar, !(popover?.isShown == true && !strip.isShown) {
             strip.toggle()
         } else if let popover, popover.isShown {
-            popover.performClose(sender)
+            popover.closeNow()
         } else {
             showPopover(page: .main)
         }
@@ -606,7 +605,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func closeForOutsideClick() {
         // 管理員授權視窗是別的程序的視窗，點它不能把面板關掉
         guard let popover, popover.isShown, !store.adminCPU.authorizing else { return }
-        popover.performClose(nil)
+        popover.closeNow()
     }
 
     private func showContextMenu() {
@@ -630,7 +629,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     /// 打開設定視窗；section 是要打開的分類，nil 時維持上次的分類
     private func showSettings(_ section: SettingsSection?) {
-        popover?.performClose(nil)
+        popover?.closeNow(animated: false)
         settingsWindow.show(section)
     }
 
