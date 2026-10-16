@@ -157,6 +157,9 @@ final class MenuBarStrip: NSObject {
     }
 
     @objc private func buttonClicked(_ sender: StripButton) {
+        if CommandLine.arguments.contains("--selftest-strip") {
+            print("selftest: 點 \(sender.key)，電池面板開著 \(batteryShown?() == true)，模組面板 \(monitors.panelWindow?.isVisible == true)")
+        }
         if sender.key == Self.batteryKey {
             if batteryShown?() == true {
                 closeBattery?()

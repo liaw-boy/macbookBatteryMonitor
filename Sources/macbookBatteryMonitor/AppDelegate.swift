@@ -14,7 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private lazy var strip: MenuBarStrip = {
         let strip = MenuBarStrip(monitors: monitors, mergedButton: { [weak self] in self?.statusItem?.button })
         strip.openBattery = { [weak self] view in self?.showPopover(page: .main, anchor: view, behavior: .applicationDefined) }
-        strip.closeBattery = { [weak self] in self?.popover?.performClose(nil) }
+        // 用 close() 而不是 performClose：App 不在前景時（例如正在用別的 App），電池面板的 performClose 不會關，實測從第二條狀態列再點一次關不掉
+        strip.closeBattery = { [weak self] in self?.popover?.close() }
         strip.batteryShown = { [weak self] in self?.popover?.isShown == true }
         strip.batteryWindow = { [weak self] in self?.popover?.contentViewController?.view.window }
         return strip
@@ -222,6 +223,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             describe("電池面板", popover?.contentViewController?.view.window)
             print("selftest: CPU 面板還開著 \(monitors.panelWindow?.isVisible == true)")
             print("selftest: 再點電池 \(strip.selfTestClick("battery"))，電池面板開著 \(popover?.isShown == true)")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self else { return }
+            print("selftest: 一秒後電池面板 \(popover?.isShown == true) behavior \(popover?.behavior.rawValue ?? -1) active \(NSApp.isActive) authorizing \(store.adminCPU.authorizing)")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 11) { [weak self] in
             guard let self else { return }

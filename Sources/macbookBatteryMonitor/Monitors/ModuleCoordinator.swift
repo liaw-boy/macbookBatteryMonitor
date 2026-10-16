@@ -198,8 +198,9 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         showPopover(kind, from: view, behavior: .applicationDefined)
     }
 
+    /// 用 close()：App 不在前景時 performClose 不一定會關
     func closePanel() {
-        popover?.performClose(nil)
+        popover?.close()
     }
 
     /// 面板的視窗（第二條狀態列判斷點擊是不是在面板裡）
