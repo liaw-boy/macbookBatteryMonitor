@@ -10,6 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// CPU／GPU、記憶體、磁碟、網路模組
     private let monitors = ModuleCoordinator()
     private lazy var desktopPet = DesktopPetController(store: store, settings: settings)
+    /// 獨立的設定視窗
+    private lazy var settingsWindow = SettingsWindowController(store: store, settings: settings, ui: ui)
     /// 合併顯示時，點選單列的圖示在下方展開的第二條狀態列
     private lazy var strip: MenuBarStrip = {
         let strip = MenuBarStrip(monitors: monitors, mergedButton: { [weak self] in self?.statusItem?.button })
@@ -68,7 +70,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             monitors.syncItems()
             if !combinedMenuBar { strip.close() }
         }
-        monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
+        monitors.openSettings = { [weak self] in self?.showSettings(.monitors) }
+        ui.openSettings = { [weak self] section in self?.showSettings(section) }
         monitors.start()
         store.adminCPU.authorizationChanged = { [weak self] pending in
             self?.popover?.behavior = pending ? .applicationDefined : .transient
@@ -102,20 +105,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         settings.onChargingWakeChange = { [weak self] in self?.store.syncChargingWake() }
         settings.onDesktopPetChange = { [weak self] in self?.desktopPet.sync() }
         desktopPet.openPanel = { [weak self] in self?.showPopover(page: .main) }
+        desktopPet.openSettings = { [weak self] in self?.showSettings(.companion) }
         desktopPet.sync()
-        // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定的「更新」
+        // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定視窗的「更新」
         store.updater.onNewRelease = { [weak self] release in
             guard let self, self.settings.updateNotification else { return }
             Notifier.shared.notifyUpdate(release, currentVersion: self.store.updater.currentVersion)
         }
         Notifier.shared.onOpenUpdate = { [weak self] in
-            // 點通知時前景是通知中心：先把 App 帶到前景，等通知收起來再開面板，否則面板一打開就會被當成點到外面而關閉
-            NSApp.activate()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                guard let self else { return }
-                self.ui.scrollTarget = UpdateCard.anchor
-                self.showPopover(page: .settings)
-            }
+            self?.showSettings(.update)
         }
         // 自動檢查更新：啟動 15 秒後與之後每 6 小時看一次，距離上次檢查超過一天才真的連線
         DispatchQueue.main.asyncAfter(deadline: .now() + 15) { [weak self] in
@@ -141,6 +139,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         registerLoginItemIfNeeded()
         runPanelSelfTestIfRequested()
         runUpdateSelfTestIfRequested()
+        runSettingsSelfTestIfRequested()
         runPreciseWakeSelfTestIfRequested()
         runStripSelfTestIfRequested()
     }
@@ -153,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         alert.informativeText = (battery
             ? "「電池＋系統監控」會在選單列加上 CPU、記憶體、磁碟與網路圖示；「只看電池」最省電。"
             : "「耗電＋系統監控」會在選單列加上 CPU、記憶體、磁碟與網路圖示；「只看耗電」最省電。")
-            + "\n\n之後可以在「設定」>「系統監控」更改。"
+            + "\n\n之後可以在「設定」>「監控與省電」更改。"
         alert.addButton(withTitle: battery ? "電池＋系統監控" : "耗電＋系統監控")
         alert.addButton(withTitle: battery ? "只看電池" : "只看耗電")
         NSApp.activate()
@@ -167,11 +166,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let alert = NSAlert()
         alert.messageText = "要開啟「管理員 CPU 取樣」嗎？"
         alert.informativeText = """
-            部分 Apple 晶片機型的 CPU 能量計數器不會更新，電力細項中的 CPU 功耗會顯示為「—」。開啟後，App 會安裝一個只讀取 CPU 功耗的系統服務，提供準確的數值。
+            部分 Apple 晶片的 CPU 功耗會顯示「—」。開啟後會安裝一個只讀取 CPU 功耗的系統服務（需要管理員密碼），只在面板打開時取樣。
 
-            安裝服務需要管理員權限，按下「開啟…」後 macOS 會請你輸入管理員密碼。服務只在面板打開時取樣，閒置時會自行結束，不會讀取其他資料。
-
-            你可以隨時在「設定」>「CPU 功耗」中關閉，關閉時會一併移除服務。
+            之後可以在「設定」>「監控與省電」關閉，關閉時會移除服務。
             """
         alert.addButton(withTitle: "開啟…")
         alert.addButton(withTitle: "暫不開啟")
@@ -181,6 +178,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.adminCPU.update(active: false, enabled: false)
         settings.adminCPUSampling = true
         store.adminCPU.update(active: false, enabled: true)
+    }
+
+    /// 開發用：`--selftest-settings` 從面板打開設定視窗、依序切換每個分類，確認 App 暫時出現在 Dock，
+    /// 關閉後恢復成只在選單列
+    private func runSettingsSelfTestIfRequested() {
+        guard CommandLine.arguments.contains("--selftest-settings") else { return }
+        func state(_ label: String) {
+            let policy = NSApp.activationPolicy() == .regular ? "Dock" : "只在選單列"
+            print("selftest: \(label)：設定視窗 \(settingsWindow.frame.map { "\(Int($0.width))×\(Int($0.height))" } ?? "關閉")、\(policy)、"
+                  + "分類 \(ui.settingsSection.title)、面板 \(popover?.isShown == true ? "開著" : "關著")")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.showPopover(page: .main)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            // 和面板上「有新版本」按鈕相同的路徑
+            self?.ui.openSettings(.update)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { state("從面板打開") }
+        for (index, section) in SettingsSection.allCases.enumerated() {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 7 + Double(index)) { [weak self] in
+                self?.ui.settingsSection = section
+                state("切換")
+            }
+        }
+        let end = 8 + Double(SettingsSection.allCases.count)
+        DispatchQueue.main.asyncAfter(deadline: .now() + end) { [weak self] in
+            self?.settingsWindow.close()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + end + 1) { state("關閉後") }
+        DispatchQueue.main.asyncAfter(deadline: .now() + end + 2) { [weak self] in
+            self?.monitors.openSettings?()
+            state("從系統監控打開")
+            self?.settingsWindow.close()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + end + 3) {
+            state("結束")
+            fflush(stdout)
+        }
     }
 
     /// 開發用：`--selftest-update` 檢查 GitHub 上的新版本，有就直接一鍵更新（App 會結束並由安裝程序重新開啟）
@@ -282,10 +318,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     print("selftest: chip expanded")
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
-                    self?.ui.page = .settings
+                    self?.ui.page = .chargingPlan
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
-                    print("selftest: settings sampling stopped \(self?.store.componentPower == nil)")
+                    print("selftest: other page sampling stopped \(self?.store.componentPower == nil)")
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 11) { [weak self] in
                     self?.ui.page = .main
@@ -589,7 +625,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func openSettings() {
-        showPopover(page: .settings)
+        showSettings(nil)
+    }
+
+    /// 打開設定視窗；section 是要打開的分類，nil 時維持上次的分類
+    private func showSettings(_ section: SettingsSection?) {
+        popover?.performClose(nil)
+        settingsWindow.show(section)
     }
 
     // MARK: - NSPopoverDelegate

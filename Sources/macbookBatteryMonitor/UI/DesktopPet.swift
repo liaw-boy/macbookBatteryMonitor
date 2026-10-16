@@ -37,6 +37,8 @@ final class DesktopPetController {
 
     /// 連點兩下或從選單打開面板
     var openPanel: (() -> Void)?
+    /// 右鍵選單打開設定視窗的「充電夥伴」
+    var openSettings: (() -> Void)?
 
     init(store: BatteryStore, settings: AppSettings) {
         self.store = store
@@ -130,6 +132,7 @@ final class DesktopPetController {
                 self?.settings.chargingAppearance = appearance
             })
         }
+        menu.addItem(ClosureMenuItem("換照片…") { [weak self] in self?.settings.chooseCompanionPhoto() })
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem("浮在視窗上方", checked: !settings.desktopPetOnWallpaper) { [weak self] in
             self?.settings.desktopPetOnWallpaper = false
@@ -138,6 +141,7 @@ final class DesktopPetController {
             self?.settings.desktopPetOnWallpaper = true
         })
         menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem("充電夥伴設定…") { [weak self] in self?.openSettings?() })
         menu.addItem(ClosureMenuItem("隱藏桌面寵物") { [weak self] in self?.settings.desktopPet = false })
         return menu
     }
@@ -294,6 +298,8 @@ struct DesktopPetFigureView: View {
         Group {
             if let s = store.snapshot, let e = store.estimates {
                 let presentation = store.companionPresentation(s, e)
+                // 換照片時重畫
+                let _ = settings.companionPhotoVersion
                 if settings.chargingAppearance == .companion {
                     DesktopPetCompanion(presentation: presentation, animated: !settings.powerSavingActive)
                 } else {

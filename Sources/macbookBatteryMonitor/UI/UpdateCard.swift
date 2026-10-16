@@ -1,14 +1,11 @@
 import SwiftUI
 
-/// 設定頁的「更新」：檢查 GitHub 上的新版本，按一下就下載、驗證並換上新版
+/// 設定視窗的「更新」：檢查 GitHub 上的新版本，按一下就下載、驗證並換上新版
 struct UpdateCard: View {
     let updater: Updater
     let settings: AppSettings
     /// macOS 關閉了這個 App 的通知
     var notificationsBlocked = false
-
-    /// 點新版本通知時捲到這張卡片
-    static let anchor = "update"
 
     /// 「安裝 Beta…」的確認狀態放在 PanelState（只裝 Command Line Tools 時不能用 @State）
     let ui: PanelState
@@ -58,7 +55,6 @@ struct UpdateCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .id(Self.anchor)
     }
 
     @ViewBuilder private var status: some View {

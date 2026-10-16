@@ -62,8 +62,12 @@ struct ComponentPowerFlowView: View {
                     .accessibilityHidden(true)
                 VStack(spacing: 6) {
                     if rows.isEmpty {
-                        Text("項目都已隱藏\n可在設定 → 顯示項目調整")
-                            .font(.system(size: 9)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        Button { ui.openSettings(.display) } label: {
+                            Text("項目都已隱藏\n點這裡到設定調整")
+                                .font(.system(size: 9)).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                        }
+                        .buttonStyle(.plain)
+                        .help("打開設定 → 顯示項目")
                     }
                     ForEach(rows, id: \.item) { row in
                         if row.item == .chip {

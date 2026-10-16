@@ -122,7 +122,7 @@ struct ChargingJourneyView<Control: View>: View {
             .buttonStyle(.plain)
             .help("設定智慧充電")
             .accessibilityLabel("設定智慧充電")
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 8) {
                 control
                 Button(action: open) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -148,7 +148,7 @@ struct ChargingJourneyView<Control: View>: View {
 
 }
 
-/// 充電夥伴的圖案（貓咪、電池夥伴或電量條），主面板和桌面寵物共用；寬度決定大小，高度是寬度的 50/48。
+/// 充電夥伴的圖案（貓咪、電池夥伴、電量條或照片），主面板和桌面寵物共用；寬度決定大小，高度是寬度的 50/48。
 /// 系統開了「減少動態效果」也照樣會動（使用者的要求），只有面板關閉或省電模式時是靜態圖
 struct CompanionFigure: View {
     let presentation: ChargingJourneyPresentation
@@ -170,9 +170,11 @@ struct CompanionFigure: View {
                     .scaleEffect(width / 48)
             case .energy:
                 energyBar
+            case .photo:
+                CompanionPhotoFigure(presentation: presentation, width: width)
             }
         }
-        // 三種外觀同樣大小，切換時下面的內容不會跟著移動
+        // 各種外觀同樣大小，切換時下面的內容不會跟著移動
         .frame(width: width, height: width * 50 / 48)
     }
 

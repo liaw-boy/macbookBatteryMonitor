@@ -12,10 +12,7 @@ struct RootView: View {
             } else {
                 switch ui.page {
                 case .main: MainPage(store: store, settings: settings, ui: ui)
-                case .settings: ScrollingPage(page: .settings, ui: ui) { SettingsView(settings: settings, ui: ui, adminCPU: store.adminCPU, updater: store.updater, chargeLimit: store.chargeLimit,
-                                                                                     hasBattery: store.snapshot != nil) }
                 case .chargingPlan: ScrollingPage(page: .chargingPlan, ui: ui) { ChargingPlanView(store: store, settings: settings, ui: ui) }
-                case .displayItems: ScrollingPage(page: .displayItems, ui: ui) { DisplayItemsView(settings: settings, ui: ui, limitSlider: store.chargeLimit.supported) }
                 }
             }
         }
@@ -69,7 +66,8 @@ struct PanelView: View {
                 .labelsHidden()
                 Group {
                     switch ui.tab {
-                    case .details: DetailsGridView(s: s, e: e, health: store.systemHealth, limitSlider: store.chargeLimit.supported)
+                    case .details: DetailsGridView(s: s, e: e, health: store.systemHealth, limitSlider: store.chargeLimit.supported,
+                                                   openDisplayItems: { ui.openSettings(.display) })
                     case .history: HistoryChartView(history: store.history, ui: ui)
                     case .processes: TopProcessesView(store: store)
                     case .peripherals: PeripheralsView(store: store.peripherals, settings: settings)
@@ -103,7 +101,7 @@ struct PanelView: View {
             // Beta 是使用者手動找到的，不在面板上提示
             if let release = store.updater.available, !release.isBeta {
                 Button {
-                    ui.page = .settings
+                    ui.openSettings(.update)
                 } label: {
                     Label("有新版本 v\(release.versionText)", systemImage: "arrow.down.circle.fill")
                         .font(.caption)
@@ -112,7 +110,7 @@ struct PanelView: View {
                 .help("到設定一鍵更新")
             }
             Button {
-                ui.page = .settings
+                ui.openSettings(nil)
             } label: {
                 Image(systemName: "gearshape")
             }
@@ -347,7 +345,7 @@ private struct TimeCard: View {
     }
 }
 
-/// 內容比螢幕高時（例如設定頁）改成可捲動，面板最高到螢幕可用高度；放得下時維持內容原本的高度。
+/// 內容比螢幕高時（例如智慧充電頁）改成可捲動，面板最高到螢幕可用高度；放得下時維持內容原本的高度。
 /// 否則 macOS 會把超出螢幕的上半部（返回按鈕與第一張卡片）直接切掉
 struct ScrollingPage<Content: View>: View {
     let page: PanelPage
@@ -359,25 +357,16 @@ struct ScrollingPage<Content: View>: View {
     private var maxHeight: CGFloat { Self.maxHeight }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                content
-                    .background(GeometryReader { proxy in
-                        Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
-                    })
-            }
-            .scrollBounceBehavior(.basedOnSize)
-            .frame(height: min(ui.pageHeights[page] ?? maxHeight, maxHeight))
-            .onPreferenceChange(ContentHeightKey.self) { height in
-                if height > 0, ui.pageHeights[page] != height { ui.pageHeights[page] = height }
-            }
-            .onAppear {
-                guard let target = ui.scrollTarget else { return }
-                ui.scrollTarget = nil
-                // 等版面排好再捲；macOS 12／13 第一次排版較慢，稍後再捲一次
-                DispatchQueue.main.async { proxy.scrollTo(target, anchor: .top) }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { proxy.scrollTo(target, anchor: .top) }
-            }
+        ScrollView {
+            content
+                .background(GeometryReader { proxy in
+                    Color.clear.preference(key: ContentHeightKey.self, value: proxy.size.height)
+                })
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(ui.pageHeights[page] ?? maxHeight, maxHeight))
+        .onPreferenceChange(ContentHeightKey.self) { height in
+            if height > 0, ui.pageHeights[page] != height { ui.pageHeights[page] = height }
         }
     }
 }

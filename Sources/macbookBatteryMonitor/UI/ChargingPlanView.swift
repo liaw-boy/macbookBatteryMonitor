@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// 智慧充電頁：目前的排程、快速設定、每週排程、目標與保養上限、睡眠時的策略
+/// 智慧充電頁：目前的排程、快速設定、每週排程、目標與保養上限、睡眠時的策略。
+/// 面板（點充電夥伴打開）與設定視窗的「充電」各一份，用同一份設定
 struct ChargingPlanView: View {
     let store: BatteryStore
     let settings: AppSettings
     let ui: PanelState
+    /// 放在設定視窗裡：不要返回按鈕與外觀（設定視窗另有「充電夥伴」），建立排程後留在原地
+    var embedded = false
 
     /// 星期一排到星期日（Calendar 的 weekday：1 = 星期日）
     private let weekdays = [(2, "一"), (3, "二"), (4, "三"), (5, "四"), (6, "五"), (7, "六"), (1, "日")]
@@ -14,12 +17,16 @@ struct ChargingPlanView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                Text("智慧充電").font(.headline)
-                HStack {
-                    Button { ui.page = .main } label: { Label("返回", systemImage: "chevron.left") }
-                        .buttonStyle(.borderless)
-                    Spacer()
+            if embedded {
+                CardTitle("智慧充電", systemImage: "bolt.badge.clock")
+            } else {
+                ZStack {
+                    Text("智慧充電").font(.headline)
+                    HStack {
+                        Button { ui.page = .main } label: { Label("返回", systemImage: "chevron.left") }
+                            .buttonStyle(.borderless)
+                        Spacer()
+                    }
                 }
             }
 
@@ -29,14 +36,20 @@ struct ChargingPlanView: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             // 點貓咪進來的人最常想換外觀：直接放在最上面（不支援智慧充電的 Mac 也能換）
-            HStack(spacing: 8) {
-                Text(supported ? "滑桿旁顯示" : "面板上方顯示").font(.callout)
-                Picker("外觀", selection: Binding(get: { settings.chargingAppearance },
-                                                set: { settings.chargingAppearance = $0 })) {
-                    ForEach(ChargingAppearance.allCases) { Text($0.shortTitle).tag($0) }
+            if !embedded {
+                HStack(spacing: 8) {
+                    Text(supported ? "滑桿旁顯示" : "面板上方顯示").font(.callout)
+                    Picker("外觀", selection: Binding(get: { settings.chargingAppearance },
+                                                    set: { settings.chargingAppearance = $0 })) {
+                        ForEach(ChargingAppearance.allCases) { Text($0.shortTitle).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                if settings.chargingAppearance == .photo {
+                    Button("換照片…") { settings.chooseCompanionPhoto() }
+                        .help("選一張自己的照片；設定 → 充電夥伴可以改回貓咪照片")
+                }
             }
 
             if !supported {
@@ -52,7 +65,12 @@ struct ChargingPlanView: View {
                 strategyCard
             }
         }
-        .padding(14)
+        .padding(embedded ? 0 : 14)
+    }
+
+    /// 建立排程後回到主面板看狀態；在設定視窗裡留在原地，上方會出現目前的排程
+    private func planStarted() {
+        if !embedded { ui.page = .main }
     }
 
     // MARK: 目前的排程
@@ -108,7 +126,7 @@ struct ChargingPlanView: View {
                     HStack(spacing: 10) {
                         Button("\(hours) 小時後") {
                             store.startChargingPlan(.once(Date().addingTimeInterval(Double(hours) * 3600)))
-                            ui.page = .main
+                            planStarted()
                         }
                         .frame(width: 92, alignment: .leading)
                         forecastLabel(until: deadline)
@@ -121,7 +139,7 @@ struct ChargingPlanView: View {
                 HStack(spacing: 10) {
                     Button("在這個時間前充好") {
                         store.startChargingPlan(.once(ui.chargingCustomDeadline))
-                        ui.page = .main
+                        planStarted()
                     }
                     .disabled(ui.chargingCustomDeadline.timeIntervalSinceNow < 60)
                     forecastLabel(until: ui.chargingCustomDeadline)
@@ -187,7 +205,7 @@ struct ChargingPlanView: View {
                     let parts = Calendar.current.dateComponents([.hour, .minute], from: ui.chargingWeeklyTime)
                     store.startChargingPlan(.weekly(weekdays: ui.chargingWeekdays,
                                                     minuteOfDay: (parts.hour ?? 8) * 60 + (parts.minute ?? 0)))
-                    ui.page = .main
+                    planStarted()
                 }
                 .disabled(ui.chargingWeekdays.isEmpty)
                 Text("例如上班日 8:00 前充到完成目標，其他時間維持保養上限。")

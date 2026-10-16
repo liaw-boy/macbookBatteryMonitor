@@ -9,7 +9,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     let disk = DiskMonitor()
     let network = NetworkMonitor()
 
-    /// 由 AppDelegate 提供：打開電池面板的設定頁
+    /// 由 AppDelegate 提供：打開設定視窗
     var openSettings: (() -> Void)?
 
     private let settings = AppSettings.shared

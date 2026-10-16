@@ -5,11 +5,8 @@ enum PowerFlowLevel { case overview, components, chip }
 
 enum PanelPage {
     case main
-    case settings
-    /// 智慧充電（點主面板資訊卡最上方那一列）
+    /// 智慧充電（點主面板資訊卡最上方那一列）；設定視窗的「充電」也有一份
     case chargingPlan
-    /// 設定 → 顯示項目
-    case displayItems
 }
 
 enum BottomTab: String, CaseIterable {
@@ -57,12 +54,14 @@ final class PanelState {
     var page: PanelPage = .main
     var tab: BottomTab = .details
     var historyRange: HistoryRange = .day
-    /// 設定頁等可捲動頁面量到的內容高度，下次打開直接用，面板不必先撐到最高再縮回來
+    /// 智慧充電頁等可捲動頁面量到的內容高度，下次打開直接用，面板不必先撐到最高再縮回來
     var pageHeights: [PanelPage: CGFloat] = [:]
-    /// 打開可捲動頁面時要捲到的卡片（例如點新版本通知時的「更新」）
-    var scrollTarget: String?
-    /// macOS 關閉了這個 App 的通知（設定頁打開時檢查）
+    /// macOS 關閉了這個 App 的通知（設定視窗打開時檢查）
     var notificationsBlocked = false
+    /// 設定視窗左邊選的分類
+    var settingsSection: SettingsSection = .general
+    /// 打開設定視窗（由 AppDelegate 提供）；nil 時維持上次的分類
+    var openSettings: (SettingsSection?) -> Void = { _ in }
     /// 智慧充電頁的輸入：指定完成時間、每週排程的星期與時間
     var chargingCustomDeadline = Date().addingTimeInterval(4 * 3600)
     var chargingWeekdays: Set<Int> = [2, 3, 4, 5, 6]

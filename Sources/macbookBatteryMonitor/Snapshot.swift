@@ -7,6 +7,7 @@ enum SnapshotCommand {
     static func run(directory: String) {
         let dir = URL(fileURLWithPath: directory, isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        CompanionPhoto.useBundledForScreenshots()
 
         let store = BatteryStore()
         let ui = PanelState()
@@ -30,14 +31,6 @@ enum SnapshotCommand {
             ("processes", { ui.page = .main; ui.tab = .processes }),
             // 周邊設備用示範數據，才看得到有設備時的版面
             ("peripherals", { ui.page = .main; ui.tab = .peripherals; store.peripherals.loadPreview() }),
-            ("settings", { ui.notificationsBlocked = false; ui.page = .settings }),
-            // 點新版本通知打開設定時，捲到「更新」卡片
-            ("settings-update", { ui.page = .main; ui.scrollTarget = UpdateCard.anchor; ui.page = .settings }),
-            // macOS 關閉了 App 的通知時的提醒
-            ("settings-notifications-off", {
-                ui.page = .main; ui.notificationsBlocked = true; ui.scrollTarget = UpdateCard.anchor; ui.page = .settings
-            }),
-            ("display-items", { ui.notificationsBlocked = false; ui.page = .displayItems }),
         ]
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             let suffix = appearance == .aqua ? "light" : "dark"
@@ -66,6 +59,7 @@ enum SnapshotCommand {
             renderPowerFlows(appearance: appearance, to: dir.appendingPathComponent("power-flows-\(suffix).png"))
             renderStatusIcons(appearance: appearance, to: dir.appendingPathComponent("icons-\(suffix).png"))
             renderStatusIcons(appearance: appearance, to: dir.appendingPathComponent("icons-percent-time-\(suffix).png"), showsPercent: true)
+            renderSettingsWindow(store: store, ui: ui, appearance: appearance, directory: dir, suffix: suffix)
         }
         store.setHardwareSampling(active: false)
         renderMonitors(directory: dir)
@@ -122,7 +116,25 @@ enum SnapshotCommand {
         }
     }
 
-    /// 桌面寵物：三種外觀，以及滑鼠移過去的想像框、點一下的對話框（上方與下方）
+    /// 設定視窗的每個分類；一般另外畫一張 macOS 關閉了 App 通知時的提醒
+    private static func renderSettingsWindow(store: BatteryStore, ui: PanelState, appearance: NSAppearance.Name,
+                                             directory dir: URL, suffix: String) {
+        var pages = SettingsSection.allCases.map { ($0, $0.rawValue, false) }
+        pages.append((.general, "general-notifications-off", true))
+        for (section, name, blocked) in pages {
+            ui.settingsSection = section
+            ui.notificationsBlocked = blocked
+            let view = SettingsWindowView(store: store, settings: .shared, ui: ui)
+                .frame(width: 720, height: section == .charging ? 1500 : 780)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, appearance == .aqua ? .light : .dark)
+            render(view, appearance: appearance, settle: 0.4, to: dir.appendingPathComponent("settings-\(name)-\(suffix).png"))
+        }
+        ui.settingsSection = .general
+        ui.notificationsBlocked = false
+    }
+
+    /// 桌面寵物：四種外觀中的三種，以及滑鼠移過去的想像框、點一下的對話框（上方與下方）
     private static func renderDesktopPet(directory dir: URL) {
         let now = Date()
         let charging = ChargingJourneyPresentation.make(percent: 62, charging: true, decision: nil, now: now)
@@ -135,6 +147,10 @@ enum SnapshotCommand {
                 VStack(spacing: 0) {
                     DesktopPetBubbleView(text: "今天用掉 14%，補回 3%", thought: false, tailUp: false)
                     CompanionFigure(presentation: charging, appearance: .mascot, animated: false, width: 140)
+                }
+                VStack(spacing: 0) {
+                    DesktopPetBubbleView(text: "電池健康度 91%，充過 212 次", thought: false, tailUp: false)
+                    CompanionFigure(presentation: charging, appearance: .photo, animated: false, width: 140)
                 }
                 VStack(spacing: 0) {
                     DesktopPetCompanion(presentation: .make(percent: 80, charging: false, decision: nil, now: now), animated: false)
@@ -150,7 +166,7 @@ enum SnapshotCommand {
         }
     }
 
-    /// 充電上限滑桿旁的三種外觀（充電夥伴、電池夥伴、電量條）在各種排程狀態下的樣子
+    /// 充電上限滑桿旁的四種外觀（充電夥伴、電池夥伴、電量條、照片）在各種排程狀態下的樣子
     private static func renderChargingAppearances(directory dir: URL) {
         let now = Date()
         let deadline = now.addingTimeInterval(9 * 3600)
@@ -189,7 +205,7 @@ enum SnapshotCommand {
         render(view, appearance: .darkAqua, settle: 0.3, to: dir.appendingPathComponent("charging-appearances-dark.png"))
     }
 
-    /// 設定頁的「更新」卡片在各狀態下的樣子
+    /// 設定視窗的「更新」卡片在各狀態下的樣子
     private static func renderUpdateCard(directory dir: URL) {
         let updater = Updater()
         let release = ReleaseInfo(tag: "v9.9.9", version: [9, 9, 9],

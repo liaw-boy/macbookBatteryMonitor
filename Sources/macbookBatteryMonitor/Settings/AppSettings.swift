@@ -122,6 +122,8 @@ final class AppSettings {
     var chargingAppearance: ChargingAppearance {
         didSet { defaults.set(chargingAppearance.rawValue, forKey: Keys.chargingAppearance) }
     }
+    /// 照片外觀換照片時加一，讓用到照片的畫面重畫（照片本身在 CompanionPhoto）
+    var companionPhotoVersion = 0
     /// 桌面寵物：把充電夥伴放在桌面上（只有 MacBook 有）
     var desktopPet: Bool {
         didSet {
@@ -340,6 +342,8 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
     case mascot
     /// 電力流動：電量條
     case energy
+    /// 照片：預設是貓咪照片，可以換成自己的
+    case photo
 
     var id: String { rawValue }
     var title: String {
@@ -347,6 +351,7 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "充電夥伴（貓咪）"
         case .mascot: return "電池夥伴"
         case .energy: return "電力流動"
+        case .photo: return "照片"
         }
     }
 
@@ -356,6 +361,7 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "貓咪"
         case .mascot: return "電池夥伴"
         case .energy: return "電量條"
+        case .photo: return "照片"
         }
     }
 }

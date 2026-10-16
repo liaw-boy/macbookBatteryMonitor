@@ -1,27 +1,13 @@
 import SwiftUI
 
-/// 設定 → 顯示項目：電力流向細項與詳細資訊欄位要不要顯示
+/// 設定 → 顯示項目：電力流向細項與詳細資訊欄位要不要顯示（接在選單列卡片下面）
 struct DisplayItemsView: View {
     let settings: AppSettings
-    let ui: PanelState
     /// 主面板有充電上限滑桿（充電上限不列在詳細資訊）
     var limitSlider = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                Text("顯示項目").font(.headline)
-                HStack {
-                    Button {
-                        ui.page = .settings
-                    } label: {
-                        Label("設定", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.borderless)
-                    Spacer()
-                }
-            }
-
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("電力流向細項", systemImage: "arrow.triangle.branch")
@@ -66,7 +52,6 @@ struct DisplayItemsView: View {
                 .disabled(settings.hiddenFlowItems.isEmpty && settings.hiddenDetailFields.isEmpty)
             }
         }
-        .padding(14)
     }
 
     private func checkboxes(_ items: [FlowItem]) -> some View {
