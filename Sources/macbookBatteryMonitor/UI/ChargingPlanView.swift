@@ -5,6 +5,8 @@ struct ChargingPlanView: View {
     let store: BatteryStore
     let settings: AppSettings
     let ui: PanelState
+    /// 放在獨立設定視窗裡：不顯示返回列與內邊距，排程開始後也不切換面板頁面
+    var embedded = false
 
     /// 星期一排到星期日（Calendar 的 weekday：1 = 星期日）
     private let weekdays = [(2, "一"), (3, "二"), (4, "三"), (5, "四"), (6, "五"), (7, "六"), (1, "日")]
@@ -14,12 +16,14 @@ struct ChargingPlanView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                Text("智慧充電").font(.headline)
-                HStack {
-                    Button { ui.page = .main } label: { Label("返回", systemImage: "chevron.left") }
-                        .buttonStyle(.borderless)
-                    Spacer()
+            if !embedded {
+                ZStack {
+                    Text("智慧充電").font(.headline)
+                    HStack {
+                        Button { done() } label: { Label("返回", systemImage: "chevron.left") }
+                            .buttonStyle(.borderless)
+                        Spacer()
+                    }
                 }
             }
 
@@ -53,7 +57,7 @@ struct ChargingPlanView: View {
                 strategyCard
             }
         }
-        .padding(14)
+        .padding(embedded ? 0 : 14)
     }
 
     // MARK: 目前的排程
@@ -98,6 +102,11 @@ struct ChargingPlanView: View {
         }
     }
 
+    /// 排程開始後回主面板；在設定視窗裡留在原處
+    private func done() {
+        if !embedded { ui.page = .main }
+    }
+
     // MARK: 快速設定
 
     private var quickCard: some View {
@@ -113,7 +122,7 @@ struct ChargingPlanView: View {
                     HStack(spacing: 10) {
                         Button("\(hours) 小時後") {
                             store.startChargingPlan(.once(Date().addingTimeInterval(Double(hours) * 3600)))
-                            ui.page = .main
+                            done()
                         }
                         .frame(width: 92, alignment: .leading)
                         forecastLabel(until: deadline)
@@ -126,7 +135,7 @@ struct ChargingPlanView: View {
                 HStack(spacing: 10) {
                     Button("在這個時間前充好") {
                         store.startChargingPlan(.once(ui.chargingCustomDeadline))
-                        ui.page = .main
+                        done()
                     }
                     .disabled(ui.chargingCustomDeadline.timeIntervalSinceNow < 60)
                     forecastLabel(until: ui.chargingCustomDeadline)
@@ -192,7 +201,7 @@ struct ChargingPlanView: View {
                     let parts = Calendar.current.dateComponents([.hour, .minute], from: ui.chargingWeeklyTime)
                     store.startChargingPlan(.weekly(weekdays: ui.chargingWeekdays,
                                                     minuteOfDay: (parts.hour ?? 8) * 60 + (parts.minute ?? 0)))
-                    ui.page = .main
+                    done()
                 }
                 .disabled(ui.chargingWeekdays.isEmpty)
                 Text("例如上班日 8:00 前充到完成目標，其他時間維持保養上限。")

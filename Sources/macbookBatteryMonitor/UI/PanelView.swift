@@ -106,7 +106,7 @@ struct PanelView: View {
             // Beta 是使用者手動找到的，不在面板上提示
             if let release = store.updater.available, !release.isBeta {
                 Button {
-                    ui.page = .settings
+                    ui.openSettingsWindow(.general)
                 } label: {
                     Label("有新版本 v\(release.versionText)", systemImage: "arrow.down.circle.fill")
                         .font(.caption)
@@ -115,7 +115,7 @@ struct PanelView: View {
                 .help("到設定一鍵更新")
             }
             Button {
-                ui.page = .settings
+                ui.openSettingsWindow(nil)
             } label: {
                 Image(systemName: "gearshape")
             }

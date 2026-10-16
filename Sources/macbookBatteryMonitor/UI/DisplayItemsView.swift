@@ -6,19 +6,23 @@ struct DisplayItemsView: View {
     let ui: PanelState
     /// 主面板有充電上限滑桿（充電上限不列在詳細資訊）
     var limitSlider = false
+    /// 放在獨立設定視窗裡：不顯示返回列與內邊距
+    var embedded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                Text("顯示項目").font(.headline)
-                HStack {
-                    Button {
-                        ui.page = .settings
-                    } label: {
-                        Label("設定", systemImage: "chevron.left")
+            if !embedded {
+                ZStack {
+                    Text("顯示項目").font(.headline)
+                    HStack {
+                        Button {
+                            ui.page = .settings
+                        } label: {
+                            Label("設定", systemImage: "chevron.left")
+                        }
+                        .buttonStyle(.borderless)
+                        Spacer()
                     }
-                    .buttonStyle(.borderless)
-                    Spacer()
                 }
             }
 
@@ -66,7 +70,7 @@ struct DisplayItemsView: View {
                 .disabled(settings.hiddenFlowItems.isEmpty && settings.hiddenDetailFields.isEmpty)
             }
         }
-        .padding(14)
+        .padding(embedded ? 0 : 14)
     }
 
     private func checkboxes(_ items: [FlowItem]) -> some View {

@@ -129,6 +129,9 @@ struct ChargingJourneyView<Control: View>: View {
                         BatteryMascot(mood: presentation.mood, level: presentation.progress, tint: tint,
                                       animated: animated && !reduceMotion)
                             .frame(width: 48, height: 50)
+                    case .photo:
+                        ChargingPhoto(badge: presentation.badge, tint: tint)
+                            .frame(width: 48, height: 50)
                     case .energy:
                         // 和貓咪同高，切換外觀時下面的內容不會跟著移動
                         energyBar
@@ -140,7 +143,7 @@ struct ChargingJourneyView<Control: View>: View {
             .buttonStyle(.plain)
             .help("設定智慧充電")
             .accessibilityLabel("設定智慧充電")
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 10) {
                 control
                 Button(action: open) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -466,5 +469,37 @@ private struct BlinkSchedule: TimelineSchedule {
             opening.toggle()
             return date
         }
+    }
+}
+
+/// 我的貓咪：一張圓形照片，右下角和充電夥伴一樣有狀態徽章
+struct ChargingPhoto: View {
+    let badge: ChargingJourneyPresentation.Badge?
+    let tint: Color
+
+    private static let image: NSImage? = Bundle.main.url(forResource: "companion-photo", withExtension: "jpg")
+        .flatMap { NSImage(contentsOf: $0) }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            Group {
+                if let image = Self.image {
+                    Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
+                } else {
+                    Color.secondary.opacity(0.2)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.primary.opacity(0.12)))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if let badge {
+                Image(systemName: badge.symbol)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white, tint)
+                    .background(Circle().fill(Color(nsColor: .windowBackgroundColor)).padding(1))
+            }
+        }
+        .accessibilityHidden(true)
     }
 }

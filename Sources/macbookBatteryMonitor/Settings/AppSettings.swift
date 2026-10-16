@@ -309,6 +309,8 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
     case mascot
     /// 電力流動：電量條
     case energy
+    /// 我的貓咪：一張照片（圓形小圖）
+    case photo
 
     var id: String { rawValue }
     var title: String {
@@ -316,6 +318,7 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "充電夥伴（貓咪）"
         case .mascot: return "電池夥伴"
         case .energy: return "電力流動"
+        case .photo: return "我的貓咪（照片）"
         }
     }
 
@@ -325,6 +328,7 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "貓咪"
         case .mascot: return "電池夥伴"
         case .energy: return "電量條"
+        case .photo: return "照片"
         }
     }
 }

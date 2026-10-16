@@ -71,6 +71,8 @@ final class PanelState {
     var confirmingBetaInstall = false
     var loginStatus: LoginItem.Status = .disabled
     var loginError: String?
+    /// 打開獨立的設定視窗（由 AppDelegate 設定）；參數是要跳到的分類
+    var openSettingsWindow: (SettingsSection?) -> Void = { _ in }
 
     func binding<T>(_ keyPath: ReferenceWritableKeyPath<PanelState, T>) -> Binding<T> {
         Binding(get: { self[keyPath: keyPath] }, set: { self[keyPath: keyPath] = $0 })

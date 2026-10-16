@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
     /// 每次打開都建立新的，關閉後整個釋放（連同視窗和 SwiftUI 畫面）
     private var popover: NSPopover?
+    private let settingsWindow = SettingsWindowController()
     /// 面板開著時監聽面板外的點擊。系統的 .transient 有時不會收起面板，這是第二道保險
     private var outsideClickMonitors: [Any] = []
     private var refreshTimer: Timer?
@@ -50,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if freshInstall { askForMode() }
         // 系統監控關閉時不建立任何模組圖示與計時器
         settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
-        monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
+        monitors.openSettings = { [weak self] in self?.showSettingsWindow() }
+        ui.openSettingsWindow = { [weak self] section in self?.showSettingsWindow(section: section) }
         monitors.start()
         store.adminCPU.authorizationChanged = { [weak self] pending in
             self?.popover?.behavior = pending ? .applicationDefined : .transient
@@ -92,8 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             NSApp.activate()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 guard let self else { return }
-                self.ui.scrollTarget = UpdateCard.anchor
-                self.showPopover(page: .settings)
+                self.showSettingsWindow(section: .general)
             }
         }
         // 自動檢查更新：啟動 15 秒後與之後每 6 小時看一次，距離上次檢查超過一天才真的連線
@@ -525,7 +526,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     @objc private func openSettings() {
-        showPopover(page: .settings)
+        showSettingsWindow()
+    }
+
+    private func showSettingsWindow(section: SettingsSection? = nil) {
+        popover?.performClose(nil)
+        settingsWindow.show(store: store, settings: settings, ui: ui, section: section)
     }
 
     // MARK: - NSPopoverDelegate
