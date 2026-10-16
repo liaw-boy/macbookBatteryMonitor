@@ -10,6 +10,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// CPU／GPU、記憶體、磁碟、網路模組
     private let monitors = ModuleCoordinator()
     private lazy var desktopPet = DesktopPetController(store: store, settings: settings)
+    /// 合併顯示時，點選單列的圖示在下方展開的第二條狀態列
+    private lazy var strip: MenuBarStrip = {
+        let strip = MenuBarStrip(monitors: monitors, mergedButton: { [weak self] in self?.statusItem?.button })
+        strip.openBattery = { [weak self] view in self?.showPopover(page: .main, anchor: view, behavior: .applicationDefined) }
+        strip.closeBattery = { [weak self] in self?.popover?.performClose(nil) }
+        strip.batteryShown = { [weak self] in self?.popover?.isShown == true }
+        strip.batteryWindow = { [weak self] in self?.popover?.contentViewController?.view.window }
+        return strip
+    }()
+
+    /// 合併顯示而且有開系統監控時，點選單列的圖示是展開第二條狀態列
+    private var combinedMenuBar: Bool { settings.menuBarCombined && !monitors.enabledKinds.isEmpty }
     private var statusItem: NSStatusItem!
     /// 每次打開都建立新的，關閉後整個釋放（連同視窗和 SwiftUI 畫面）
     private var popover: NSPopover?
@@ -50,7 +62,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let freshInstall = settings.needsModeChoice
         if freshInstall { askForMode() }
         // 系統監控關閉時不建立任何模組圖示與計時器
-        settings.onMonitorsChange = { [weak self] in self?.monitors.syncItems() }
+        settings.onMonitorsChange = { [weak self] in
+            guard let self else { return }
+            monitors.syncItems()
+            if !combinedMenuBar { strip.close() }
+        }
         monitors.openSettings = { [weak self] in self?.showPopover(page: .settings) }
         monitors.start()
         store.adminCPU.authorizationChanged = { [weak self] pending in
@@ -125,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         runPanelSelfTestIfRequested()
         runUpdateSelfTestIfRequested()
         runPreciseWakeSelfTestIfRequested()
+        runStripSelfTestIfRequested()
     }
 
     /// 第一次啟動：只看電池（和以前的電池版一樣），還是另外在選單列加上系統監控
@@ -176,6 +193,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard updater.available != nil else { return }
             await updater.install()
             print("selftest: 安裝結果 \(updater.state)")
+        }
+    }
+
+    /// 開發用：`--selftest-strip` 展開第二條狀態列，依序從上面打開 CPU 與電池面板，印出各視窗的位置與層級，最後收起來
+    private func runStripSelfTestIfRequested() {
+        guard CommandLine.arguments.contains("--selftest-strip") else { return }
+        func describe(_ name: String, _ window: NSWindow?) {
+            print("selftest: \(name) \(window.map { "frame \($0.frame) level \($0.level.rawValue) visible \($0.isVisible)" } ?? "沒有")")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self else { return }
+            strip.show()
+            describe("選單列圖示", statusItem.button?.window)
+            describe("第二條狀態列", strip.window)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
+            guard let self else { return }
+            print("selftest: 點 CPU \(strip.selfTestClick(MonitorKind.cpu.rawValue))")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7) { [weak self] in
+            guard let self else { return }
+            describe("CPU 面板", monitors.panelWindow)
+            print("selftest: 點電池 \(strip.selfTestClick("battery"))")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 9) { [weak self] in
+            guard let self else { return }
+            describe("電池面板", popover?.contentViewController?.view.window)
+            print("selftest: CPU 面板還開著 \(monitors.panelWindow?.isVisible == true)")
+            print("selftest: 再點電池 \(strip.selfTestClick("battery"))，電池面板開著 \(popover?.isShown == true)")
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 11) { [weak self] in
+            guard let self else { return }
+            strip.close()
+            print("selftest: 收起後第二條狀態列 \(strip.isShown)、電池面板 \(popover?.isShown == true)、CPU 面板 \(monitors.panelWindow?.isVisible == true)")
         }
     }
 
@@ -446,6 +497,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func statusItemClicked(_ sender: NSStatusBarButton) {
         if NSApp.currentEvent?.type == .rightMouseUp {
             showContextMenu()
+        } else if combinedMenuBar, !(popover?.isShown == true && !strip.isShown) {
+            strip.toggle()
         } else if let popover, popover.isShown {
             popover.performClose(sender)
         } else {
@@ -453,8 +506,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    private func showPopover(page: PanelPage) {
-        guard let button = statusItem.button else { return }
+    /// anchor：面板指向的位置（預設是選單列的圖示，第二條狀態列打開時是上面的電池圖示）
+    private func showPopover(page: PanelPage, anchor: NSView? = nil, behavior: NSPopover.Behavior = .transient) {
+        guard let button = anchor ?? statusItem.button else { return }
         if let popover, popover.isShown {
             ui.page = page
             return
@@ -468,7 +522,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let hosting = NSHostingController(rootView: RootView(store: store, settings: settings, ui: ui))
         hosting.sizingOptions = [.preferredContentSize]
         let popover = NSPopover()
-        popover.behavior = store.adminCPU.authorizing ? .applicationDefined : .transient
+        popover.behavior = store.adminCPU.authorizing ? .applicationDefined : behavior
         popover.delegate = self
         popover.contentViewController = hosting
         // 先算好尺寸再顯示，避免面板從 0 大小長出來
@@ -495,6 +549,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             guard let self, let popover = self.popover else { return event }
             let inside = event.window === popover.contentViewController?.view.window
                 || event.window === self.statusItem.button?.window
+                || (self.strip.isShown && event.window === self.strip.window)
             if !inside { self.closeForOutsideClick() }
             return event
         }) {

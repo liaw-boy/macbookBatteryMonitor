@@ -23,6 +23,18 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private var topStream: TopStream?
     private var sleeping = false
 
+    /// 合併顯示時的第二條狀態列開著：沒有選單列圖示也要取樣，讓上面的數字即時更新
+    var stripActive = false {
+        didSet {
+            guard stripActive != oldValue else { return }
+            if stripActive { tick() }
+            updateTimer()
+        }
+    }
+
+    /// 有開啟的模組（左到右：CPU、記憶體、磁碟、網路）
+    var enabledKinds: [MonitorKind] { MonitorKind.allCases.filter(settings.isMonitorEnabled) }
+
     func start() {
         syncItems()
         runSelfTestIfRequested()
@@ -45,10 +57,11 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// 依設定新增或移除選單列圖示。後建立的圖示會排在左邊，所以由右而左建立：網路、磁碟、記憶體、CPU
+    /// 依設定新增或移除選單列圖示。後建立的圖示會排在左邊，所以由右而左建立：網路、磁碟、記憶體、CPU。
+    /// 合併顯示時不建立，改在第二條狀態列上顯示
     func syncItems() {
         for kind in MonitorKind.allCases.reversed() {
-            let enabled = settings.isMonitorEnabled(kind)
+            let enabled = settings.isMonitorEnabled(kind) && !settings.menuBarCombined
             if enabled, items[kind] == nil {
                 let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 item.autosaveName = "monitor.\(kind.rawValue)"
@@ -92,7 +105,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     // MARK: - 定時取樣（依設定的更新頻率）
 
     private func updateTimer() {
-        let shouldRun = !items.isEmpty && !sleeping
+        let shouldRun = (!items.isEmpty || stripActive) && !sleeping
         if shouldRun, timer == nil {
             let interval = settings.sampleInterval
             let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
@@ -107,13 +120,14 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// 只取樣有開啟的模組
+    /// 只取樣有開啟的模組（選單列有圖示，或第二條狀態列開著）
     private func tick() {
         let now = Date()
-        if items[.cpu] != nil { cpu.sample(at: now) }
-        if items[.memory] != nil { memory.sample(at: now) }
-        if items[.disk] != nil { disk.sample(at: now) }
-        if items[.network] != nil { network.sample(at: now) }
+        func active(_ kind: MonitorKind) -> Bool { items[kind] != nil || (stripActive && settings.isMonitorEnabled(kind)) }
+        if active(.cpu) { cpu.sample(at: now) }
+        if active(.memory) { memory.sample(at: now) }
+        if active(.disk) { disk.sample(at: now) }
+        if active(.network) { network.sample(at: now) }
         for (kind, item) in items { render(kind, item) }
         // top 意外結束時（例如被強制結束），面板還開著就重新啟動
         if let topStream, !topStream.isRunning, !sleeping { topStream.start() }
@@ -169,6 +183,28 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
+    /// 第二條狀態列上的圖示（和選單列的圖示相同）
+    func stripContent(_ kind: MonitorKind) -> (image: NSImage, tooltip: String) {
+        let content = menuBarContent(kind)
+        return (content.image(), content.tooltip)
+    }
+
+    /// 這個模組的面板開著嗎
+    func isPanelShown(_ kind: MonitorKind) -> Bool { popover?.isShown == true && openKind == kind }
+
+    /// 從第二條狀態列打開面板：面板不會因為點到第二條狀態列而自己關掉，開關交給第二條狀態列處理
+    func showPanel(_ kind: MonitorKind, from view: NSView) {
+        popover?.performClose(nil)
+        showPopover(kind, from: view, behavior: .applicationDefined)
+    }
+
+    func closePanel() {
+        popover?.performClose(nil)
+    }
+
+    /// 面板的視窗（第二條狀態列判斷點擊是不是在面板裡）
+    var panelWindow: NSWindow? { popover?.contentViewController?.view.window }
+
     // MARK: - 面板
 
     @objc private func itemClicked(_ sender: NSStatusBarButton) {
@@ -185,7 +221,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         showPopover(kind, from: sender)
     }
 
-    private func showPopover(_ kind: MonitorKind, from button: NSStatusBarButton) {
+    private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient) {
         openKind = kind
         cpu.setThermalActive(kind == .cpu)
         disk.setHealthActive(kind == .disk)
@@ -198,7 +234,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         let hosting = NSHostingController(rootView: root)
         hosting.sizingOptions = [.preferredContentSize]
         let popover = NSPopover()
-        popover.behavior = .transient
+        popover.behavior = behavior
         popover.delegate = self
         popover.contentViewController = hosting
         popover.contentSize = hosting.view.fittingSize

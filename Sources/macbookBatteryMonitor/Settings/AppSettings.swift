@@ -90,6 +90,11 @@ final class AppSettings {
     var systemMonitors: Bool {
         didSet { defaults.set(systemMonitors, forKey: Keys.systemMonitors); onMonitorsChange?() }
     }
+    /// 合併顯示：選單列只留電池（桌上型為耗電）一個圖示，點一下在下方展開第二條狀態列，列出所有圖示。
+    /// 選單列圖示太多時，macOS 會把放不下的藏起來（尤其有瀏海的 MacBook）
+    var menuBarCombined: Bool {
+        didSet { defaults.set(menuBarCombined, forKey: Keys.menuBarCombined); onMonitorsChange?() }
+    }
     /// 全新安裝、還沒選過要不要開系統監控（第一次啟動時詢問）
     private(set) var needsModeChoice = false
 
@@ -227,6 +232,7 @@ final class AppSettings {
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
         static let systemMonitors = "systemMonitors"
+        static let menuBarCombined = "menuBarCombined"
         static let powerSaving = "powerSaving"
         static let powerSavingOnBatteryOnly = "powerSavingOnBatteryOnly"
         static let updateInterval = "updateInterval"
@@ -273,6 +279,7 @@ final class AppSettings {
             Keys.updateNotification: true,
             Keys.chargingAppearance: ChargingAppearance.companion.rawValue,
             Keys.desktopPet: false,
+            Keys.menuBarCombined: false,
             Keys.desktopPetOnWallpaper: false,
             Keys.chargingTargetPercent: 0,
             Keys.chargingHoldPercent: 80,
@@ -312,6 +319,7 @@ final class AppSettings {
         updateNotification = defaults.bool(forKey: Keys.updateNotification)
         chargingAppearance = ChargingAppearance(rawValue: defaults.string(forKey: Keys.chargingAppearance) ?? "") ?? .companion
         desktopPet = defaults.bool(forKey: Keys.desktopPet)
+        menuBarCombined = defaults.bool(forKey: Keys.menuBarCombined)
         desktopPetOnWallpaper = defaults.bool(forKey: Keys.desktopPetOnWallpaper)
         let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
         let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)

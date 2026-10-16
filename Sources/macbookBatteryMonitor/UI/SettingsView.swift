@@ -120,9 +120,13 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(!settings.systemMonitors)
-                    Text(settings.systemMonitors
-                         ? "開啟的模組在選單列各有一個圖示，\(settings.updateText)。"
-                         : "關閉時選單列只有\(hasBattery ? "電池" : "耗電")圖示，四個模組都不會取樣，最省電。")
+                    SwitchRow("合併成一個圖示", isOn: binding(\.menuBarCombined))
+                        .disabled(!settings.systemMonitors)
+                    Text(!settings.systemMonitors
+                         ? "關閉時選單列只有\(hasBattery ? "電池" : "耗電")圖示，四個模組都不會取樣，最省電。"
+                         : settings.menuBarCombined
+                         ? "選單列只留一個圖示，點一下在下方展開所有圖示；選單列太擠時用。"
+                         : "開啟的模組在選單列各有一個圖示，\(settings.updateText)。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
