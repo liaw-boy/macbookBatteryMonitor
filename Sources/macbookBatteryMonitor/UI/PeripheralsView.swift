@@ -64,7 +64,7 @@ struct PeripheralsView: View {
     /// 藍牙權限被拒絕：羅技、Razer 等藍牙低功耗滑鼠與鍵盤的電量讀不到
     private var bluetoothDenied: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("沒有藍牙權限，讀不到羅技、Razer 等藍牙低功耗滑鼠與鍵盤的電量（Apple 的設備與耳機不受影響）。")
+            Text("沒有藍牙權限，讀不到部分藍牙滑鼠與鍵盤的電量。")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
