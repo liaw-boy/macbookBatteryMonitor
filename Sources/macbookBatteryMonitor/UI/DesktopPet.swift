@@ -485,6 +485,13 @@ final class SpriteLoopView: NSView {
             apply(frames)
             return
         }
+        // 解碼完成前（或萬一解不出來）先放同名的靜態圖，最差也是 v1.7.1 那樣的靜態貓咪，不會空白
+        if sprite.contents == nil, let poster = NSImage(contentsOf: url.deletingPathExtension().appendingPathExtension("png")) {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            sprite.contents = poster
+            CATransaction.commit()
+        }
         Task.detached(priority: .utility) {
             let frames = await Self.decode(url)
             await MainActor.run {
