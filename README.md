@@ -18,7 +18,7 @@ macOS 選單列的電池與系統資訊 App。MacBook 上選單列直接顯示�
 - **每秒更新**：選單列與面板上的資訊預設每 1 秒刷新一次，可在設定改成每 2、5、10 秒；面板關閉時 CPU 約 0.2%（只看電池）、約 1%（四個系統監控模組全開），不會阻止系統睡眠
 - **省電模式**：電力流向改用靜態圖示、更新頻率至少每 2 秒、充電夥伴不播放動畫；可以只在使用電池時啟用（v1.7.1 起）
 - **自己選顯示項目**：電力流向細項（螢幕背光、晶片、CPU／GPU／ANE）與詳細資訊欄位可以個別隱藏；機型讀不到的 ANE、螢幕背光會自動隱藏
-- **一鍵更新**：有新版本時在設定按一下就下載、驗證並換上新版（v1.5.0 起；v1.7.2 起直接用 DMG，舊版會一步一步更新上來）；發現新版本時會發通知，可以關閉（v1.7.1 起）；手動檢查時也能找到 Beta 測試版，安裝前會再確認一次（v1.7.1 起）
+- **一鍵更新**：有新版本時在設定按一下就下載、驗證並換上新版（v1.5.0 起；v1.7.2 起直接用 DMG，舊版也能一鍵更新到最新版）；發現新版本時會發通知，可以關閉（v1.7.1 起）；手動檢查時也能找到 Beta 測試版，安裝前會再確認一次（v1.7.1 起）
 - **拖曳安裝的 DMG**（v1.7.2 起）：打開 DMG 把 App 拖到「應用程式」就裝好；App 約 7.5 MB（v1.7.1 是 13 MB）
 - **不需要 Xcode**：只要 Command Line Tools 就能編譯
 
@@ -34,8 +34,8 @@ v1.7.2 起檔名固定、不帶版本號，上面的連結永遠下載最新版�
 - 打開 DMG，把 App 拖到「應用程式」就裝好；第一次打開被擋下時怎麼做，DMG 視窗下方也有寫（見「安裝」）
 - v1.7.1 起只有一個 App：第一次啟動時選「只看電池」或「電池＋系統監控」，之後在設定裡切換
 - 舊系統版本給 macOS 12、13 的 Mac（例如 2015～2017 年的 MacBook，或用 OpenCore Legacy Patcher 升級的舊 Mac），功能和通用版相同；系統升級到 macOS 14 以後，一鍵更新會自動換成通用版
-- 已經在用 v1.5.0 以後的版本：到設定 → 更新按「一鍵更新」即可升級，會先更新到過渡版 v1.7.2，再一路更新到最新版（見「一鍵更新」）
-- v1.7.2 的 Release 另附 `…-v1.7.2-macOS-universal.zip`、`…-v1.7.2-macOS12.zip`（給 v1.7.1）與 `…-v1.7.2-battery-macOS-arm64.zip`、`…-v1.7.2-status-macOS-arm64.zip`（給 v1.5.0～v1.6.2），都是給舊版一鍵更新用的，不需要下載；v1.7.1 以前的 Release 只有 zip
+- 已經在用 v1.5.0 以後的版本：到設定 → 更新按「一鍵更新」即可直接升級到最新版；只有 v1.7.1 的舊系統版本會先經過 v1.7.2（見「一鍵更新」）
+- Release 另附的 `…-battery-macOS-arm64.zip`、`…-status-macOS-arm64.zip`（給 v1.5.0～v1.7.1）與 v1.7.2 的 `…-macOS-universal.zip`、`…-macOS12.zip`（給 v1.7.1），都是給舊版一鍵更新用的，內容和 DMG 相同，不需要下載；v1.7.1 以前的 Release 只有 zip
 
 | | 只看電池 | 電池＋系統監控 |
 |---|---|---|
@@ -103,7 +103,7 @@ v1.7.1 起支援 Intel Mac（通用版需要 macOS 14 以上，大約是 2018 �
 
 ### 舊版本（有已知 bug，不建議使用）
 
-舊版本仍保留在 Releases，但都有下表的 bug，最新版已全部修正。另外，有周邊設備功能的 v1.4.0～v1.6.1 都有兩個問題：羅技、Razer 等非 Apple 的藍牙低功耗滑鼠、鍵盤不顯示電量，以及部分新款 AirPods 在周邊設備分頁列成兩行（v1.6.2 修正）；v1.6.2 以前的耳機在右邊只顯示一個數字（三者中最低的），左耳、右耳與充電盒擠在名稱下方的小字（v1.7.1 改成三欄並排）。v1.5.0 起有一鍵更新：v1.7.2 是過渡版，附上每個舊版本認得的檔案，舊版會先更新到 v1.7.2，再一路更新到最新版（v1.5.0～v1.6.2 只看最新版本，v1.7.2 之後的版本發佈後要手動下載一次）。想省電的話，請用最新版、只看電池並開啟省電模式或調慢更新頻率，不要改用舊版。
+舊版本仍保留在 Releases，但都有下表的 bug，最新版已全部修正。另外，有周邊設備功能的 v1.4.0～v1.6.1 都有兩個問題：羅技、Razer 等非 Apple 的藍牙低功耗滑鼠、鍵盤不顯示電量，以及部分新款 AirPods 在周邊設備分頁列成兩行（v1.6.2 修正）；v1.6.2 以前的耳機在右邊只顯示一個數字（三者中最低的），左耳、右耳與充電盒擠在名稱下方的小字（v1.7.1 改成三欄並排）。v1.5.0 起有一鍵更新：每個 Release 都附上舊版認得的檔案，舊版可以直接更新到最新版（v1.7.1 的舊系統版本會先經過 v1.7.2）。想省電的話，請用最新版、只看電池並開啟省電模式或調慢更新頻率，不要改用舊版。
 
 | 已知 bug | v1.0.0 | v1.1.0 | v1.2.1 | v1.2.2 | v1.3.0 | v1.4.1 |
 |---|---|---|---|---|---|---|
@@ -125,11 +125,11 @@ v1.7.1 起支援 Intel Mac（通用版需要 macOS 14 以上，大約是 2018 �
 
 | 版本 | 介面 | 下載 |
 |---|---|---|
-| v1.6.2 | 羅技、Razer 等藍牙低功耗滑鼠、鍵盤電量（耳機只顯示一個數字，一鍵更新會先到過渡版 v1.7.2） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.2) |
-| v1.6.1 | 兩個版本各自的 App 名稱（周邊設備有上述兩個問題，一鍵更新會先到過渡版 v1.7.2） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.1) |
-| v1.6.0 | 充電上限滑桿（周邊設備有上述兩個問題，一鍵更新會先到過渡版 v1.7.2） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.0) |
-| v1.5.3 | 外接磁碟、風扇與溫度（周邊設備有上述兩個問題，一鍵更新會先到過渡版 v1.7.2） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.3) |
-| v1.5.0 | 一鍵更新（周邊設備有上述兩個問題，一鍵更新會先到過渡版 v1.7.2） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
+| v1.6.2 | 羅技、Razer 等藍牙低功耗滑鼠、鍵盤電量（耳機只顯示一個數字） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.2) |
+| v1.6.1 | 兩個版本各自的 App 名稱（周邊設備有上述兩個問題） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.1) |
+| v1.6.0 | 充電上限滑桿（周邊設備有上述兩個問題） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.0) |
+| v1.5.3 | 外接磁碟、風扇與溫度（周邊設備有上述兩個問題） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.3) |
+| v1.5.0 | 一鍵更新（周邊設備有上述兩個問題） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
 | v1.4.1 | 新 App 圖示，可換背景色 | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.1) |
 | v1.4.0 | 周邊設備、可調更新頻率與顯示項目（周邊設備有上述兩個問題，也沒有一鍵更新） | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.0) |
 | v1.3.0 | 電池版／系統監控版、省電模式 | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.3.0) |
@@ -150,7 +150,7 @@ v1.7.1 起支援 Intel Mac（通用版需要 macOS 14 以上，大約是 2018 �
      ```
 4. 第一次啟動（v1.7.1 起）會詢問要「只看電池」還是「電池＋系統監控」（桌上型 Mac 是「只看耗電」／「耗電＋系統監控」）、要不要開啟管理員 CPU 取樣（Apple 晶片），以及通知與藍牙權限（藍牙只用來讀取羅技、Razer 等藍牙滑鼠、鍵盤的電量），並自動加入開機自啟動（可在設定關閉；macOS 13 用新版覆蓋後系統會清掉登錄，App 會自動再加一次）
 
-已經在用 v1.5.0 以後的版本：到設定 → 更新按「一鍵更新」即可升級，不必重新下載（舊版會先更新到過渡版 v1.7.2）。設定視窗左下角會顯示 App 名稱與版本號。
+已經在用 v1.5.0 以後的版本：到設定 → 更新按「一鍵更新」即可升級，不必重新下載（v1.7.1 的舊系統版本會先更新到 v1.7.2）。設定視窗左下角會顯示 App 名稱與版本號。
 
 ## 功能
 
@@ -290,7 +290,7 @@ macOS 的「自然捲動」是滑鼠和觸控板共用一個設定：觸控板�
 
 **Beta 測試版**（v1.7.1 起）：GitHub 上標成「預先發行版本」的 Beta（例如 v1.8.0-beta.1）只有在設定 → 更新按「檢查更新」時才會列出，自動檢查不會提示、面板底部不會出現、也不會發通知。按「安裝 Beta…」後會先說明測試版可能不穩定，再按一次「安裝 Beta」才會下載安裝（同樣驗證校驗碼與簽章）。已有比 Beta 新的正式版時只會列出正式版；裝了 Beta 之後，下一個 Beta 一樣要手動檢查，正式版則照常提示與通知。想回到正式版，到 GitHub 下載正式版重新安裝即可。
 
-**一步一步更新上來**：v1.7.2 是過渡版，附上每個舊版本的一鍵更新認得的檔案：v1.5.0～v1.6.2 找舊檔名的 `battery`／`status` zip（內容和通用版相同，保留原本的系統監控設定），v1.7.1 找通用版或 macOS 12 版的 zip，v1.7.2 起找 DMG。v1.7.1 起會從最近 20 個 Release 裡挑出自己認得的最新版本，所以先更新到 v1.7.2，再一路更新到最新版；v1.5.0～v1.6.2 只看「最新版本」，v1.7.2 之後的版本發佈後就要手動下載一次。舊系統版本依系統版本挑檔案：系統已升級到 macOS 14 以上時改裝通用版。v1.4.1 以前沒有一鍵更新，要手動下載一次新版。
+**舊版本怎麼更新上來**：每個 Release 都附上舊版一鍵更新認得的檔案，v1.7.2 起的版本找 DMG。v1.5.0～v1.6.2 只看「最新版本」、找舊檔名的 `battery`／`status` zip（內容和通用版相同，保留原本的系統監控設定），所以每一版都附這兩個 zip，舊版直接更新到最新版。v1.7.1 會從最近 20 個 Release 裡挑出自己認得的最新版本：通用版找得到 `status` zip，直接更新到最新版；舊系統版本找 macOS 12 版的 zip，只有過渡版 v1.7.2 有，所以先更新到 v1.7.2，再用 DMG 更新到最新版。舊系統版本依系統版本挑檔案：系統已升級到 macOS 14 以上時改裝通用版。v1.4.1 以前沒有一鍵更新，要手動下載一次新版。
 
 ## 管理員 CPU 取樣（選用，預設關閉）
 
@@ -482,7 +482,7 @@ $APP --screenshots <資料夾> # 用示範數據畫出 README 的介紹圖（doc
 
 - 舊系統版本（macOS 12 起）在 `legacy-macos12` 分支：把 macOS 13／14 才有的寫法（Observation、Swift Charts、Grid、SMAppService 等）換成相容寫法，其他程式與主分支相同。在較新的系統上加 `--macos12-paths` 啟動，可以強制走 macOS 12 的寫法測試。發布時，`legacy-macos12` 分支的版本號（含 Beta 序號）和這次發布相同，GitHub Actions 才會一起打包 `macbookBatteryMonitor-macOS12.dmg`
 - `build.sh` 會一次編出 Apple 晶片與 Intel 兩種架構（通用版），並拿掉執行檔的本地符號（`strip -x`，執行檔從 11 MB 降到約 4.8 MB；全域符號保留，當機報告仍看得到函式名稱）；只裝 Command Line Tools、無法一次編兩種架構時，自動改編這台電腦的架構
-- 發布時 GitHub Actions 會打包兩個 DMG：通用版 `macbookBatteryMonitor.dmg` 與舊系統版本 `macbookBatteryMonitor-macOS12.dmg`，再附 `SHA256SUMS.txt`。DMG 由 `Scripts/make-dmg.sh` 產生：只用系統內建的 `hdiutil` 與 Finder 排好拖曳安裝的視窗（Finder 不能用時照樣產生，只是用預設排列），背景圖由 `Scripts/make-dmg-background.swift` 產生。v1.7.2 是過渡版，另附通用版與 macOS 12 版的 zip（給 v1.7.1），以及舊檔名的 `battery`／`status` zip（給 v1.5.0～v1.6.2；內容相同，只有 `MBMEdition` 不同，用來保留原本的系統監控設定）
+- 發布時 GitHub Actions 會打包兩個 DMG：通用版 `macbookBatteryMonitor.dmg` 與舊系統版本 `macbookBatteryMonitor-macOS12.dmg`，再附 `SHA256SUMS.txt`。DMG 由 `Scripts/make-dmg.sh` 產生：只用系統內建的 `hdiutil` 與 Finder 排好拖曳安裝的視窗（Finder 不能用時照樣產生，只是用預設排列），背景圖由 `Scripts/make-dmg-background.swift` 產生。每一版另附舊檔名的 `battery`／`status` zip（給 v1.5.0～v1.6.2 與 v1.7.1 的通用版；內容相同，只有 `MBMEdition` 不同，用來保留原本的系統監控設定）；過渡版 v1.7.2 另附通用版與 macOS 12 版的 zip（給 v1.7.1）
 - Info.plist 帶 `MBMPrerelease`（例如 `beta.1`）時，發布的 tag 是 `v<版本>-beta.1`，自動標成預先發行版本，不會變成「最新版本」
 - `build.sh` 會把管理員服務程式（`CPUPowerHelper`）放進 App 的 `Contents/Library/Helpers/`，充電夥伴的動畫、靜態圖與照片外觀的貓咪照片（`Resources/Companion/`）放進 `Contents/Resources/`；服務只有使用者開啟管理員 CPU 取樣或精準喚醒時才會安裝到系統
 - 只裝 Command Line Tools 時沒有 SwiftUI 的 macro 外掛，所以程式裡不用 `@State`，介面狀態（包括設定視窗選的分類）集中在 `PanelState`

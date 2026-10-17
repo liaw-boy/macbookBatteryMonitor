@@ -20,7 +20,7 @@ The app's interface is in Traditional Chinese.
 - **Updates every second**: the menu bar and panel refresh every second by default (2, 5 or 10 seconds in Settings). With the panel closed CPU use is about 0.2% (battery only) or about 1% (all four system monitors), and the app never keeps the Mac awake
 - **Power saving mode**: static power flow icons, at most one update every 2 seconds, and no companion animation; can apply only while on battery (v1.7.1+)
 - **Pick what to show**: power flow details (display backlight, chip, CPU/GPU/ANE) and detail fields can be hidden one by one; ANE and backlight hide automatically on Macs that don't report them
-- **One-click update**: when a new version is out, one click downloads, verifies and installs it (v1.5.0+; from v1.7.2 it uses the DMG, and older versions step up release by release). New versions trigger a notification you can turn off (v1.7.1+). Manual checks also find beta releases, which ask for confirmation before installing (v1.7.1+)
+- **One-click update**: when a new version is out, one click downloads, verifies and installs it (v1.5.0+; from v1.7.2 it uses the DMG, and older versions can update straight to the latest one). New versions trigger a notification you can turn off (v1.7.1+). Manual checks also find beta releases, which ask for confirmation before installing (v1.7.1+)
 - **Drag-to-install DMG** (v1.7.2+): open the DMG and drag the app to Applications; the app is about 7.5 MB (13 MB in v1.7.1)
 - **No Xcode needed**: Command Line Tools are enough to build it
 
@@ -37,8 +37,8 @@ From v1.7.2 the file names are fixed without a version number, so these links al
 
 - From v1.7.1 there is a single app: choose battery only or battery plus system monitors on first launch and switch later in Settings
 - The older-systems build is for Macs on macOS 12 or 13 (for example 2015–2017 MacBooks, or older Macs upgraded with OpenCore Legacy Patcher) and has the same features. Once the system is on macOS 14 or later, one-click update switches to the universal build
-- Already on v1.5.0 or later? Settings → Update → "一鍵更新" (one-click update) installs it, first updating to the bridge release v1.7.2 and then on to the latest version (see One-click update)
-- The v1.7.2 release also has `…-v1.7.2-macOS-universal.zip` and `…-v1.7.2-macOS12.zip` (for v1.7.1) and `…-v1.7.2-battery-macOS-arm64.zip` and `…-v1.7.2-status-macOS-arm64.zip` (for v1.5.0–v1.6.2), all for the one-click update of older versions; you don't need them. Releases up to v1.7.1 only have zips
+- Already on v1.5.0 or later? Settings → Update → "一鍵更新" (one-click update) installs the latest version directly; only the v1.7.1 macOS 12 build goes through v1.7.2 first (see One-click update)
+- The `…-battery-macOS-arm64.zip` and `…-status-macOS-arm64.zip` files in each release (for v1.5.0–v1.7.1) and v1.7.2's `…-macOS-universal.zip` and `…-macOS12.zip` (for v1.7.1) are for the one-click update of older versions, with the same content as the DMGs; you don't need them. Releases up to v1.7.1 only have zips
 
 | | Battery only | Battery plus system monitors |
 |---|---|---|
@@ -106,7 +106,7 @@ Settings → Monitoring & power saving:
 
 ### Older versions (known bugs, not recommended)
 
-Older versions remain on Releases but have the bugs below, all fixed in the latest version. Versions v1.4.0–v1.6.1 with the Peripherals tab also don't show Logitech, Razer and other Bluetooth Low Energy mice and keyboards, and list some newer AirPods twice (fixed in v1.6.2); up to v1.6.2 headphones show a single number (the lowest of the three) with left, right and case squeezed into small text under the name (three columns since v1.7.1). One-click update exists since v1.5.0: v1.7.2 is a bridge release that carries files every older version recognizes, so older versions update to v1.7.2 first and then on to the latest version (v1.5.0–v1.6.2 only look at the latest release, so once a version after v1.7.2 is out they need one manual download). To save power, use the latest version with battery only and power saving mode or a slower interval instead of an old version.
+Older versions remain on Releases but have the bugs below, all fixed in the latest version. Versions v1.4.0–v1.6.1 with the Peripherals tab also don't show Logitech, Razer and other Bluetooth Low Energy mice and keyboards, and list some newer AirPods twice (fixed in v1.6.2); up to v1.6.2 headphones show a single number (the lowest of the three) with left, right and case squeezed into small text under the name (three columns since v1.7.1). One-click update exists since v1.5.0: every release carries files the older versions recognize, so they update straight to the latest version (the v1.7.1 macOS 12 build goes through v1.7.2 first). To save power, use the latest version with battery only and power saving mode or a slower interval instead of an old version.
 
 | Known bug | v1.0.0 | v1.1.0 | v1.2.1 | v1.2.2 | v1.3.0 | v1.4.1 |
 |---|---|---|---|---|---|---|
@@ -128,11 +128,11 @@ Older versions remain on Releases but have the bugs below, all fixed in the late
 
 | Version | Highlights | Download |
 |---|---|---|
-| v1.6.2 | Logitech, Razer and other Bluetooth Low Energy mice and keyboards (headphones show a single number; one-click update goes to the bridge release v1.7.2 first) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.2) |
-| v1.6.1 | Separate app names for the two editions (peripheral issues above; one-click update goes to the bridge release v1.7.2 first) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.1) |
-| v1.6.0 | Charge limit slider (peripheral issues above; one-click update goes to the bridge release v1.7.2 first) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.0) |
-| v1.5.3 | External drives, fans and temperatures (peripheral issues above; one-click update goes to the bridge release v1.7.2 first) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.3) |
-| v1.5.0 | One-click update (peripheral issues above; one-click update goes to the bridge release v1.7.2 first) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
+| v1.6.2 | Logitech, Razer and other Bluetooth Low Energy mice and keyboards (headphones show a single number) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.2) |
+| v1.6.1 | Separate app names for the two editions (peripheral issues above) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.1) |
+| v1.6.0 | Charge limit slider (peripheral issues above) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.6.0) |
+| v1.5.3 | External drives, fans and temperatures (peripheral issues above) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.3) |
+| v1.5.0 | One-click update (peripheral issues above) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.5.0) |
 | v1.4.1 | New app icon with color choices | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.1) |
 | v1.4.0 | Peripherals, adjustable update interval and display items (peripheral issues above, no one-click update) | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.4.0) |
 | v1.3.0 | Battery and system monitor editions, power saving mode | [Release](https://github.com/sgeric910601/macbookBatteryMonitor/releases/tag/v1.3.0) |
@@ -153,7 +153,7 @@ Older versions remain on Releases but have the bugs below, all fixed in the late
      ```
 4. The first launch (v1.7.1+) asks whether you want battery only or battery plus system monitors (power only / power plus system monitors on desktops), whether to turn on admin CPU sampling (Apple silicon), and for notification and Bluetooth permissions (Bluetooth is only used to read the battery of Logitech, Razer and similar mice and keyboards). It also adds itself to login items (can be turned off in Settings; on macOS 13 the system drops the login item when a new version replaces the app, so the app adds it again)
 
-Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click update) installs the new version without downloading it yourself (older versions go through the bridge release v1.7.2 first). The bottom left of the Settings window shows the app name and version.
+Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click update) installs the new version without downloading it yourself (the v1.7.1 macOS 12 build goes through v1.7.2 first). The bottom left of the Settings window shows the app name and version.
 
 ## Features
 
@@ -293,7 +293,7 @@ Settings → Update checks GitHub for new versions; press "一鍵更新" (one-cl
 
 **Beta releases** (v1.7.1+): betas marked as pre-releases on GitHub (for example v1.8.0-beta.1) are only listed when you press "檢查更新" (Check for updates). Automatic checks never mention them, the panel doesn't show them and there are no notifications. "安裝 Beta…" (Install beta) first explains that betas may be unstable, and only a second click on "安裝 Beta" downloads and installs it (with the same checksum and signature checks). If a stable version newer than the beta exists, only the stable one is listed. On a beta, the next beta also needs a manual check, while stable versions are announced as usual. To go back to the stable version, download it from GitHub and reinstall.
 
-**Stepping up release by release**: v1.7.2 is a bridge release carrying the files each older one-click update recognizes: v1.5.0–v1.6.2 look for the older `battery`/`status` zips (same content as the universal build, keeping the system monitor setting you had), v1.7.1 looks for the universal or macOS 12 zip, and v1.7.2 and later look for DMGs. From v1.7.1 the updater picks the newest version it recognizes among the latest 20 releases, so it updates to v1.7.2 first and then on to the latest version; v1.5.0–v1.6.2 only look at the latest release, so once a version after v1.7.2 is out they need one manual download. The macOS 12 build picks files by system version and switches to the universal build once the system is on macOS 14 or later. v1.4.1 and earlier have no one-click update and need one manual download.
+**How older versions update**: every release carries the files older one-click updates recognize, and v1.7.2 and later look for DMGs. v1.5.0–v1.6.2 only look at the latest release and the older `battery`/`status` zips (same content as the universal build, keeping the system monitor setting you had), so every release attaches those two zips and they update straight to the latest version. v1.7.1 picks the newest version it recognizes among the latest 20 releases: the universal build finds the `status` zip and updates straight to the latest version; the macOS 12 build looks for the macOS 12 zip, which only the bridge release v1.7.2 has, so it updates to v1.7.2 first and then uses the DMG. The macOS 12 build picks files by system version and switches to the universal build once the system is on macOS 14 or later. v1.4.1 and earlier have no one-click update and need one manual download.
 
 ## Admin CPU sampling (optional, off by default)
 
@@ -485,7 +485,7 @@ $APP --screenshots <folder> # render the README images with demo data (docs/scre
 
 - The macOS 12 build lives on the `legacy-macos12` branch: macOS 13/14-only APIs (Observation, Swift Charts, Grid, SMAppService and so on) are replaced with compatible code, everything else matches the main branch. Launching with `--macos12-paths` forces the macOS 12 code paths on newer systems. GitHub Actions only packages `macbookBatteryMonitor-macOS12.dmg` when the `legacy-macos12` branch has the same version (including the beta number) as the release
 - `build.sh` builds Apple silicon and Intel in one go (universal) and strips local symbols from the binary (`strip -x`, from 11 MB down to about 4.8 MB; global symbols stay, so crash reports still show function names); with Command Line Tools that can't build both, it falls back to this Mac's architecture
-- Releases package two DMGs, the universal `macbookBatteryMonitor.dmg` and the older-systems `macbookBatteryMonitor-macOS12.dmg`, plus `SHA256SUMS.txt`. `Scripts/make-dmg.sh` builds them with the built-in `hdiutil` and Finder to lay out the drag-to-install window (without Finder it still builds the DMG with the default layout); `Scripts/make-dmg-background.swift` draws the background. v1.7.2 is a bridge release that also attaches the universal and macOS 12 zips (for v1.7.1) and the older `battery`/`status` zips (for v1.5.0–v1.6.2; same content, only `MBMEdition` differs, which keeps the system monitor setting)
+- Releases package two DMGs, the universal `macbookBatteryMonitor.dmg` and the older-systems `macbookBatteryMonitor-macOS12.dmg`, plus `SHA256SUMS.txt`. `Scripts/make-dmg.sh` builds them with the built-in `hdiutil` and Finder to lay out the drag-to-install window (without Finder it still builds the DMG with the default layout); `Scripts/make-dmg-background.swift` draws the background. Every release also attaches the older `battery`/`status` zips (for v1.5.0–v1.6.2 and the v1.7.1 universal build; same content, only `MBMEdition` differs, which keeps the system monitor setting); the bridge release v1.7.2 also attached the universal and macOS 12 zips (for v1.7.1)
 - When Info.plist has `MBMPrerelease` (such as `beta.1`), the release tag is `v<version>-beta.1` and the release is marked as a pre-release, never as the latest release
 - `build.sh` puts the admin service (`CPUPowerHelper`) into `Contents/Library/Helpers/` and the charging companion's animations, still images and the cat photo of the photo look (`Resources/Companion/`) into `Contents/Resources/`; the service is only installed into the system when the user turns on admin CPU sampling or precise wake
 - Command Line Tools don't include SwiftUI's macro plugins, so the code doesn't use `@State`; UI state (including the selected Settings section) lives in `PanelState`
