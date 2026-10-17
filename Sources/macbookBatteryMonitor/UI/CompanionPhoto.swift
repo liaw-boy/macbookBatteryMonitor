@@ -3,7 +3,7 @@ import ImageIO
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// 「照片」外觀用的照片：預設是內建的貓咪照片，也可以換成自己的。
+/// 照片外觀用的照片。「貓咪大頭照」是內建的貓咪照片（眼睛會動），「我的照片」是自己選的，兩者分開，換照片不影響貓咪大頭照。
 /// 自己選的照片裁成正方形、縮小並重新編碼（不留拍攝地點等照片資訊），存在 Application Support
 @MainActor
 enum CompanionPhoto {
@@ -18,25 +18,28 @@ enum CompanionPhoto {
     /// 224 像素、四角填平均色的 HEIC（約 5 KB），桌面寵物最大時也夠清楚
     private static var bundledURL: URL? { Bundle.main.url(forResource: "companion-photo", withExtension: "heic") }
 
-    /// 目前的照片；換照片後畫面要讀 AppSettings.companionPhotoVersion 才會重畫
-    private(set) static var image: NSImage? = (isCustom ? NSImage(contentsOf: fileURL) : nil) ?? bundledURL.flatMap { NSImage(contentsOf: $0) }
-    /// 同一張照片的像素，做會動的眼睛用
-    private(set) static var cgImage: CGImage? = loadCGImage(isCustom ? fileURL : bundledURL)
-    /// 照片換了就加一，會動的眼睛據此重做
-    private(set) static var revision = 0
+    /// 內建的貓咪照片，與它的像素（做會動的眼睛用）
+    static let bundledImage: NSImage? = bundledURL.flatMap { NSImage(contentsOf: $0) }
+    static let bundledCGImage: CGImage? = loadCGImage(bundledURL)
+    /// 自己選的照片，還沒選時是 nil；換照片後畫面要讀 AppSettings.companionPhotoVersion 才會重畫
+    private(set) static var customImage: NSImage? = NSImage(contentsOf: fileURL)
+    /// 截圖時不畫出使用者自己的照片
+    private static var screenshotMode = false
 
-    /// 用的是自己選的照片
-    static var isCustom: Bool { FileManager.default.fileExists(atPath: fileURL.path) }
+    /// 選過自己的照片
+    static var hasCustom: Bool { FileManager.default.fileExists(atPath: fileURL.path) }
 
-    /// 會動的眼睛（跟著游標、眨眼）只給內建的貓咪照片；自己的照片沒有
-    static var eyes: [CatEye]? { isCustom ? nil : CatEye.bundled }
+    /// custom 為 true 是「我的照片」，否則是貓咪大頭照；截圖時一律用貓咪大頭照
+    static func image(custom: Bool) -> NSImage? {
+        custom && !screenshotMode ? customImage : bundledImage
+    }
 
     private static func loadCGImage(_ url: URL?) -> CGImage? {
         guard let url, let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    /// 選一張照片；換成功時 completion(true)。從桌面寵物或面板打開時 App 不一定在前景，先帶到前景
+    /// 選一張自己的照片；換成功時 completion(true)。從桌面寵物或面板打開時 App 不一定在前景，先帶到前景
     static func choose(completion: @escaping (Bool) -> Void) {
         NSApp.activate()
         let panel = NSOpenPanel()
@@ -51,20 +54,15 @@ enum CompanionPhoto {
         }
     }
 
+    /// 刪掉自己的照片
+    static func removeCustom() {
+        try? FileManager.default.removeItem(at: fileURL)
+        customImage = nil
+    }
+
     /// 截圖（README、開發用快照）只用內建的貓咪照片，不畫出使用者自己的照片
     static func useBundledForScreenshots() {
-        useBundled()
-    }
-
-    static func reset() {
-        try? FileManager.default.removeItem(at: fileURL)
-        useBundled()
-    }
-
-    private static func useBundled() {
-        image = bundledURL.flatMap { NSImage(contentsOf: $0) }
-        cgImage = loadCGImage(bundledURL)
-        revision += 1
+        screenshotMode = true
     }
 
     private static func save(from url: URL) -> Bool {
@@ -92,18 +90,17 @@ enum CompanionPhoto {
         } catch {
             return false
         }
-        image = NSImage(data: data)
-        cgImage = output
-        revision += 1
+        customImage = NSImage(data: data)
         return true
     }
 }
 
 /// 照片外觀：照片裁成圓形，外圈是電量環（顏色跟著狀態），右上角和其他外觀一樣有狀態徽章；寬度決定大小。
-/// 桌面寵物（liveEyes）的眼睛會跟著游標、眨眼，睡覺時閉眼
+/// 貓咪大頭照在桌面寵物（liveEyes）上眼睛會跟著游標、眨眼，睡覺時閉眼；我的照片（custom）眼睛不會動
 struct CompanionPhotoFigure: View {
     let presentation: ChargingJourneyPresentation
     var width: CGFloat = 48
+    var custom = false
     var liveEyes = false
     var mood: CatMood = .awake
     var followsCursor = true
@@ -112,7 +109,7 @@ struct CompanionPhotoFigure: View {
         let unit = width / 48
         ZStack {
             Group {
-                if let image = CompanionPhoto.image {
+                if let image = CompanionPhoto.image(custom: custom) {
                     Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
                 } else {
                     Image(systemName: "pawprint.fill")
@@ -151,25 +148,35 @@ struct CompanionPhotoFigure: View {
     }
 
     @ViewBuilder private var eyesOverlay: some View {
-        if liveEyes, let photo = CompanionPhoto.cgImage, let eyes = CompanionPhoto.eyes {
-            CatEyesOverlay(photo: photo, eyes: eyes, key: CompanionPhoto.revision, mood: mood, followsCursor: followsCursor)
+        if liveEyes, !custom, let photo = CompanionPhoto.bundledCGImage {
+            CatEyesOverlay(photo: photo, eyes: CatEye.bundled, key: 0, mood: mood, followsCursor: followsCursor)
         }
     }
 }
 
 extension AppSettings {
-    /// 選一張自己的照片，選好就改用照片外觀
+    /// 選一張自己的照片，選好就改用「我的照片」外觀
     func chooseCompanionPhoto() {
         CompanionPhoto.choose { [weak self] chosen in
             guard let self, chosen else { return }
             companionPhotoVersion += 1
-            chargingAppearance = .photo
+            chargingAppearance = .customPhoto
         }
     }
 
-    /// 改回內建的貓咪照片
-    func resetCompanionPhoto() {
-        CompanionPhoto.reset()
+    /// 刪掉自己的照片；正在用「我的照片」時改回貓咪大頭照
+    func removeCompanionPhoto() {
+        CompanionPhoto.removeCustom()
         companionPhotoVersion += 1
+        if chargingAppearance == .customPhoto { chargingAppearance = .photo }
+    }
+
+    /// 從外觀選單換外觀：還沒選過照片就選「我的照片」時，先請使用者選一張（取消就維持原本的外觀）
+    func selectAppearance(_ appearance: ChargingAppearance) {
+        if appearance == .customPhoto, !CompanionPhoto.hasCustom {
+            chooseCompanionPhoto()
+        } else {
+            chargingAppearance = appearance
+        }
     }
 }

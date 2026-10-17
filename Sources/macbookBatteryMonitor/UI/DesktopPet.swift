@@ -200,7 +200,7 @@ final class DesktopPetController {
         menu.addItem(.separator())
         for appearance in ChargingAppearance.allCases {
             menu.addItem(ClosureMenuItem(appearance.shortTitle, checked: settings.chargingAppearance == appearance) { [weak self] in
-                self?.settings.chargingAppearance = appearance
+                self?.settings.selectAppearance(appearance)
             })
         }
         menu.addItem(ClosureMenuItem("換照片…") { [weak self] in self?.settings.chooseCompanionPhoto() })
@@ -433,7 +433,7 @@ final class DesktopPetController {
 }
 
 /// 桌面寵物的圖案：和主面板同一個充電夥伴，一直會動，只有省電模式時是靜態圖；依設定的大小縮放。
-/// 照片外觀的眼睛會跟著游標，等智慧充電時閉眼睡覺（滑鼠移過去就醒來）
+/// 貓咪大頭照的眼睛會跟著游標，等智慧充電時閉眼睡覺（滑鼠移過去就醒來）
 struct DesktopPetFigureView: View {
     let store: BatteryStore
     let settings: AppSettings

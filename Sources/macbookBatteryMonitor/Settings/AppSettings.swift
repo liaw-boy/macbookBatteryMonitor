@@ -124,7 +124,7 @@ final class AppSettings {
     var chargingAppearance: ChargingAppearance {
         didSet { defaults.set(chargingAppearance.rawValue, forKey: Keys.chargingAppearance) }
     }
-    /// 照片外觀換照片時加一，讓用到照片的畫面重畫（照片本身在 CompanionPhoto）
+    /// 換「我的照片」時加一，讓用到照片的畫面重畫（照片本身在 CompanionPhoto）
     var companionPhotoVersion = 0
     /// 桌面寵物：把充電夥伴放在桌面上（只有 MacBook 有）
     var desktopPet: Bool {
@@ -140,7 +140,7 @@ final class AppSettings {
             if desktopPetOnWallpaper != oldValue { onDesktopPetChange?() }
         }
     }
-    /// 桌面寵物照片外觀的眼睛會動：眨眼、睡覺時閉眼
+    /// 桌面寵物貓咪大頭照的眼睛會動：眨眼、睡覺時閉眼
     var desktopPetLiveEyes: Bool {
         didSet { defaults.set(desktopPetLiveEyes, forKey: Keys.desktopPetLiveEyes) }
     }
@@ -281,6 +281,8 @@ final class AppSettings {
         static let updateNotification = "updateNotification"
         static let adminCPUSampling = "adminCPUSampling"
         static let chargingAppearance = "chargingAppearance"
+        /// v1.7.3 起「照片」分成貓咪大頭照與我的照片；舊設定只轉換一次
+        static let photoAppearanceSplit = "photoAppearanceSplit"
         static let desktopPet = "desktopPet"
         static let desktopPetOnWallpaper = "desktopPetOnWallpaper"
         static let desktopPetScale = "desktopPetScale"
@@ -363,7 +365,16 @@ final class AppSettings {
         appIconColor = AppIconColor(rawValue: defaults.string(forKey: Keys.appIconColor) ?? "") ?? .mint
         autoCheckUpdates = defaults.bool(forKey: Keys.autoCheckUpdates)
         updateNotification = defaults.bool(forKey: Keys.updateNotification)
-        chargingAppearance = ChargingAppearance(rawValue: defaults.string(forKey: Keys.chargingAppearance) ?? "") ?? .companion
+        var appearance = ChargingAppearance(rawValue: defaults.string(forKey: Keys.chargingAppearance) ?? "") ?? .companion
+        // v1.7.2 的「照片」外觀換成自己照片的人，改用「我的照片」；貓咪大頭照另外保留
+        if !defaults.bool(forKey: Keys.photoAppearanceSplit) {
+            if appearance == .photo, CompanionPhoto.hasCustom {
+                appearance = .customPhoto
+                defaults.set(appearance.rawValue, forKey: Keys.chargingAppearance)
+            }
+            defaults.set(true, forKey: Keys.photoAppearanceSplit)
+        }
+        chargingAppearance = appearance
         desktopPet = defaults.bool(forKey: Keys.desktopPet)
         menuBarCombined = defaults.bool(forKey: Keys.menuBarCombined)
         desktopPetOnWallpaper = defaults.bool(forKey: Keys.desktopPetOnWallpaper)
@@ -390,8 +401,10 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
     case mascot
     /// 電力流動：電量條
     case energy
-    /// 照片：預設是貓咪照片，可以換成自己的
+    /// 貓咪大頭照：內建的貓咪照片，桌面寵物的眼睛會跟著游標、眨眼
     case photo
+    /// 我的照片：自己選的照片（眼睛不會動），和貓咪大頭照分開存
+    case customPhoto
 
     var id: String { rawValue }
     var title: String {
@@ -399,7 +412,8 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "充電夥伴（貓咪）"
         case .mascot: return "電池夥伴"
         case .energy: return "電力流動"
-        case .photo: return "照片"
+        case .photo: return "貓咪大頭照"
+        case .customPhoto: return "我的照片"
         }
     }
 
@@ -409,7 +423,8 @@ enum ChargingAppearance: String, CaseIterable, Identifiable {
         case .companion: return "貓咪"
         case .mascot: return "電池夥伴"
         case .energy: return "電量條"
-        case .photo: return "照片"
+        case .photo: return "大頭照"
+        case .customPhoto: return "我的照片"
         }
     }
 }

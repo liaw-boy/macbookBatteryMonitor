@@ -148,14 +148,14 @@ struct ChargingJourneyView<Control: View>: View {
 
 }
 
-/// 充電夥伴的圖案（貓咪、電池夥伴、電量條或照片），主面板和桌面寵物共用；寬度決定大小，高度是寬度的 50/48。
+/// 充電夥伴的圖案（貓咪、電池夥伴、電量條、貓咪大頭照或我的照片），主面板和桌面寵物共用；寬度決定大小，高度是寬度的 50/48。
 /// 系統開了「減少動態效果」也照樣會動（使用者的要求），只有面板關閉或省電模式時是靜態圖
 struct CompanionFigure: View {
     let presentation: ChargingJourneyPresentation
     let appearance: ChargingAppearance
     let animated: Bool
     var width: CGFloat = 48
-    /// 照片外觀的眼睛會動（桌面寵物）
+    /// 貓咪大頭照的眼睛會動（桌面寵物）
     var liveEyes = false
     var mood: CatMood = .awake
     var followsCursor = true
@@ -176,6 +176,8 @@ struct CompanionFigure: View {
                 energyBar
             case .photo:
                 CompanionPhotoFigure(presentation: presentation, width: width, liveEyes: liveEyes, mood: mood, followsCursor: followsCursor)
+            case .customPhoto:
+                CompanionPhotoFigure(presentation: presentation, width: width, custom: true)
             }
         }
         // 各種外觀同樣大小，切換時下面的內容不會跟著移動

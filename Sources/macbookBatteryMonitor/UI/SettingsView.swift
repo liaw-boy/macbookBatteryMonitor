@@ -210,7 +210,8 @@ struct SettingsView: View {
                 Card {
                     VStack(alignment: .leading, spacing: 8) {
                         CardTitle("充電夥伴", systemImage: "pawprint")
-                        Picker("外觀", selection: binding(\.chargingAppearance)) {
+                        Picker("外觀", selection: Binding(get: { settings.chargingAppearance },
+                                                        set: { settings.selectAppearance($0) })) {
                             ForEach(ChargingAppearance.allCases) { Text($0.title).tag($0) }
                         }
                         photoRow
@@ -220,10 +221,12 @@ struct SettingsView: View {
                                 Text("浮在視窗上方").tag(false)
                                 Text("放在桌布上").tag(true)
                             }
-                            SwitchRow("眼睛跟著游標", isOn: binding(\.desktopPetFollowCursor))
-                                .help("內建的貓咪照片：眼珠看著滑鼠游標；關掉就完全不監聽滑鼠移動")
-                            SwitchRow("會眨眼、睡覺", isOn: binding(\.desktopPetLiveEyes))
-                                .help("內建的貓咪照片：偶爾眨眼，等智慧充電時閉眼睡覺（滑鼠移過去會醒來）")
+                            if settings.chargingAppearance == .photo {
+                                SwitchRow("眼睛跟著游標", isOn: binding(\.desktopPetFollowCursor))
+                                    .help("貓咪大頭照：眼珠看著滑鼠游標；關掉就完全不監聽滑鼠移動")
+                                SwitchRow("會眨眼、睡覺", isOn: binding(\.desktopPetLiveEyes))
+                                    .help("貓咪大頭照：偶爾眨眼，等智慧充電時閉眼睡覺（滑鼠移過去會醒來）")
+                            }
                             HStack(spacing: 8) {
                                 Text("大小")
                                 // 不用 step：每 5% 一格會畫出一整排刻度；放開時取到 5% 的倍數
@@ -310,19 +313,22 @@ struct SettingsView: View {
         }
     }
 
-    /// 照片外觀用的照片：預覽、換成自己的照片（選好就改用照片外觀）或改回貓咪照片
+    /// 「我的照片」外觀用的照片：預覽與選擇（選好就改用我的照片）。貓咪大頭照是另一個外觀，換照片不影響它
     private var photoRow: some View {
         // 換照片時重畫
         let _ = settings.companionPhotoVersion
         return HStack(spacing: 10) {
-            Text("照片")
+            Text("我的照片")
             Spacer()
-            CompanionPhotoFigure(presentation: .init(title: "", detail: "", progress: 1, tint: .green, onPad: false, badge: nil,
-                                                     animatedFlow: false), width: 36)
-            Button("選擇照片…") { settings.chooseCompanionPhoto() }
-            if CompanionPhoto.isCustom {
-                Button("改回貓咪照片") { settings.resetCompanionPhoto() }
-                    .help("內建的貓咪照片眼睛會動；自己的照片不會")
+            if CompanionPhoto.hasCustom {
+                CompanionPhotoFigure(presentation: .init(title: "", detail: "", progress: 1, tint: .green, onPad: false, badge: nil,
+                                                         animatedFlow: false), width: 36, custom: true)
+            }
+            Button(CompanionPhoto.hasCustom ? "換照片…" : "選擇照片…") { settings.chooseCompanionPhoto() }
+                .help("選一張自己的照片，會改用「我的照片」外觀；貓咪大頭照會保留")
+            if CompanionPhoto.hasCustom {
+                Button("移除") { settings.removeCompanionPhoto() }
+                    .help("刪掉這張照片（只存在這台 Mac）")
             }
         }
     }

@@ -167,7 +167,7 @@ enum SnapshotCommand {
         }
     }
 
-    /// 桌面寵物照片外觀會動的眼睛：看前方、左、右、上、下、睡覺（100% 與 200%）
+    /// 桌面寵物貓咪大頭照會動的眼睛：看前方、左、右、上、下、睡覺（100% 與 200%）
     private static func renderLiveEyes(directory dir: URL) {
         let presentation = ChargingJourneyPresentation.make(percent: 62, charging: true, decision: nil, now: Date())
         let cases: [(CGPoint, CatMood)] = [(.zero, .awake), (CGPoint(x: -1, y: 0), .awake), (CGPoint(x: 1, y: 0), .awake),
@@ -191,7 +191,7 @@ enum SnapshotCommand {
         }
     }
 
-    /// 充電上限滑桿旁的四種外觀（充電夥伴、電池夥伴、電量條、照片）在各種排程狀態下的樣子
+    /// 充電上限滑桿旁的五種外觀（充電夥伴、電池夥伴、電量條、貓咪大頭照、我的照片）在各種排程狀態下的樣子
     private static func renderChargingAppearances(directory dir: URL) {
         let now = Date()
         let deadline = now.addingTimeInterval(9 * 3600)
