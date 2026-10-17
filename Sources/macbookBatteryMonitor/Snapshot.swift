@@ -201,6 +201,7 @@ enum SnapshotCommand {
         }
         let states: [(String, ChargingJourneyPresentation)] = [
             ("沒有排程", .make(percent: 78, charging: false, decision: nil, now: now)),
+            ("到達上限", .make(percent: 80, charging: false, pluggedIn: true, decision: nil, now: now)),
             ("等待", .make(percent: 80, charging: false, decision: decision(.waiting), now: now)),
             ("充電中", .make(percent: 86, charging: true, decision: decision(.charging), now: now)),
             ("已準備好", .make(percent: 100, charging: false, decision: decision(.ready), now: now)),

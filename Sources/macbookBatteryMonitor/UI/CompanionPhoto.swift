@@ -133,9 +133,7 @@ struct CompanionPhotoFigure: View {
         .frame(width: width, height: width * 50 / 48)
         .overlay(alignment: .topTrailing) {
             if let badge = presentation.badge {
-                Image(systemName: badge.symbol)
-                    .font(.system(size: 14 * unit, weight: .semibold))
-                    .foregroundStyle(.white, presentation.color)
+                CompanionBadgeIcon(badge: badge, tint: presentation.color, size: 14 * unit)
                     .background(Circle().fill(Color(nsColor: .windowBackgroundColor)).padding(1 * unit))
             } else if presentation.onPad {
                 Image(systemName: "bolt.circle.fill")

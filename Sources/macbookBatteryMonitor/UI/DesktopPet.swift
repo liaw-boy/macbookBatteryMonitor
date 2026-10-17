@@ -481,9 +481,7 @@ struct DesktopPetCompanion: View {
         .frame(width: 160 * scale, height: 160 * scale, alignment: .bottom)
         .overlay(alignment: .topTrailing) {
             if let badge = presentation.badge {
-                Image(systemName: badge.symbol)
-                    .font(.system(size: 26 * scale, weight: .semibold))
-                    .foregroundStyle(.white, presentation.color)
+                CompanionBadgeIcon(badge: badge, tint: presentation.color, size: 26 * scale)
                     .background(Circle().fill(Color(nsColor: .windowBackgroundColor)).padding(2 * scale))
                     .padding(.top, 22 * scale)
             }
@@ -875,11 +873,16 @@ private final class ClosureMenuItem: NSMenuItem {
 }
 
 extension BatteryStore {
-    /// 主面板與桌面寵物共用的充電夥伴狀態：支援調整充電上限時跟著智慧充電，不支援時只看是否在充電
+    /// 主面板與桌面寵物共用的充電夥伴狀態：支援調整充電上限時跟著智慧充電，不支援時只看電源狀態
     func companionPresentation(_ s: BatterySnapshot, _ e: Estimates) -> ChargingJourneyPresentation {
         chargeLimit.supported
-            ? ChargingJourneyPresentation.make(percent: s.percent, charging: e.state == .charging,
+            ? ChargingJourneyPresentation.make(percent: s.percent, charging: e.state == .charging, pluggedIn: pluggedIn(e),
                                                decision: chargingPlan.decision, now: s.date)
-            : ChargingJourneyPresentation.unsupported(percent: s.percent, charging: e.state == .charging)
+            : ChargingJourneyPresentation.unsupported(percent: s.percent, charging: e.state == .charging, pluggedIn: pluggedIn(e))
+    }
+
+    /// 接著電源但沒在充：到達充電上限、充滿，或系統暫停充電
+    private func pluggedIn(_ e: Estimates) -> Bool {
+        e.state == .limitReached || e.state == .full || e.state == .pluggedIdle
     }
 }
