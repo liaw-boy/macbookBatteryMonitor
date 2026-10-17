@@ -275,6 +275,32 @@ struct SettingsView: View {
             }
             .settingsSection(.general, shown: section)
 
+            Card {
+                VStack(alignment: .leading, spacing: 8) {
+                    CardTitle("捲動方向", systemImage: "arrow.up.arrow.down")
+                    SwitchRow("滑鼠滾輪反向", isOn: binding(\.scrollReverseMouse))
+                    SwitchRow("觸控板反向", isOn: binding(\.scrollReverseTrackpad))
+                    Text("macOS 的「自然捲動」是滑鼠和觸控板一起變；這裡可以只反轉其中一種，例如觸控板維持自然捲動、滑鼠滾輪改回傳統方向。兩指在觸控板上捲動算觸控板，其他（包括 Magic Mouse）算滑鼠。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if settings.scrollReverseMouse || settings.scrollReverseTrackpad {
+                        if ui.scrollTrusted {
+                            Label("運作中", systemImage: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。App 沒有開發者簽章，每次更新後要先移除舊的項目再加一次。")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Button("打開輔助使用設定") { ScrollDirection.openAccessibilitySettings() }
+                        }
+                    }
+                }
+            }
+            .settingsSection(.input, shown: section)
+
             UpdateCard(updater: updater, settings: settings, notificationsBlocked: ui.notificationsBlocked, ui: ui)
                 .settingsSection(.update, shown: section)
         }

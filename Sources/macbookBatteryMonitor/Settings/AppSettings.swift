@@ -36,6 +36,8 @@ final class AppSettings {
     /// 智慧充電的精準喚醒開關改變時呼叫
     @ObservationIgnored var onChargingWakeChange: (() -> Void)?
     /// 桌面寵物開關改變時
+    /// 捲動方向的設定改變時
+    @ObservationIgnored var onScrollDirectionChange: (() -> Void)?
     @ObservationIgnored var onDesktopPetChange: (() -> Void)?
 
     /// 可選的更新頻率（秒）
@@ -145,6 +147,19 @@ final class AppSettings {
     /// 眼睛跟著游標：關掉就完全不監聽滑鼠移動
     var desktopPetFollowCursor: Bool {
         didSet { defaults.set(desktopPetFollowCursor, forKey: Keys.desktopPetFollowCursor) }
+    }
+    /// 捲動方向：滑鼠與觸控板各自反向（macOS 的「自然捲動」兩者共用一個設定）
+    var scrollReverseMouse: Bool {
+        didSet {
+            defaults.set(scrollReverseMouse, forKey: Keys.scrollReverseMouse)
+            if scrollReverseMouse != oldValue { onScrollDirectionChange?() }
+        }
+    }
+    var scrollReverseTrackpad: Bool {
+        didSet {
+            defaults.set(scrollReverseTrackpad, forKey: Keys.scrollReverseTrackpad)
+            if scrollReverseTrackpad != oldValue { onScrollDirectionChange?() }
+        }
     }
     /// 桌面寵物的大小：1 是和日曆小工具差不多大，範圍 0.5～2（設定的地方用 clampPetScale 限制）
     var desktopPetScale: Double {
@@ -271,6 +286,8 @@ final class AppSettings {
         static let desktopPetScale = "desktopPetScale"
         static let desktopPetLiveEyes = "desktopPetLiveEyes"
         static let desktopPetFollowCursor = "desktopPetFollowCursor"
+        static let scrollReverseMouse = "scrollReverseMouse"
+        static let scrollReverseTrackpad = "scrollReverseTrackpad"
         static let chargingTargetPercent = "chargingTargetPercent"
         static let chargingHoldPercent = "chargingHoldPercent"
         static let chargingSleepStrategy = "chargingSleepStrategy"
@@ -353,6 +370,8 @@ final class AppSettings {
         desktopPetScale = Self.clampPetScale(defaults.double(forKey: Keys.desktopPetScale))
         desktopPetLiveEyes = defaults.bool(forKey: Keys.desktopPetLiveEyes)
         desktopPetFollowCursor = defaults.bool(forKey: Keys.desktopPetFollowCursor)
+        scrollReverseMouse = defaults.bool(forKey: Keys.scrollReverseMouse)
+        scrollReverseTrackpad = defaults.bool(forKey: Keys.scrollReverseTrackpad)
         let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
         let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)
         chargingTargetPercent = target

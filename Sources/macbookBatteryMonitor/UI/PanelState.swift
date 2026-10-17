@@ -62,6 +62,8 @@ final class PanelState {
     var settingsSection: SettingsSection = .general
     /// 打開設定視窗（由 AppDelegate 提供）；nil 時維持上次的分類
     var openSettings: (SettingsSection?) -> Void = { _ in }
+    /// 有沒有「輔助使用」權限（分開設定捲動方向要用）
+    var scrollTrusted = false
     /// 智慧充電頁的輸入：指定完成時間、每週排程的星期與時間
     var chargingCustomDeadline = Date().addingTimeInterval(4 * 3600)
     var chargingWeekdays: Set<Int> = [2, 3, 4, 5, 6]

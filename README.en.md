@@ -13,6 +13,7 @@ The app's interface is in Traditional Chinese.
 - **Charging companion** (v1.7.1+): an animated cat next to the charge limit slider that breathes and swishes its tail, and lies on a glowing charging pad while charging. You can switch it to a battery buddy whose face follows the charging state, a simple energy bar, or a photo (a Ragdoll cat by default, or your own photo, v1.7.2+). MacBooks that can't change the charge limit (such as Intel models) show it at the top of the panel too, just without the slider
 - **Combine into one icon** (v1.7.2+): when the menu bar is crowded and macOS hides icons, keep just one; clicking it opens a second bar below the menu bar with the battery and system monitor icons, and clicking one opens its panel
 - **Desktop pet** (v1.7.2+): puts the charging companion on your desktop at about the size of the Calendar widget; hover for a thought bubble with the current status, click for a speech bubble, and keep it above windows or on the wallpaper. From v1.7.3 you can resize it and put it anywhere on screen; the built-in cat photo's eyes follow the cursor and blink, and stroking it with the mouse makes hearts float up
+- **Separate scroll directions for mouse and trackpad** (v1.7.3+): macOS's "natural scrolling" changes both together; here you can reverse only the mouse wheel or only the trackpad (requires Accessibility permission)
 - **Settings window** (v1.7.2+): all settings live in a window with a sidebar; the gear and the new-version button in the panel and the gear in system monitor panels open the matching section, and smart charging is available both in the panel and in the window
 - **Today** (v1.7.1+): how much battery you used and charged today, how many times you plugged in, and how long you ran on battery
 - **No hidden charging control**: the app only changes the macOS charge limit when you drag the slider (the same as doing it in System Settings) or when you set up smart charging; macOS does the actual charging. No admin rights by default; only the optional admin CPU sampling and the smart charging "precise wake" ask for authorization
@@ -66,7 +67,7 @@ The app is called "電池與系統監控" (shown as Battery & System Monitor on 
 
 ### Settings window
 
-From v1.7.2 Settings is its own window with sections on the left: General, Display items, Monitoring & power saving, Charging, Charging companion, Peripherals and Update (desktop Macs have no Charging or Charging companion). While it's open the app shows up in the Dock and ⌘Tab so you can find it again after visiting System Settings; ⌘W closes it.
+From v1.7.2 Settings is its own window with sections on the left: General, Display items, Monitoring & power saving, Charging, Charging companion, Peripherals, Mouse & trackpad (v1.7.3+) and Update (desktop Macs have no Charging or Charging companion). While it's open the app shows up in the Dock and ⌘Tab so you can find it again after visiting System Settings; ⌘W closes it.
 
 ![Settings window: sections on the left, display items on the right (menu bar display, power flow details, detail fields)](docs/screenshots/settings.png)
 
@@ -204,7 +205,7 @@ Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click up
 - **Peripherals**: the Peripherals tab at the bottom; the bell next to a device sets its alert (so does Settings → Peripherals), the arrow at the bottom right refreshes now
 - **Charge limit**: drag the slider in the info card and release to apply it to macOS; 100% means no limit (Settings → Charging has the same slider)
 - **Updates**: a notification and a "有新版本" (new version) button at the bottom of the panel both open the Update section of the Settings window, then press "一鍵更新"
-- **Settings** (a separate window from v1.7.2): the gear at the bottom right of the panel, or "設定…" (Settings) in the menu bar icon's right-click menu. Sections: General (app icon color, notification thresholds, launch at login), Display items (menu bar display, power flow details, detail fields), Monitoring & power saving (update interval, power saving, system monitor switches, combine into one icon, admin CPU sampling), Charging (charge limit slider, smart charging), Charging companion (look, photo, the desktop pet's position, size and live eyes), Peripherals (per-device low battery alerts), Update (one-click update, automatic checks and notifications)
+- **Settings** (a separate window from v1.7.2): the gear at the bottom right of the panel, or "設定…" (Settings) in the menu bar icon's right-click menu. Sections: General (app icon color, notification thresholds, launch at login), Display items (menu bar display, power flow details, detail fields), Monitoring & power saving (update interval, power saving, system monitor switches, combine into one icon, admin CPU sampling), Charging (charge limit slider, smart charging), Charging companion (look, photo, the desktop pet's position, size and live eyes), Peripherals (per-device low battery alerts), Mouse & trackpad (separate scroll directions, v1.7.3+), Update (one-click update, automatic checks and notifications)
 
 ## Smart charging (v1.7.1+)
 
@@ -255,6 +256,16 @@ The target and the care limit are set under "目標與保養上限" (Target and 
 - **Stroking** (v1.7.3+): move the mouse back and forth over the pet a few times to stroke it: hearts float up and it says "呼嚕呼嚕～" (purr) or similar, keeping its eyes open
 - **Where it sits**: "浮在視窗上方" (above windows) or "放在桌布上" (on the wallpaper, at the desktop icon level, so windows cover it); it shows on every desktop but not in full-screen apps
 - The bubble is a separate window that ignores the mouse and hugs the pet (below it when there's no room above), so it never blocks what's underneath
+
+## Mouse and trackpad scroll directions (v1.7.3+)
+
+macOS's "natural scrolling" is one setting for both mouse and trackpad: if you like natural scrolling on the trackpad, the mouse wheel flips too. Settings → Mouse & trackpad separates them:
+
+- **"滑鼠滾輪反向"** (reverse mouse wheel): reverses regular mouse wheels and Magic Mouse, for example to keep natural scrolling on the trackpad and the traditional direction on the mouse
+- **"觸控板反向"** (reverse trackpad): reverses only the trackpad
+- **How it tells them apart**: scrolling with two or more fingers on the trackpad counts as trackpad (including the momentum after lifting your fingers); everything else (wheels, Magic Mouse one-finger scrolling) counts as mouse. Vertical and horizontal scrolling are reversed together
+- **Permission**: intercepting and rewriting scroll events requires Accessibility permission. Turning a switch on asks you to enable the app in System Settings → Privacy & Security → Accessibility; it starts working within seconds, no relaunch needed. The app has no Apple developer signature, so macOS treats every new version as a new app: **after each update, remove the old entry under Accessibility and add it again**. The settings page warns you when the permission is missing and has a button to open it
+- **Power**: nothing is intercepted while both switches are off; when on, events are only handled at the moment you scroll
 
 ## App icon
 
@@ -399,6 +410,7 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 | New versions (one-click update) | GitHub API `releases` (latest 20; betas only on manual checks), automatic checks at most once a day; downloads verified with the release's `SHA256SUMS.txt` |
 | Peripheral levels (keyboards, mice, trackpads) | IORegistry services with `BatteryPercent` |
 | Peripheral levels (Bluetooth Low Energy mice and keyboards) | CoreBluetooth: the Battery Level (`0x2A19`) of the standard Battery Service (`0x180F`) on connected devices, requires Bluetooth permission; IORegistry HID usage decides mouse or keyboard when the name doesn't tell |
+| Scroll directions (optional) | `CGEvent` event tap (scroll and trackpad finger events), requires Accessibility permission; nothing is intercepted while both switches are off |
 | Live eyes | `NSEvent` mouse-moved events (cursor position only, no permission needed); only while the desktop pet shows the built-in cat photo and "eyes follow the cursor" is on |
 | Peripheral levels (headphone left, right, case) | `system_profiler SPBluetoothDataType`; whether Bluetooth headphones are connected comes from the CoreAudio device list |
 
@@ -412,7 +424,7 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 ## Uninstall
 
 1. If you set up smart charging, press "取消排程並還原" (Cancel and restore) on the smart charging page first to restore your charge limit
-2. In Settings, turn off admin CPU sampling, set smart charging's "睡眠時" (While asleep) back to "優先準時完成" (Ready on time) (this removes the system service if it was installed), turn off launch at login, then quit the app
+2. In Settings, turn off admin CPU sampling, set smart charging's "睡眠時" (While asleep) back to "優先準時完成" (Ready on time) (this removes the system service if it was installed), turn off launch at login, then quit the app; if you used the scroll directions, remove the app under System Settings → Privacy & Security → Accessibility
 3. Delete `/Applications/macbookBatteryMonitor.app`
 4. If the app was deleted first and the system service is still there, run:
    ```bash
@@ -463,6 +475,7 @@ $APP --selftest-update   # check GitHub for a new version and one-click update r
 $APP --selftest-dmg <DMG> # copy and verify the app from a local DMG the way one-click update does (same version), without installing
 $APP --selftest-settings # open the Settings window from the panel, switch through every section, and check it shows in the Dock while open and goes back to the menu bar only after closing
 $APP --selftest-pet      # desktop pet: resize, simulate stroking, toggle cursor tracking, place it at menu bar height, then simulate 30 seconds of mouse movement (for measuring CPU)
+$APP --selftest-scroll   # build wheel, trackpad, momentum and Magic Mouse scroll events and check which ones get reversed (no permission needed)
 $APP --screenshots <folder> # render the README images with demo data (docs/screenshots)
 ```
 
