@@ -180,7 +180,9 @@ Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click up
 **System monitor modules** (Settings → Monitoring & power saving: a master switch plus one per module)
 - CPU/GPU: CPU and GPU usage in the menu bar; the panel has user/system split, a 2-minute chart, per-core bars (performance and efficiency cores), GPU memory, load average, top CPU apps, and fans and temperatures (fan speed and its share of the maximum on Macs with fans; CPU, GPU, SoC, battery and storage temperatures where available)
 - Memory: usage in the menu bar (orange or red under memory pressure); the panel breaks it into app memory, wired, compressed, cached files and free, with a 2-minute chart, swap and top memory apps
-- Disk: used space of the startup disk in the menu bar; the panel lists the startup disk and mounted external drives (USB, Thunderbolt, SD cards; no disk images or network volumes) with used/free space, file system, connection, SMART status, read/write speed with charts and totals
+- Disk: used space of the startup disk in the menu bar; the panel lists the startup disk and mounted external drives (USB, Thunderbolt, SD cards; no disk images or network volumes) with used/free space, file system, connection, health, read/write speed with charts and totals
+  - **Health and lifetime reads and writes** (since v1.7.3): NVMe drives keep their own record of everything read and written since they left the factory and how much of their rated life is used; every Apple silicon Mac's internal drive is NVMe, as are most Intel Macs from 2016 on and Thunderbolt enclosures. The panel shows health as 100% minus life used (3% used means 97%), switches the totals to the drive's lifetime totals and adds power-on time; a row for media errors appears when there are any. When the drive reports a critical warning or its spare blocks fall below the threshold, it shows a red "failing, back up now"
+  - Drives without this record (non-NVMe drives such as the 2015 MacBook Air's, most USB enclosures) keep the previous display: SMART "verified/failing" and totals since boot (since connected for external drives)
 - Network: upload and download speed in the menu bar; the panel shows the active interface (Wi-Fi, Ethernet) and IP, a speed chart and totals since boot
 - Child processes (such as browser tabs) are merged into their app
 
@@ -368,7 +370,8 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 - Flow animations and the energy bar's moving dot are composited by Core Animation (not redrawn frame by frame in SwiftUI) and only play while the panel is open and that path carries power; the flows respect Reduce Motion while the charging companion (including the energy bar's dot) keeps moving; power saving mode doesn't animate at all
 - System monitors only sample enabled modules; with the master switch off no module icons or timers exist; menu bar icon widths are fixed
 - Disk space is read with `statfs()` every second, with purgeable space recalibrated every 5 minutes; network only queries the active interface; external drives are listed with `getfsstat(MNT_NOWAIT)`, so offline network volumes can't block it
-- SMART status needs `diskutil` and can wake sleeping external drives, so it is only checked while the disk panel is open, at most every 10 minutes per drive
+- Drive health and lifetime totals are only read while the disk panel is open, on a background thread once per sample, about 0.2 ms each
+- Drives without that record fall back to SMART status, which needs `diskutil` and can wake sleeping external drives, so it is only checked while the disk panel is open, at most every 10 minutes per drive
 - Fans and temperatures are read in the background every 2 seconds only while the CPU panel is open
 - Peripheral levels are checked every 60 seconds: keyboards, mice and trackpads via IORegistry; headphones need `system_profiler`, so background checks only run it while a Bluetooth audio device is connected; Bluetooth Low Energy devices are read through CoreBluetooth from already connected devices without new connections
 - History is recorded every minute (written every 15 minutes and before sleep and quit); health is checked every 6 hours
@@ -401,7 +404,8 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 | Disk space | `statfs()` plus periodically recalibrated purgeable space (matches Finder) |
 | Disk reads and writes | IORegistry `IOBlockStorageDriver` cumulative byte counters |
 | External drives, connection type | `getfsstat`, DiskArbitration (`DeviceInternal`, `DeviceProtocol`) |
-| Disk health | `SMARTStatus` from `diskutil info -plist` |
+| Disk health, lifetime reads and writes, power-on time | The NVMe SMART / Health Information log (through the system's built-in NVMeSMARTLib plug-in, no administrator rights): 100% minus Percentage Used, Data Units Read/Written (512,000 bytes each), Power On Hours |
+| Disk health (when the row above is unavailable) | `SMARTStatus` from `diskutil info -plist` |
 | Fan speed | SMC (read only, `F<n>Ac`, `F<n>Mn`, `F<n>Mx`) |
 | Temperatures in the CPU panel | IOHIDEventSystem temperature sensors (private interface, hidden if missing); M2 Macs use SMC core temperature keys; Intel uses SMC core, PECI/die/proximity, integrated GPU, SSD and battery keys |
 | Network speed and totals | 64-bit interface counters from `sysctl` (`NET_RT_IFLIST2`), active interface only |
