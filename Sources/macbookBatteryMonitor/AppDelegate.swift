@@ -106,6 +106,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         desktopPet.openPanel = { [weak self] in self?.showPopover(page: .main) }
         desktopPet.openSettings = { [weak self] in self?.showSettings(.companion) }
         desktopPet.sync()
+        if CommandLine.arguments.contains("--selftest-pet") { desktopPet.runSelfTest() }
         // 自動檢查發現新版本時發通知（可在設定 → 更新關閉），點通知打開設定視窗的「更新」
         store.updater.onNewRelease = { [weak self] release in
             guard let self, self.settings.updateNotification else { return }

@@ -15,16 +15,26 @@ enum CompanionPhoto {
             .appendingPathComponent("BatteryMonitor/companion-photo.jpg")
     }
 
-    private static var bundled: NSImage? {
-        // 224 像素、四角填平均色的 HEIC（約 5 KB），桌面寵物最大時也夠清楚
-        Bundle.main.url(forResource: "companion-photo", withExtension: "heic").flatMap { NSImage(contentsOf: $0) }
-    }
+    /// 224 像素、四角填平均色的 HEIC（約 5 KB），桌面寵物最大時也夠清楚
+    private static var bundledURL: URL? { Bundle.main.url(forResource: "companion-photo", withExtension: "heic") }
 
     /// 目前的照片；換照片後畫面要讀 AppSettings.companionPhotoVersion 才會重畫
-    private(set) static var image: NSImage? = NSImage(contentsOf: fileURL) ?? bundled
+    private(set) static var image: NSImage? = (isCustom ? NSImage(contentsOf: fileURL) : nil) ?? bundledURL.flatMap { NSImage(contentsOf: $0) }
+    /// 同一張照片的像素，做會動的眼睛用
+    private(set) static var cgImage: CGImage? = loadCGImage(isCustom ? fileURL : bundledURL)
+    /// 照片換了就加一，會動的眼睛據此重做
+    private(set) static var revision = 0
 
     /// 用的是自己選的照片
     static var isCustom: Bool { FileManager.default.fileExists(atPath: fileURL.path) }
+
+    /// 會動的眼睛（跟著游標、眨眼）只給內建的貓咪照片；自己的照片沒有
+    static var eyes: [CatEye]? { isCustom ? nil : CatEye.bundled }
+
+    private static func loadCGImage(_ url: URL?) -> CGImage? {
+        guard let url, let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
+    }
 
     /// 選一張照片；換成功時 completion(true)。從桌面寵物或面板打開時 App 不一定在前景，先帶到前景
     static func choose(completion: @escaping (Bool) -> Void) {
@@ -43,12 +53,18 @@ enum CompanionPhoto {
 
     /// 截圖（README、開發用快照）只用內建的貓咪照片，不畫出使用者自己的照片
     static func useBundledForScreenshots() {
-        image = bundled
+        useBundled()
     }
 
     static func reset() {
         try? FileManager.default.removeItem(at: fileURL)
-        image = bundled
+        useBundled()
+    }
+
+    private static func useBundled() {
+        image = bundledURL.flatMap { NSImage(contentsOf: $0) }
+        cgImage = loadCGImage(bundledURL)
+        revision += 1
     }
 
     private static func save(from url: URL) -> Bool {
@@ -77,14 +93,20 @@ enum CompanionPhoto {
             return false
         }
         image = NSImage(data: data)
+        cgImage = output
+        revision += 1
         return true
     }
 }
 
-/// 照片外觀：照片裁成圓形，外圈是電量環（顏色跟著狀態），右上角和其他外觀一樣有狀態徽章；寬度決定大小
+/// 照片外觀：照片裁成圓形，外圈是電量環（顏色跟著狀態），右上角和其他外觀一樣有狀態徽章；寬度決定大小。
+/// 桌面寵物（liveEyes）的眼睛會跟著游標、眨眼，睡覺時閉眼
 struct CompanionPhotoFigure: View {
     let presentation: ChargingJourneyPresentation
     var width: CGFloat = 48
+    var liveEyes = false
+    var mood: CatMood = .awake
+    var followsCursor = true
 
     var body: some View {
         let unit = width / 48
@@ -99,6 +121,7 @@ struct CompanionPhotoFigure: View {
                 }
             }
             .frame(width: 38 * unit, height: 38 * unit)
+            .overlay(alignment: .center) { eyesOverlay }
             .background(Color.secondary.opacity(0.15))
             .clipShape(Circle())
             Circle()
@@ -125,6 +148,12 @@ struct CompanionPhotoFigure: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    @ViewBuilder private var eyesOverlay: some View {
+        if liveEyes, let photo = CompanionPhoto.cgImage, let eyes = CompanionPhoto.eyes {
+            CatEyesOverlay(photo: photo, eyes: eyes, key: CompanionPhoto.revision, mood: mood, followsCursor: followsCursor)
+        }
     }
 }
 

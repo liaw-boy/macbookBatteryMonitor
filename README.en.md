@@ -12,7 +12,7 @@ The app's interface is in Traditional Chinese.
 - **Smart charging** (v1.7.1+): choose "charged to X% by a time" (in 1/2/3 hours, a custom time or a weekly schedule). The Mac stays at a care limit, the limit is raised just in time for macOS to charge to the target, and your original limit is restored afterwards
 - **Charging companion** (v1.7.1+): an animated cat next to the charge limit slider that breathes and swishes its tail, and lies on a glowing charging pad while charging. You can switch it to a battery buddy whose face follows the charging state, a simple energy bar, or a photo (a Ragdoll cat by default, or your own photo, v1.7.2+). MacBooks that can't change the charge limit (such as Intel models) show it at the top of the panel too, just without the slider
 - **Combine into one icon** (v1.7.2+): when the menu bar is crowded and macOS hides icons, keep just one; clicking it opens a second bar below the menu bar with the battery and system monitor icons, and clicking one opens its panel
-- **Desktop pet** (v1.7.2+): puts the charging companion on your desktop at about the size of the Calendar widget; hover for a thought bubble with the current status, click for a speech bubble, and keep it above windows or on the wallpaper
+- **Desktop pet** (v1.7.2+): puts the charging companion on your desktop at about the size of the Calendar widget; hover for a thought bubble with the current status, click for a speech bubble, and keep it above windows or on the wallpaper. From v1.7.3 you can resize it and put it anywhere on screen; the built-in cat photo's eyes follow the cursor and blink, and stroking it with the mouse makes hearts float up
 - **Settings window** (v1.7.2+): all settings live in a window with a sidebar; the gear and the new-version button in the panel and the gear in system monitor panels open the matching section, and smart charging is available both in the panel and in the window
 - **Today** (v1.7.1+): how much battery you used and charged today, how many times you plugged in, and how long you ran on battery
 - **No hidden charging control**: the app only changes the macOS charge limit when you drag the slider (the same as doing it in System Settings) or when you set up smart charging; macOS does the actual charging. No admin rights by default; only the optional admin CPU sampling and the smart charging "precise wake" ask for authorization
@@ -204,7 +204,7 @@ Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click up
 - **Peripherals**: the Peripherals tab at the bottom; the bell next to a device sets its alert (so does Settings → Peripherals), the arrow at the bottom right refreshes now
 - **Charge limit**: drag the slider in the info card and release to apply it to macOS; 100% means no limit (Settings → Charging has the same slider)
 - **Updates**: a notification and a "有新版本" (new version) button at the bottom of the panel both open the Update section of the Settings window, then press "一鍵更新"
-- **Settings** (a separate window from v1.7.2): the gear at the bottom right of the panel, or "設定…" (Settings) in the menu bar icon's right-click menu. Sections: General (app icon color, notification thresholds, launch at login), Display items (menu bar display, power flow details, detail fields), Monitoring & power saving (update interval, power saving, system monitor switches, combine into one icon, admin CPU sampling), Charging (charge limit slider, smart charging), Charging companion (look, photo, desktop pet), Peripherals (per-device low battery alerts), Update (one-click update, automatic checks and notifications)
+- **Settings** (a separate window from v1.7.2): the gear at the bottom right of the panel, or "設定…" (Settings) in the menu bar icon's right-click menu. Sections: General (app icon color, notification thresholds, launch at login), Display items (menu bar display, power flow details, detail fields), Monitoring & power saving (update interval, power saving, system monitor switches, combine into one icon, admin CPU sampling), Charging (charge limit slider, smart charging), Charging companion (look, photo, the desktop pet's position, size and live eyes), Peripherals (per-device low battery alerts), Update (one-click update, automatic checks and notifications)
 
 ## Smart charging (v1.7.1+)
 
@@ -248,7 +248,11 @@ The target and the care limit are set under "目標與保養上限" (Target and 
 - **Look**: the same one you picked for the panel (cat, battery buddy, energy bar or photo). It always animates except in power saving mode; the cat uses a 320-pixel-wide high-resolution animation, with a glowing charging pad under it and a charging sign above it while charging
 - **Hover**: a thought bubble shows the level and state (for example "62%・充電中，36 分鐘後到 80%" or "78%・還能用 7 小時 25 分"), plus a line for a smart charging plan if there is one
 - **Click**: a speech bubble says one line, a different one each click: its mood (low battery, charging, full, sleeping while a plan waits), today's used and recharged percentage, battery health and cycle count, and the Mac's current power draw; it hides after 4 seconds
-- **Double-click** opens the panel; **drag** to move it (the position is remembered); **right-click** to open the panel, change the look or photo, switch where it sits, open the companion settings or hide it
+- **Double-click** opens the panel; **drag** to move it (the position is remembered); **right-click** to open the panel, change the look, photo or size, switch where it sits, open the companion settings or hide it
+- **Move it anywhere** (v1.7.3+): beside the menu bar, above the Dock, even partly off screen (a corner always stays on screen so you can find it). The app handles the drag itself, so dragging it to the top of the screen doesn't make macOS tile it into the middle
+- **Size** (v1.7.3+): 50%–200%, with the slider in Settings → Charging companion, "大小" (Size) in the right-click menu (small, standard, large, extra large), or a trackpad pinch over the pet; resizing keeps its feet in place
+- **Live eyes** (v1.7.3+, built-in cat photo): in the photo look the eyes follow the mouse cursor and blink now and then; it sleeps with its eyes closed while a smart charging plan waits and wakes up when you hover over it. The eyes use the cat's own irises from the photo, and only that small part moves with Core Animation, so nothing else redraws; it updates at most 20 times a second, skips updates when the eyes barely move and uses no CPU while the mouse is still (about 0.4% CPU on an M1 while the mouse keeps moving). Settings → Charging companion has "眼睛跟著游標" (eyes follow the cursor; off means no mouse monitoring at all) and "會眨眼、睡覺" (blink and sleep). Photos you choose yourself don't get live eyes
+- **Stroking** (v1.7.3+): move the mouse back and forth over the pet a few times to stroke it: hearts float up and it says "呼嚕呼嚕～" (purr) or similar, keeping its eyes open
 - **Where it sits**: "浮在視窗上方" (above windows) or "放在桌布上" (on the wallpaper, at the desktop icon level, so windows cover it); it shows on every desktop but not in full-screen apps
 - The bubble is a separate window that ignores the mouse and hugs the pet (below it when there's no room above), so it never blocks what's underneath
 
@@ -395,6 +399,7 @@ Everything live updates every second by default (2/5/10 seconds selectable; at l
 | New versions (one-click update) | GitHub API `releases` (latest 20; betas only on manual checks), automatic checks at most once a day; downloads verified with the release's `SHA256SUMS.txt` |
 | Peripheral levels (keyboards, mice, trackpads) | IORegistry services with `BatteryPercent` |
 | Peripheral levels (Bluetooth Low Energy mice and keyboards) | CoreBluetooth: the Battery Level (`0x2A19`) of the standard Battery Service (`0x180F`) on connected devices, requires Bluetooth permission; IORegistry HID usage decides mouse or keyboard when the name doesn't tell |
+| Live eyes | `NSEvent` mouse-moved events (cursor position only, no permission needed); only while the desktop pet shows the built-in cat photo and "eyes follow the cursor" is on |
 | Peripheral levels (headphone left, right, case) | `system_profiler SPBluetoothDataType`; whether Bluetooth headphones are connected comes from the CoreAudio device list |
 
 ## Where data is stored
@@ -457,6 +462,7 @@ $APP --selftest-monitors # open the CPU and memory module panels for 10 seconds 
 $APP --selftest-update   # check GitHub for a new version and one-click update right away (lower the version of a copy to test)
 $APP --selftest-dmg <DMG> # copy and verify the app from a local DMG the way one-click update does (same version), without installing
 $APP --selftest-settings # open the Settings window from the panel, switch through every section, and check it shows in the Dock while open and goes back to the menu bar only after closing
+$APP --selftest-pet      # desktop pet: resize, simulate stroking, toggle cursor tracking, place it at menu bar height, then simulate 30 seconds of mouse movement (for measuring CPU)
 $APP --screenshots <folder> # render the README images with demo data (docs/screenshots)
 ```
 

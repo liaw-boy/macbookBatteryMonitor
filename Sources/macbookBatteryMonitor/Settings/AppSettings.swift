@@ -138,6 +138,26 @@ final class AppSettings {
             if desktopPetOnWallpaper != oldValue { onDesktopPetChange?() }
         }
     }
+    /// 桌面寵物照片外觀的眼睛會動：眨眼、睡覺時閉眼
+    var desktopPetLiveEyes: Bool {
+        didSet { defaults.set(desktopPetLiveEyes, forKey: Keys.desktopPetLiveEyes) }
+    }
+    /// 眼睛跟著游標：關掉就完全不監聽滑鼠移動
+    var desktopPetFollowCursor: Bool {
+        didSet { defaults.set(desktopPetFollowCursor, forKey: Keys.desktopPetFollowCursor) }
+    }
+    /// 桌面寵物的大小：1 是和日曆小工具差不多大，範圍 0.5～2（設定的地方用 clampPetScale 限制）
+    var desktopPetScale: Double {
+        didSet {
+            defaults.set(desktopPetScale, forKey: Keys.desktopPetScale)
+            if desktopPetScale != oldValue { onDesktopPetChange?() }
+        }
+    }
+    static let desktopPetScaleRange: ClosedRange<Double> = 0.5...2
+
+    static func clampPetScale(_ value: Double) -> Double {
+        min(max(value, desktopPetScaleRange.lowerBound), desktopPetScaleRange.upperBound)
+    }
     /// 智慧充電的完成目標與保養上限（建立排程時的預設值）。完成目標預設是「原本的上限」（存成 0）：
     /// 建立排程時的系統充電上限，充好後就停在平常的上限，不會多充到 100%
     var chargingTargetPercent: Int {
@@ -248,6 +268,9 @@ final class AppSettings {
         static let chargingAppearance = "chargingAppearance"
         static let desktopPet = "desktopPet"
         static let desktopPetOnWallpaper = "desktopPetOnWallpaper"
+        static let desktopPetScale = "desktopPetScale"
+        static let desktopPetLiveEyes = "desktopPetLiveEyes"
+        static let desktopPetFollowCursor = "desktopPetFollowCursor"
         static let chargingTargetPercent = "chargingTargetPercent"
         static let chargingHoldPercent = "chargingHoldPercent"
         static let chargingSleepStrategy = "chargingSleepStrategy"
@@ -283,6 +306,9 @@ final class AppSettings {
             Keys.desktopPet: false,
             Keys.menuBarCombined: false,
             Keys.desktopPetOnWallpaper: false,
+            Keys.desktopPetScale: 1.0,
+            Keys.desktopPetLiveEyes: true,
+            Keys.desktopPetFollowCursor: true,
             Keys.chargingTargetPercent: 0,
             Keys.chargingHoldPercent: 80,
             Keys.chargingSleepStrategy: ChargingSleepStrategy.readinessFirst.rawValue,
@@ -324,6 +350,9 @@ final class AppSettings {
         desktopPet = defaults.bool(forKey: Keys.desktopPet)
         menuBarCombined = defaults.bool(forKey: Keys.menuBarCombined)
         desktopPetOnWallpaper = defaults.bool(forKey: Keys.desktopPetOnWallpaper)
+        desktopPetScale = Self.clampPetScale(defaults.double(forKey: Keys.desktopPetScale))
+        desktopPetLiveEyes = defaults.bool(forKey: Keys.desktopPetLiveEyes)
+        desktopPetFollowCursor = defaults.bool(forKey: Keys.desktopPetFollowCursor)
         let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
         let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)
         chargingTargetPercent = target

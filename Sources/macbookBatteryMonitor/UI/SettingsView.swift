@@ -220,8 +220,24 @@ struct SettingsView: View {
                                 Text("浮在視窗上方").tag(false)
                                 Text("放在桌布上").tag(true)
                             }
+                            SwitchRow("眼睛跟著游標", isOn: binding(\.desktopPetFollowCursor))
+                                .help("內建的貓咪照片：眼珠看著滑鼠游標；關掉就完全不監聽滑鼠移動")
+                            SwitchRow("會眨眼、睡覺", isOn: binding(\.desktopPetLiveEyes))
+                                .help("內建的貓咪照片：偶爾眨眼，等智慧充電時閉眼睡覺（滑鼠移過去會醒來）")
+                            HStack(spacing: 8) {
+                                Text("大小")
+                                // 不用 step：每 5% 一格會畫出一整排刻度；放開時取到 5% 的倍數
+                                Slider(value: Binding(get: { settings.desktopPetScale },
+                                                      set: { settings.desktopPetScale = AppSettings.clampPetScale(($0 * 20).rounded() / 20) }),
+                                       in: AppSettings.desktopPetScaleRange)
+                                    .controlSize(.small)
+                                Text("\(Int((settings.desktopPetScale * 100).rounded()))%")
+                                    .monospacedDigit()
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 44, alignment: .trailing)
+                            }
                         }
-                        Text("滑鼠移過去看狀態、點一下聊天；可以拖曳，右鍵可以隱藏。")
+                        Text("滑鼠移過去看狀態、點一下聊天、來回移動是摸牠；可以拖曳、用觸控板捏合縮放，右鍵可以換大小或隱藏。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -280,6 +296,7 @@ struct SettingsView: View {
             Button("選擇照片…") { settings.chooseCompanionPhoto() }
             if CompanionPhoto.isCustom {
                 Button("改回貓咪照片") { settings.resetCompanionPhoto() }
+                    .help("內建的貓咪照片眼睛會動；自己的照片不會")
             }
         }
     }

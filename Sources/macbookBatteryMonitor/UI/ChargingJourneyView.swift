@@ -155,6 +155,10 @@ struct CompanionFigure: View {
     let appearance: ChargingAppearance
     let animated: Bool
     var width: CGFloat = 48
+    /// 照片外觀的眼睛會動（桌面寵物）
+    var liveEyes = false
+    var mood: CatMood = .awake
+    var followsCursor = true
 
     var body: some View {
         Group {
@@ -171,7 +175,7 @@ struct CompanionFigure: View {
             case .energy:
                 energyBar
             case .photo:
-                CompanionPhotoFigure(presentation: presentation, width: width)
+                CompanionPhotoFigure(presentation: presentation, width: width, liveEyes: liveEyes, mood: mood, followsCursor: followsCursor)
             }
         }
         // 各種外觀同樣大小，切換時下面的內容不會跟著移動
