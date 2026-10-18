@@ -64,6 +64,8 @@ final class PanelState {
     var openSettings: (SettingsSection?) -> Void = { _ in }
     /// 有沒有「輔助使用」權限（分開設定捲動方向要用）
     var scrollTrusted = false
+    /// 捲動方向的事件攔截正在運作
+    var scrollRunning = false
     /// 智慧充電頁的輸入：指定完成時間、每週排程的星期與時間
     var chargingCustomDeadline = Date().addingTimeInterval(4 * 3600)
     var chargingWeekdays: Set<Int> = [2, 3, 4, 5, 6]
