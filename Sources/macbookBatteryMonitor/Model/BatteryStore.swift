@@ -309,7 +309,7 @@ final class BatteryStore {
         guard unpluggedAt == nil, estimates?.state == .discharging else { return }
         Task {
             if let date = await PowerLog.lastUnpluggedDate(), unpluggedAt == nil, estimates?.state == .discharging {
-                unpluggedAt = date
+                unpluggedAt = BootTime.clamp(date)
             }
         }
     }
