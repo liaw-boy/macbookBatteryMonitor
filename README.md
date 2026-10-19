@@ -262,7 +262,8 @@ macOS 的「自然捲動」是滑鼠和觸控板共用一個設定：觸控板�
 
 - **滑鼠滾輪反向**：一般滑鼠滾輪與 Magic Mouse 反過來，例如觸控板維持自然捲動、滑鼠滾輪改回傳統方向
 - **觸控板反向**：只反轉觸控板
-- **怎麼分辨**：兩指以上在觸控板上捲動算觸控板（放開手指後的慣性也算），其他（一般滾輪、Magic Mouse 的單指捲動）算滑鼠。垂直與水平捲動一起反向
+- **怎麼分辨**：兩指以上在觸控板上捲動算觸控板（放開手指後的慣性也算），其他（一般滾輪、Magic Mouse 的單指捲動）算滑鼠。垂直與水平捲動一起反向。觸控板的慣性還在滑時轉一下滑鼠滾輪，滾輪照滑鼠的設定、之後的慣性仍照觸控板的設定（v1.7.4 起；以前滾輪會把正在滑的慣性改判成滑鼠）
+- **網頁不會往回彈**（v1.7.4 起）：觸控板的事件除了公開的捲動量，還帶著網頁拿來算慣性的原始捲動量，其中有些是系統從觸控資料算出來的、改不了，只改公開的欄位時網頁會一直往回彈。所以反向的觸控板與 Magic Mouse 捲動改用新造的事件取代，裡面所有捲動量都是反向的值；一般滑鼠滾輪照舊直接改
 - **權限**：攔截並改寫捲動事件需要「輔助使用」權限。打開開關時 macOS 會請你到「系統設定 → 隱私權與安全性 → 輔助使用」打開「電池與系統監控」，允許後幾秒內就生效，不用重開 App。App 沒有 Apple 開發者簽章，macOS 會把每個新版本當成新的 App：**每次更新後要在「輔助使用」裡先移除舊的項目、再加一次**（見下面的步驟），設定頁沒有權限時會提醒並提供按鈕
 - **耗電**：兩個開關都關掉時完全不攔截；打開時只在捲動的瞬間處理事件
 - **穩定**：攔截在自己的高優先執行緒上跑，App 忙著畫面板或取樣時捲動也不用等，系統就不會因為回應太慢暫停攔截；另外每 5 秒檢查一次，被系統暫停就重新打開、失效就重建，剛重新允許「輔助使用」時也會在 5 秒內自動開始。設定頁的狀態是實際情況：「運作中」表示正在攔截，「啟動中…」表示有權限、馬上會開始
@@ -494,7 +495,7 @@ $APP --screenshots <資料夾> # 用示範數據畫出 README 的介紹圖（doc
 - Info.plist 帶 `MBMPrerelease`（例如 `beta.1`）時，發布的 tag 是 `v<版本>-beta.1`，自動標成預先發行版本，不會變成「最新版本」
 - `build.sh` 會把管理員服務程式（`CPUPowerHelper`）放進 App 的 `Contents/Library/Helpers/`，充電夥伴的動畫、靜態圖與貓咪大頭照（`Resources/Companion/`）放進 `Contents/Resources/`；服務只有使用者開啟管理員 CPU 取樣或精準喚醒時才會安裝到系統
 - 只裝 Command Line Tools 時沒有 SwiftUI 的 macro 外掛，所以程式裡不用 `@State`，介面狀態（包括設定視窗選的分類）集中在 `PanelState`
-- 捲動方向的記錄：攔截開始、停止、被系統暫停或重建，以及「輔助使用」權限的變化一律留在系統記錄（很少發生，不影響效能）；`defaults write com.kuan.batterymonitor scrollDebug -bool true` 後重新打開 App，還會記下每個捲動事件被認成觸控板或滑鼠、手指數與改寫前後的值（開發用，預設關閉）。兩種記錄都用 `/usr/bin/log stream --predicate 'subsystem == "com.kuan.batterymonitor" AND category == "scroll"'` 查看（zsh 裡 `log` 是內建指令，要寫完整路徑）；詳細記錄查完用 `defaults delete com.kuan.batterymonitor scrollDebug` 關掉
+- 捲動方向的記錄：攔截開始、停止、被系統暫停或重建，以及「輔助使用」權限的變化一律留在系統記錄（很少發生，不影響效能）；`defaults write com.kuan.batterymonitor scrollDebug -bool true` 後重新打開 App，還會記下每個捲動事件被認成觸控板或滑鼠、手指數與改寫前後的值（開發用，預設關閉）；`scrollRebuild` 設成 false 可以改回直接改原本的事件，用來比較。沒有公開文件的 175～178 欄位是觸控板事件的原始捲動量（176／178 垂直、175／177 水平，小數欄位）。兩種記錄都用 `/usr/bin/log stream --predicate 'subsystem == "com.kuan.batterymonitor" AND category == "scroll"'` 查看（zsh 裡 `log` 是內建指令，要寫完整路徑）；詳細記錄查完用 `defaults delete com.kuan.batterymonitor scrollDebug` 關掉
 
 DMG 的背景圖：
 
