@@ -75,6 +75,8 @@ From v1.7.2 Settings is its own window with sections on the left: General, Displ
 
 Macs without a battery (Mac mini, iMac, Mac Studio, Mac Pro) show a computer icon with system power in the menu bar. The panel shows system power with a 3-minute average, a power breakdown (chip, CPU/GPU/ANE, other), power history, the most energy-hungry apps and peripherals. The Settings window has no Charging or Charging companion sections and no battery notifications.
 
+How a desktop is recognized: by the product name (for example "Mac mini (M1, 2020)"), whether a battery is installed, and whether the system's power source list has an internal battery. Apple silicon desktops also have an empty battery entry in the system, so v1.7.3 and earlier treated the M1 Mac mini as a laptop and showed 0% (fixed in v1.7.4).
+
 ![Desktop Mac: system power in the menu bar and the power breakdown panel](docs/screenshots/desktop.png)
 
 ### Intel Macs
