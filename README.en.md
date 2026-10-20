@@ -198,7 +198,7 @@ Already on v1.5.0 or later: Settings → Update → "一鍵更新" (one-click up
 
 ## Usage
 
-- **Left click** the menu bar icon: open the panel
+- **Left click** the menu bar icon: open the panel. This also works while another app is in full screen (green button): the panel appears over the full-screen app (v1.7.4+; before, clicking did nothing)
 - **Right click**: open the panel, Settings, Quit
 - **Power flow** (v1.2+): click "系統" (System) for component details, then the chip for CPU/GPU/ANE
 - **System monitor modules** (when on): left click opens the module's panel, right click opens Settings (Monitoring & power saving) or quits; hold ⌘ and drag to reorder icons

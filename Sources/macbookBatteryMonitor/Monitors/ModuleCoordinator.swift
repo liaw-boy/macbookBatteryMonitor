@@ -240,6 +240,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         popover.contentSize = hosting.view.fittingSize
         self.popover = popover
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.allowInFullScreen()
         NSApp.activate()
         popover.contentViewController?.view.window?.makeKey()
         startTop()
