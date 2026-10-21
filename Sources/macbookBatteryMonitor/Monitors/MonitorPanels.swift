@@ -640,6 +640,54 @@ private struct NetworkPanel: View {
                     InfoRow("累計上傳", ByteFormat.size(network.totalSent))
                 }
             }
+            SpeedTestCard(test: network.speedTest)
         }
+    }
+}
+
+private struct SpeedTestCard: View {
+    let test: NetworkSpeedTest
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    CardTitle("網路測速", systemImage: "speedometer")
+                    Spacer()
+                    if test.isRunning {
+                        ProgressView().controlSize(.small)
+                        Button("停止") { test.cancel() }
+                            .controlSize(.small)
+                    } else {
+                        Button(test.result == nil ? "開始測速" : "重新測速") { test.start() }
+                            .controlSize(.small)
+                    }
+                }
+                if test.isRunning {
+                    InfoRow("下載（即時）", SpeedTestResult.bitRate(test.liveDownload * 8), tint: .green)
+                    InfoRow("上傳（即時）", SpeedTestResult.bitRate(test.liveUpload * 8), tint: .orange)
+                    note("即時數字是整個網路介面的流量，包含其他程式；正式結果以測完為準")
+                } else if let result = test.result {
+                    InfoRow("下載", result.download.map(SpeedTestResult.bitRate) ?? "—", tint: .green)
+                    InfoRow("上傳", result.upload.map(SpeedTestResult.bitRate) ?? "—", tint: .orange)
+                    InfoRow("回應能力", result.responsiveness.map { String(format: "%.0f RPM", $0) } ?? "—")
+                        .help("網路忙碌時每分鐘能完成的往返次數，越高越不容易卡頓")
+                    InfoRow("閒置延遲", result.idleLatency.map { String(format: "%.0f ms", $0) } ?? "—")
+                    note("\(result.date.formatted(date: .omitted, time: .shortened)) 測試・Apple 測速伺服器")
+                }
+                if case .failed(let message) = test.phase {
+                    note(message, color: .red)
+                } else if !test.isRunning, test.result == nil {
+                    note("約需 20～30 秒，會用掉數百 MB 流量，使用行動網路時請留意")
+                }
+            }
+        }
+    }
+
+    private func note(_ text: String, color: Color = .secondary) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(color)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

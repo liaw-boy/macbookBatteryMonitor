@@ -83,6 +83,11 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         updateTimer()
     }
 
+    /// App 結束時一起結束測速，networkQuality 不會隨 app 結束，否則會繼續用掉流量
+    func stop() {
+        network.speedTest.cancel()
+    }
+
     func setSleeping(_ value: Bool) {
         sleeping = value
         if value {

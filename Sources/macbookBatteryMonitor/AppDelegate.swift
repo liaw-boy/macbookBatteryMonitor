@@ -371,6 +371,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.adminCPU.stop()
         store.chargingWake.stop()
         store.history.save()
+        monitors.stop()
     }
 
     // MARK: - Refresh

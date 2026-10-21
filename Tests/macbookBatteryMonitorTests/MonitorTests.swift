@@ -88,3 +88,34 @@ final class MonitorTests {
         XCTAssertEqual(everySecond.points.count, MonitorHistory.capacity)
     }
 }
+
+extension MonitorTests {
+    func testSpeedTestParsing() {
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let json = """
+        {"dl_throughput": 52000000, "ul_throughput": 8400000, "responsiveness": 612.5, "base_rtt": 18.25,
+         "interface_name": "en9", "il_h2_req_resp": [20, 21], "other": {}}
+        """
+        let result = SpeedTestResult.parse(Data(json.utf8), at: date)
+        XCTAssertEqual(result, SpeedTestResult(download: 52_000_000, upload: 8_400_000, responsiveness: 612.5,
+                                               idleLatency: 18.25, date: date))
+        // 只測下載、欄位型別錯誤或負值：該欄留空，不當掉
+        let partial = SpeedTestResult.parse(Data(#"{"dl_throughput": 1000000, "ul_throughput": "x", "base_rtt": -1}"#.utf8), at: date)
+        XCTAssertEqual(partial, SpeedTestResult(download: 1_000_000, upload: nil, responsiveness: nil, idleLatency: nil, date: date))
+        // 失敗時的輸出、非 JSON、空資料
+        XCTAssertNil(SpeedTestResult.parse(Data(#"{"error_code": -1009, "error_domain": "NSURLErrorDomain"}"#.utf8), at: date))
+        XCTAssertNil(SpeedTestResult.parse(Data("Downlink: 50 Mbps".utf8), at: date))
+        XCTAssertNil(SpeedTestResult.parse(Data(), at: date))
+        XCTAssertNil(SpeedTestResult.parse(Data("[1, 2]".utf8), at: date))
+    }
+
+    func testBitRateFormat() {
+        XCTAssertEqual(SpeedTestResult.bitRate(0), "0 Mbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(-5), "0 Mbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(850_000), "850 Kbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(999_700), "1.0 Mbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(17_221_336), "17.2 Mbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(345_600_000), "346 Mbps")
+        XCTAssertEqual(SpeedTestResult.bitRate(1_234_000_000), "1.2 Gbps")
+    }
+}
