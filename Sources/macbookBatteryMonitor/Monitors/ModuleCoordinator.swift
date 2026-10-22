@@ -32,8 +32,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// 有開啟的模組（左到右：CPU、記憶體、磁碟、網路）
-    var enabledKinds: [MonitorKind] { MonitorKind.allCases.filter(settings.isMonitorEnabled) }
+    /// 有開啟的模組（左到右：CPU、記憶體、磁碟、網路；記憶體與磁碟合併時只有記憶體）
+    var enabledKinds: [MonitorKind] {
+        MonitorKind.shown(MonitorKind.allCases.filter(settings.isMonitorEnabled), memoryDiskMerged: settings.memoryDiskMerged)
+    }
 
     func start() {
         syncItems()
@@ -62,6 +64,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     func syncItems() {
         for kind in MonitorKind.allCases.reversed() {
             let enabled = settings.isMonitorEnabled(kind) && !settings.menuBarCombined
+                && !(kind == .disk && settings.memoryDiskMerged)
             if enabled, items[kind] == nil {
                 let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 item.autosaveName = "monitor.\(kind.rawValue)"
@@ -123,7 +126,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     /// 只取樣有開啟的模組（選單列有圖示，或第二條狀態列開著）
     private func tick() {
         let now = Date()
-        func active(_ kind: MonitorKind) -> Bool { items[kind] != nil || (stripActive && settings.isMonitorEnabled(kind)) }
+        func active(_ kind: MonitorKind) -> Bool {
+            items[kind] != nil || (stripActive && settings.isMonitorEnabled(kind))
+                || (kind == .disk && settings.memoryDiskMerged && items[.memory] != nil)
+        }
         if active(.cpu) { cpu.sample(at: now) }
         if active(.memory) { memory.sample(at: now) }
         if active(.disk) { disk.sample(at: now) }
@@ -158,6 +164,13 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             return ("\(c)|\(g)", "CPU \(c)・GPU \(g)", {
                 MonitorMenuBarRenderer.twoLines([("CPU", c, MonitorMenuBarRenderer.green), ("GPU", g, MonitorMenuBarRenderer.orange)], valueTemplate: "100%")
             })
+        case .memory where settings.memoryDiskMerged:
+            let m = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
+            let d = diskUsedText
+            let pressure = memory.usage?.pressure ?? .normal
+            return ("merged|\(m)|\(d)|\(pressure.rawValue)", "記憶體 \(m)・磁碟 \(d)", {
+                MonitorMenuBarRenderer.twoLines([("MEM", m, MonitorMenuBarRenderer.green), ("DISK", d, MonitorMenuBarRenderer.orange)], valueTemplate: "100%")
+            })
         case .memory:
             let value = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let pressure = memory.usage?.pressure ?? .normal
@@ -167,8 +180,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                                                    color: pressure == .critical ? .systemRed : pressure == .warning ? .systemOrange : nil)
             })
         case .disk:
-            let fraction = disk.volume.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
-            let value = fraction.map(ByteFormat.percent) ?? "—"
+            let value = diskUsedText
             let tooltip = disk.volume.map { "\($0.name) 可用 \(ByteFormat.size($0.available))・讀 \(ByteFormat.rate(disk.readRate))・寫 \(ByteFormat.rate(disk.writeRate))" } ?? "磁碟"
             return (value, tooltip, {
                 MonitorMenuBarRenderer.symbolValue(symbol: "internaldrive", value: value, valueTemplate: "100%")
@@ -181,6 +193,11 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 MonitorMenuBarRenderer.twoLines([("↑", up, MonitorMenuBarRenderer.orange), ("↓", down, MonitorMenuBarRenderer.green)], valueTemplate: "999K")
             })
         }
+    }
+
+    private var diskUsedText: String {
+        let fraction = disk.volume.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
+        return fraction.map(ByteFormat.percent) ?? "—"
     }
 
     /// 第二條狀態列上的圖示（和選單列的圖示相同）
@@ -224,9 +241,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient) {
         openKind = kind
         cpu.setThermalActive(kind == .cpu)
-        disk.setHealthActive(kind == .disk)
+        disk.setHealthActive(kind == .disk || (kind == .memory && settings.memoryDiskMerged))
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
+                                memoryDiskMerged: settings.memoryDiskMerged,
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
                                     self?.openSettings?()

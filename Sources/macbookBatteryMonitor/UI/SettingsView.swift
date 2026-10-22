@@ -112,6 +112,8 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(!settings.systemMonitors)
+                    SwitchRow("記憶體與磁碟合併成一個圖示", isOn: binding(\.mergeMemoryDisk))
+                        .disabled(!settings.systemMonitors || !settings.monitorMemory || !settings.monitorDisk)
                     SwitchRow("合併成一個圖示", isOn: binding(\.menuBarCombined))
                         .disabled(!settings.systemMonitors)
                     Text(!settings.systemMonitors

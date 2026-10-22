@@ -39,6 +39,8 @@ sources.testDesktopModelNames()
 print("14 power source transition and refresh tests passed")
 
 let monitors = MonitorTests()
+monitors.testMemoryDiskMergeNeedsBothModules()
+monitors.testMergedMemoryDiskDropsDiskIcon()
 monitors.testCPUUsageFromTickDeltas()
 monitors.testCPUCounterWrapReturnsNil()
 monitors.testPerCoreAndTotal()

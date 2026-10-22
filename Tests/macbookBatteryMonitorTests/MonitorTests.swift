@@ -1,6 +1,19 @@
 import Foundation
 
 final class MonitorTests {
+    func testMemoryDiskMergeNeedsBothModules() {
+        XCTAssertTrue(MonitorKind.mergesMemoryDisk(merge: true, memory: true, disk: true))
+        XCTAssertTrue(!MonitorKind.mergesMemoryDisk(merge: true, memory: true, disk: false))
+        XCTAssertTrue(!MonitorKind.mergesMemoryDisk(merge: true, memory: false, disk: true))
+        XCTAssertTrue(!MonitorKind.mergesMemoryDisk(merge: false, memory: true, disk: true))
+    }
+
+    func testMergedMemoryDiskDropsDiskIcon() {
+        let all = MonitorKind.allCases
+        XCTAssertEqual(MonitorKind.shown(all, memoryDiskMerged: false), all)
+        XCTAssertEqual(MonitorKind.shown(all, memoryDiskMerged: true), [.cpu, .memory, .network])
+    }
+
     func testCPUUsageFromTickDeltas() {
         let old = CPUTicks(user: 100, system: 50, idle: 850, nice: 0)
         let new = CPUTicks(user: 160, system: 70, idle: 1070, nice: 0)
