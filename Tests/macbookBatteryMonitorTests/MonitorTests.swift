@@ -122,6 +122,35 @@ extension MonitorTests {
         XCTAssertNil(SpeedTestResult.parse(Data("[1, 2]".utf8), at: date))
     }
 
+    /// macOS 12 的 networkQuality 沒有 -M，輸出也沒有閒置延遲（base_rtt）
+    func testSpeedTestOnOlderSystems() {
+        let monterey = """
+        USAGE: networkQuality [-C <configuration_url>] [-c] [-h] [-I <interfaceName>] [-s] [-v]
+            -C: override Configuration URL
+            -c: Produce computer-readable output
+            -h: Show help (this message)
+            -I: Bind test to interface (e.g., en0, pdp_ip0,...)
+            -s: Run tests sequentially instead of parallel upload/download
+            -v: Verbose output
+        """
+        let current = """
+            -k: Disable certificate validation
+            -M: Provide maximum runtime in seconds
+            -p: Use iCloud Private Relay
+        """
+        XCTAssertEqual(SpeedTestResult.arguments(help: monterey, maxRuntime: 30), ["-c"])
+        XCTAssertEqual(SpeedTestResult.arguments(help: current, maxRuntime: 30), ["-c", "-M", "30"])
+        XCTAssertEqual(SpeedTestResult.arguments(help: "", maxRuntime: 30), ["-c"])
+
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        let json = """
+        {"dl_flows": 12, "dl_throughput": 507593504, "lud_foreign_h2_req_resp": [74, 67], "lud_self_dl_h2": [58.5, 26.1],
+         "responsiveness": 1075, "ul_flows": 20, "ul_throughput": 68901384}
+        """
+        XCTAssertEqual(SpeedTestResult.parse(Data(json.utf8), at: date),
+                       SpeedTestResult(download: 507_593_504, upload: 68_901_384, responsiveness: 1075, idleLatency: nil, date: date))
+    }
+
     func testBitRateFormat() {
         XCTAssertEqual(SpeedTestResult.bitRate(0), "0 Mbps")
         XCTAssertEqual(SpeedTestResult.bitRate(-5), "0 Mbps")

@@ -566,6 +566,12 @@ struct SpeedTestResult: Equatable {
         return result.download == nil && result.upload == nil ? nil : result
     }
 
+    /// networkQuality 的參數。macOS 12 沒有 -M（測試時間上限），加了會直接失敗，
+    /// 所以只在說明裡列出 -M 時才加；沒有上限時靠 App 自己 60 秒後強制結束
+    static func arguments(help: String, maxRuntime: Int) -> [String] {
+        help.contains("-M:") ? ["-c", "-M", String(maxRuntime)] : ["-c"]
+    }
+
     /// 測速常用的位元速率："17.2 Mbps"、"850 Kbps"、"1.2 Gbps"
     static func bitRate(_ bitsPerSecond: Double) -> String {
         let value = max(0, bitsPerSecond)

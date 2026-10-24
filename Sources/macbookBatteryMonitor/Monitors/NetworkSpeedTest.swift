@@ -20,6 +20,21 @@ final class NetworkSpeedTest {
     /// networkQuality 的測試時間上限（秒）；再多給一些餘裕，超過就強制結束，避免卡住
     private static let maxRuntime = 30
     private static let liveInterval: TimeInterval = 0.5
+    private static let toolURL = URL(fileURLWithPath: "/usr/bin/networkQuality")
+
+    /// 這台的 networkQuality 支援哪些參數：看一次說明就記住（說明是立刻印出的，不會連網）
+    private static let arguments: [String] = {
+        let process = Process()
+        process.executableURL = toolURL
+        process.arguments = ["-h"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        guard (try? process.run()) != nil else { return SpeedTestResult.arguments(help: "", maxRuntime: maxRuntime) }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return SpeedTestResult.arguments(help: String(decoding: data, as: UTF8.self), maxRuntime: maxRuntime)
+    }()
 
     @ObservationIgnored private var process: Process?
     @ObservationIgnored private var cancelled = false
@@ -31,8 +46,8 @@ final class NetworkSpeedTest {
     func start() {
         guard process == nil else { return }
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/networkQuality")
-        process.arguments = ["-c", "-M", String(Self.maxRuntime)]
+        process.executableURL = Self.toolURL
+        process.arguments = Self.arguments
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
