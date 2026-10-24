@@ -10,6 +10,8 @@ struct MonitorPanel: View {
     let disk: DiskMonitor
     let network: NetworkMonitor
     var memoryDiskMerged = false
+    /// 設定裡打開了網路測速才顯示測速卡片
+    var showsSpeedTest = false
     var onSettings: () -> Void
 
     var body: some View {
@@ -24,7 +26,7 @@ struct MonitorPanel: View {
                             MemoryPanel(memory: memory)
                             if memoryDiskMerged { DiskPanel(disk: disk) }
                         case .disk: DiskPanel(disk: disk)
-                        case .network: NetworkPanel(network: network)
+                        case .network: NetworkPanel(network: network, showsSpeedTest: showsSpeedTest)
                         }
                     }
                 }
@@ -623,6 +625,7 @@ extension DiskSection {
 
 private struct NetworkPanel: View {
     let network: NetworkMonitor
+    let showsSpeedTest: Bool
 
     var body: some View {
         VStack(spacing: 10) {
@@ -643,7 +646,9 @@ private struct NetworkPanel: View {
                     InfoRow("累計上傳", ByteFormat.size(network.totalSent))
                 }
             }
-            SpeedTestCard(test: network.speedTest)
+            if showsSpeedTest {
+                SpeedTestCard(test: network.speedTest)
+            }
         }
     }
 }
