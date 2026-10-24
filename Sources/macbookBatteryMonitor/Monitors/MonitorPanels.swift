@@ -9,6 +9,7 @@ struct MonitorPanel: View {
     let memory: MemoryMonitor
     let disk: DiskMonitor
     let network: NetworkMonitor
+    var memoryDiskMerged = false
     var onSettings: () -> Void
 
     var body: some View {
@@ -19,7 +20,9 @@ struct MonitorPanel: View {
                     VStack(spacing: 10) {
                         switch kind {
                         case .cpu: CPUPanel(cpu: cpu)
-                        case .memory: MemoryPanel(memory: memory)
+                        case .memory:
+                            MemoryPanel(memory: memory)
+                            if memoryDiskMerged { DiskPanel(disk: disk) }
                         case .disk: DiskPanel(disk: disk)
                         case .network: NetworkPanel(network: network)
                         }

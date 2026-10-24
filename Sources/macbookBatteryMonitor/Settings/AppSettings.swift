@@ -87,6 +87,14 @@ final class AppSettings {
     var monitorNetwork: Bool {
         didSet { defaults.set(monitorNetwork, forKey: Keys.monitorNetwork); onMonitorsChange?() }
     }
+    /// 記憶體與磁碟合併成一個選單列圖示（像 CPU／GPU 一樣兩行），面板也合在一起
+    var mergeMemoryDisk: Bool {
+        didSet { defaults.set(mergeMemoryDisk, forKey: Keys.mergeMemoryDisk); onMonitorsChange?() }
+    }
+    /// 合併現在是否生效：開關打開，且記憶體與磁碟都有開
+    var memoryDiskMerged: Bool {
+        MonitorKind.mergesMemoryDisk(merge: mergeMemoryDisk, memory: isMonitorEnabled(.memory), disk: isMonitorEnabled(.disk))
+    }
 
     /// 系統監控總開關：關閉時選單列只有電池（桌上型為耗電）圖示，四個模組都不取樣，和以前的電池版一樣省電
     var systemMonitors: Bool {
@@ -268,6 +276,7 @@ final class AppSettings {
         static let monitorMemory = "monitorMemory"
         static let monitorDisk = "monitorDisk"
         static let monitorNetwork = "monitorNetwork"
+        static let mergeMemoryDisk = "mergeMemoryDisk"
         static let systemMonitors = "systemMonitors"
         static let menuBarCombined = "menuBarCombined"
         static let powerSaving = "powerSaving"
@@ -315,6 +324,7 @@ final class AppSettings {
             Keys.monitorMemory: true,
             Keys.monitorDisk: true,
             Keys.monitorNetwork: true,
+            Keys.mergeMemoryDisk: false,
             Keys.powerSaving: false,
             Keys.powerSavingOnBatteryOnly: false,
             Keys.updateInterval: 1,
@@ -343,6 +353,7 @@ final class AppSettings {
         monitorMemory = defaults.bool(forKey: Keys.monitorMemory)
         monitorDisk = defaults.bool(forKey: Keys.monitorDisk)
         monitorNetwork = defaults.bool(forKey: Keys.monitorNetwork)
+        mergeMemoryDisk = defaults.bool(forKey: Keys.mergeMemoryDisk)
         if defaults.object(forKey: Keys.systemMonitors) != nil {
             systemMonitors = defaults.bool(forKey: Keys.systemMonitors)
         } else if Self.usedBefore(defaults), AppEdition.current == .battery || AppEdition.current == .status {

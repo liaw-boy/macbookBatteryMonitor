@@ -16,6 +16,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private var items: [MonitorKind: NSStatusItem] = [:]
     /// 上次畫到選單列的內容，沒變就不重畫
     private var lastKeys: [MonitorKind: String] = [:]
+    /// 選單列的記憶體圖示目前是不是和磁碟合併的兩行版本
+    private var memoryItemMerged = false
     private var timer: Timer?
     /// 每次打開都建立新的，關閉後整個釋放
     private var popover: NSPopover?
@@ -32,8 +34,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
-    /// 有開啟的模組（左到右：CPU、記憶體、磁碟、網路）
-    var enabledKinds: [MonitorKind] { MonitorKind.allCases.filter(settings.isMonitorEnabled) }
+    /// 有開啟的模組（左到右：CPU、記憶體、磁碟、網路；記憶體與磁碟合併時只有記憶體）
+    var enabledKinds: [MonitorKind] {
+        MonitorKind.shown(MonitorKind.allCases.filter(settings.isMonitorEnabled), memoryDiskMerged: settings.memoryDiskMerged)
+    }
 
     func start() {
         syncItems()
@@ -62,6 +66,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     func syncItems() {
         for kind in MonitorKind.allCases.reversed() {
             let enabled = settings.isMonitorEnabled(kind) && !settings.menuBarCombined
+                && !(kind == .disk && settings.memoryDiskMerged)
             if enabled, items[kind] == nil {
                 let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
                 item.autosaveName = "monitor.\(kind.rawValue)"
@@ -77,6 +82,15 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 NSStatusBar.system.removeStatusItem(item)
                 items[kind] = nil
                 lastKeys[kind] = nil
+            }
+        }
+        // 單獨和合併的記憶體圖示寬度不同：鎖住的長度要放開重新量；面板內容也不同，開著的記憶體面板先關掉
+        if settings.memoryDiskMerged != memoryItemMerged {
+            memoryItemMerged = settings.memoryDiskMerged
+            if let item = items[.memory] {
+                if openKind == .memory { popover?.closeNow() }
+                item.length = NSStatusItem.variableLength
+                lastKeys[.memory] = nil
             }
         }
         tick()
@@ -128,7 +142,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     /// 只取樣有開啟的模組（選單列有圖示，或第二條狀態列開著）
     private func tick() {
         let now = Date()
-        func active(_ kind: MonitorKind) -> Bool { items[kind] != nil || (stripActive && settings.isMonitorEnabled(kind)) }
+        func active(_ kind: MonitorKind) -> Bool {
+            items[kind] != nil || (stripActive && settings.isMonitorEnabled(kind))
+                || (kind == .disk && settings.memoryDiskMerged && items[.memory] != nil)
+        }
         if active(.cpu) { cpu.sample(at: now) }
         if active(.memory) { memory.sample(at: now) }
         if active(.disk) { disk.sample(at: now) }
@@ -163,19 +180,25 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             return ("\(c)|\(g)", "CPU \(c)・GPU \(g)", {
                 MonitorMenuBarRenderer.twoLines([("CPU", c, MonitorMenuBarRenderer.green), ("GPU", g, MonitorMenuBarRenderer.orange)], valueTemplate: "100%")
             })
+        case .memory where settings.memoryDiskMerged:
+            let m = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
+            let d = diskUsedText
+            let pressure = memory.usage?.pressure ?? .normal
+            // 記憶體壓力升高時數字一樣變橘、變紅，和單獨的記憶體圖示相同
+            return ("merged|\(m)|\(d)|\(pressure.rawValue)", "\(memoryTooltip)\n\(diskTooltip)", {
+                MonitorMenuBarRenderer.twoLines([("MEM", m, MonitorMenuBarRenderer.green), ("DISK", d, MonitorMenuBarRenderer.orange)], valueTemplate: "100%",
+                                                valueColors: [MonitorMenuBarRenderer.pressureColor(pressure), nil])
+            })
         case .memory:
             let value = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let pressure = memory.usage?.pressure ?? .normal
-            let tooltip = memory.usage.map { "記憶體 \(ByteFormat.memory($0.used)) / \(ByteFormat.memory($0.total))・壓力\($0.pressure.title)" } ?? "記憶體"
-            return ("\(value)|\(pressure.rawValue)", tooltip, {
+            return ("\(value)|\(pressure.rawValue)", memoryTooltip, {
                 MonitorMenuBarRenderer.symbolValue(symbol: "memorychip", value: value, valueTemplate: "100%",
-                                                   color: pressure == .critical ? .systemRed : pressure == .warning ? .systemOrange : nil)
+                                                   color: MonitorMenuBarRenderer.pressureColor(pressure))
             })
         case .disk:
-            let fraction = disk.volume.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
-            let value = fraction.map(ByteFormat.percent) ?? "—"
-            let tooltip = disk.volume.map { "\($0.name) 可用 \(ByteFormat.size($0.available))・讀 \(ByteFormat.rate(disk.readRate))・寫 \(ByteFormat.rate(disk.writeRate))" } ?? "磁碟"
-            return (value, tooltip, {
+            let value = diskUsedText
+            return (value, diskTooltip, {
                 MonitorMenuBarRenderer.symbolValue(symbol: "internaldrive", value: value, valueTemplate: "100%")
             })
         case .network:
@@ -186,6 +209,19 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 MonitorMenuBarRenderer.twoLines([("↑", up, MonitorMenuBarRenderer.orange), ("↓", down, MonitorMenuBarRenderer.green)], valueTemplate: "999K")
             })
         }
+    }
+
+    private var diskUsedText: String {
+        let fraction = disk.volume.map { $0.total > 0 ? Double($0.used) / Double($0.total) : 0 }
+        return fraction.map(ByteFormat.percent) ?? "—"
+    }
+
+    private var memoryTooltip: String {
+        memory.usage.map { "記憶體 \(ByteFormat.memory($0.used)) / \(ByteFormat.memory($0.total))・壓力\($0.pressure.title)" } ?? "記憶體"
+    }
+
+    private var diskTooltip: String {
+        disk.volume.map { "\($0.name) 可用 \(ByteFormat.size($0.available))・讀 \(ByteFormat.rate(disk.readRate))・寫 \(ByteFormat.rate(disk.writeRate))" } ?? "磁碟"
     }
 
     /// 第二條狀態列上的圖示（和選單列的圖示相同）
@@ -229,9 +265,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient) {
         openKind = kind
         cpu.setThermalActive(kind == .cpu)
-        disk.setHealthActive(kind == .disk)
+        disk.setHealthActive(kind == .disk || (kind == .memory && settings.memoryDiskMerged))
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
+                                memoryDiskMerged: settings.memoryDiskMerged,
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
                                     self?.openSettings?()
@@ -314,6 +351,15 @@ enum MonitorMenuBarRenderer {
     /// 標籤底色：綠、橘兩個色相差最多，底色偏深讓白字清楚
     static let green = NSColor(srgbRed: 0.10, green: 0.62, blue: 0.27, alpha: 1)
     static let orange = NSColor(srgbRed: 0.90, green: 0.40, blue: 0.00, alpha: 1)
+    /// 記憶體壓力升高時數值的顏色：警告橘、嚴重紅，正常用一般文字顏色
+    static func pressureColor(_ pressure: MemoryPressure) -> NSColor? {
+        switch pressure {
+        case .normal: return nil
+        case .warning: return .systemOrange
+        case .critical: return .systemRed
+        }
+    }
+
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)
     private static let lineFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
@@ -335,8 +381,10 @@ enum MonitorMenuBarRenderer {
     }
 
     /// 兩行，每行「彩色底塊的標籤＋靠右的數值」；寬度依 valueTemplate 固定，數字變動時圖示不會左右晃。
-    /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚
-    static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String) -> NSImage {
+    /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚。
+    /// valueColors 依行指定數值的顏色（例如記憶體壓力），沒有指定的行用一般文字顏色
+    static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String,
+                         valueColors: [NSColor?] = []) -> NSImage {
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: labelFont]).width }.max() ?? 0
         let badgeWidth = ceil(labelWidth + 5)
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: lineFont]).width
@@ -353,7 +401,8 @@ enum MonitorMenuBarRenderer {
                 let labelSize = label.size()
                 label.draw(at: NSPoint(x: snap(badge.midX - labelSize.width / 2, scale: scale),
                                        y: snap(badge.midY - labelSize.height / 2, scale: scale)))
-                let value = NSAttributedString(string: line.value, attributes: [.font: lineFont, .foregroundColor: NSColor.labelColor])
+                let valueColor = (index < valueColors.count ? valueColors[index] : nil) ?? NSColor.labelColor
+                let value = NSAttributedString(string: line.value, attributes: [.font: lineFont, .foregroundColor: valueColor])
                 let valueSize = value.size()
                 value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
                                        y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))

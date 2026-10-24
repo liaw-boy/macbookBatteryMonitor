@@ -28,6 +28,16 @@ enum MonitorKind: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+extension MonitorKind {
+    /// 記憶體與磁碟合併成一個圖示：開關打開，且兩個模組都開著
+    static func mergesMemoryDisk(merge: Bool, memory: Bool, disk: Bool) -> Bool { merge && memory && disk }
+
+    /// 合併時磁碟併入記憶體的圖示，不再單獨出現
+    static func shown(_ enabled: [MonitorKind], memoryDiskMerged: Bool) -> [MonitorKind] {
+        memoryDiskMerged ? enabled.filter { $0 != .disk } : enabled
+    }
+}
+
 // MARK: - CPU
 
 /// 單一核心（或全部核心加總）的累計 tick
