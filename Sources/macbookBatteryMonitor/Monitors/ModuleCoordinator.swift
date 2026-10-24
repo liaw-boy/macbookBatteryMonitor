@@ -44,7 +44,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         runSelfTestIfRequested()
     }
 
-    /// 開發用：`--selftest-monitors` 依序打開 CPU、記憶體面板各 10 秒再關閉，量測耗電並確認 top 會停止
+    /// 開發用：`--selftest-monitors` 依序打開 CPU、記憶體面板各 10 秒再關閉，量測耗電並確認 top 會停止；
+    /// 最後切換一次「記憶體與磁碟放在同一個圖示」再切回來，每一步印出選單列圖示的寬度
     private func runSelfTestIfRequested() {
         guard CommandLine.arguments.contains("--selftest-monitors") else { return }
         for (delay, kind) in [(2.0, MonitorKind.cpu), (12.0, .memory)] {
@@ -58,7 +59,22 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 22) { [weak self] in
             self?.popover?.closeNow()
             print("selftest: closed")
+            self?.printItemWidths("選單列圖示")
+            self?.settings.mergeMemoryDisk.toggle()
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 24) { [weak self] in
+            self?.printItemWidths("切換合併後")
+            self?.settings.mergeMemoryDisk.toggle()
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 26) { [weak self] in
+            self?.printItemWidths("切回原本")
+            fflush(stdout)
+        }
+    }
+
+    private func printItemWidths(_ label: String) {
+        let widths = MonitorKind.allCases.compactMap { kind in items[kind].map { "\(kind.rawValue) \(Int($0.length))" } }
+        print("selftest: \(label)：\(widths.joined(separator: "、"))（記憶體與磁碟合併 \(settings.memoryDiskMerged)）")
     }
 
     /// 依設定新增或移除選單列圖示。後建立的圖示會排在左邊，所以由右而左建立：網路、磁碟、記憶體、CPU。
@@ -188,10 +204,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             let m = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let d = diskUsedText
             let pressure = memory.usage?.pressure ?? .normal
-            // 記憶體壓力升高時數字一樣變橘、變紅，和單獨的記憶體圖示相同
             return ("merged|\(m)|\(d)|\(pressure.rawValue)", "\(memoryTooltip)\n\(diskTooltip)", {
-                MonitorMenuBarRenderer.twoLines([("MEM", m, MonitorMenuBarRenderer.green), ("DISK", d, MonitorMenuBarRenderer.orange)], valueTemplate: "100%",
-                                                valueColors: [MonitorMenuBarRenderer.pressureColor(pressure), nil])
+                MonitorMenuBarRenderer.memoryDisk(memory: m, disk: d, pressure: pressure)
             })
         case .memory:
             let value = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
@@ -363,6 +377,11 @@ enum MonitorMenuBarRenderer {
         case .warning: return .systemOrange
         case .critical: return .systemRed
         }
+    }
+
+    /// 記憶體與磁碟合併的圖示：上面記憶體、下面磁碟；記憶體壓力升高時數字一樣變橘、變紅，和單獨的記憶體圖示相同
+    static func memoryDisk(memory: String, disk: String, pressure: MemoryPressure) -> NSImage {
+        twoLines([("MEM", memory, green), ("DISK", disk, orange)], valueTemplate: "100%", valueColors: [pressureColor(pressure), nil])
     }
 
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)

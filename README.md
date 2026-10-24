@@ -478,7 +478,7 @@ $APP --dump-peripherals  # 讀一次周邊設備電量（含所有藍牙設備�
 $APP --notification-status # 印出這個 App 的通知權限（收不到通知時先查這個）
 $APP --selftest-panel    # 自動開面板 20 秒再關，量測耗電用
 $APP --selftest-hardware # 展開晶片、切換到智慧充電頁，確認取樣會停止與恢復，並印出 CPU 讀值
-$APP --selftest-monitors # 依序打開 CPU、記憶體模組面板各 10 秒再關，量測耗電用
+$APP --selftest-monitors # 依序打開 CPU、記憶體模組面板各 10 秒再關，量測耗電用；最後切換一次記憶體與磁碟合併再切回，印出選單列圖示寬度
 $APP --selftest-strip    # 展開第二條狀態列，依序打開 CPU 與電池面板，印出視窗位置與層級
 $APP --selftest-precise-wake <分鐘> # 建立精準喚醒、充到 100% 的排程，上限提高 2 分鐘後自動取消並還原
 $APP --selftest-settings # 從面板打開設定視窗、切換每個分類，確認開著時出現在 Dock、關閉後恢復成只在選單列

@@ -481,7 +481,7 @@ $APP --dump-peripherals  # read peripheral batteries once (all Bluetooth devices
 $APP --notification-status # print the app's notification permission (check this first when notifications don't arrive)
 $APP --selftest-panel    # open the panel for 20 seconds and close it, for power measurements
 $APP --selftest-hardware # expand the chip, switch to the smart charging page, check that sampling stops and resumes, print CPU readings
-$APP --selftest-monitors # open the CPU and memory panels for 10 seconds each, for power measurements
+$APP --selftest-monitors # open the CPU and memory panels for 10 seconds each, for power measurements; then switch the memory and disk icon merge once and back, printing the menu bar icon widths
 $APP --selftest-strip    # open the second status bar, then the CPU and battery panels, and print window frames and levels
 $APP --selftest-precise-wake <minutes> # create a precise-wake schedule to 100%, cancel and restore 2 minutes after the limit is raised
 $APP --selftest-settings # open Settings from the panel, visit every section, check it shows in the Dock while open and returns to menu-bar-only after
