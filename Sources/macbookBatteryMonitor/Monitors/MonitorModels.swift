@@ -531,3 +531,37 @@ enum ThermalKeyTable {
         battery: ["TB0T", "TB1T", "TB2T"],
         coresSleep: false)
 }
+
+/// macOS 內建 networkQuality（`-c` 輸出的 JSON）的測速結果
+struct SpeedTestResult: Equatable {
+    /// 位元／秒
+    var download: Double?
+    var upload: Double?
+    /// 網路忙碌時每分鐘能完成的往返次數（RPM），越高越不卡
+    var responsiveness: Double?
+    /// 閒置時的往返延遲（毫秒）
+    var idleLatency: Double?
+    var date: Date
+
+    /// 欄位缺少或不合理時留空；下載、上傳都沒有就當作失敗
+    static func parse(_ data: Data, at date: Date) -> SpeedTestResult? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        func value(_ key: String) -> Double? {
+            guard let number = json[key] as? NSNumber else { return nil }
+            let value = number.doubleValue
+            return value.isFinite && value >= 0 ? value : nil
+        }
+        let result = SpeedTestResult(download: value("dl_throughput"), upload: value("ul_throughput"),
+                                     responsiveness: value("responsiveness"), idleLatency: value("base_rtt"), date: date)
+        return result.download == nil && result.upload == nil ? nil : result
+    }
+
+    /// 測速常用的位元速率："17.2 Mbps"、"850 Kbps"、"1.2 Gbps"
+    static func bitRate(_ bitsPerSecond: Double) -> String {
+        let value = max(0, bitsPerSecond)
+        if value >= 999.5e6 { return String(format: "%.1f Gbps", value / 1e9) }
+        if value < 999.5e3, value > 0 { return String(format: "%.0f Kbps", value / 1e3) }
+        let mbps = value / 1e6
+        return String(format: mbps < 99.95 && mbps > 0 ? "%.1f Mbps" : "%.0f Mbps", mbps)
+    }
+}
