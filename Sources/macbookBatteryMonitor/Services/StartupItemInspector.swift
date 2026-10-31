@@ -7,7 +7,7 @@ enum StartupItemInspector {
     nonisolated static func inspect(_ item: StartupItem) -> StartupItemInfo {
         var info = StartupItemInfo()
         let fm = FileManager.default
-        info.programExists = item.path.isEmpty || !item.path.hasPrefix("/") || fm.fileExists(atPath: item.path)
+        info.programExists = !StartupItemLogic.isMissing(path: item.path, statError: StartupItemLogic.statError(item.path))
         info.vendorHint = item.label.flatMap { StartupItemInfoLogic.vendorHint(label: $0) }
 
         var authorized: [String] = []
@@ -50,9 +50,11 @@ enum StartupItemInspector {
               let dict = cfInfo as? [String: Any] else { return }
         info.teamID = dict[kSecCodeInfoTeamIdentifier as String] as? String
         info.identifier = dict[kSecCodeInfoIdentifier as String] as? String
+        // 簽章沒通過驗證時，憑證上的名字可能是假的，標明未驗證
+        let valid = SecStaticCodeCheckValidity(staticCode, [], nil) == errSecSuccess
         if let certs = dict[kSecCodeInfoCertificates as String] as? [SecCertificate], let leaf = certs.first,
            let summary = SecCertificateCopySubjectSummary(leaf) as String? {
-            info.signer = summary
+            info.signer = valid ? summary : summary + "（未驗證）"
         }
         if let plist = dict[kSecCodeInfoPList as String] as? [String: Any] {
             if let id = plist["CFBundleIdentifier"] as? String { info.identifier = id }

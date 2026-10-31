@@ -29,18 +29,6 @@ final class StartupItemsManager {
         end tell
     end run
     """
-    /// 路徑以參數傳入並用 quoted form 包起來，不會被當成 shell 指令。
-    /// 以管理員身分執行時多做三件事：垃圾桶必須是真正的資料夾（不是 symlink）、目的地已存在就不覆蓋（mv -n）、
-    /// 搬完把檔案還給使用者，之後從垃圾桶放回去或清空都不用再輸入密碼
-    private nonisolated static let adminMoveScript = """
-    on run argv
-        set src to quoted form of (item 1 of argv)
-        set dst to quoted form of (item 2 of argv)
-        set trashDir to quoted form of (item 3 of argv)
-        set uid to quoted form of (item 4 of argv)
-        do shell script "[ -d " & trashDir & " ] && [ ! -L " & trashDir & " ] && [ ! -e " & dst & " ] && /bin/mv -n " & src & " " & dst & " && /usr/sbin/chown " & uid & " " & dst with administrator privileges
-    end run
-    """
     private nonisolated static let removeScript = """
     on run argv
         tell application "System Events"
@@ -98,16 +86,14 @@ final class StartupItemsManager {
         if item.kind == .loginItem { removeLoginItem(item) } else { removeAgent(item) }
     }
 
-    /// 程式已經不存在的代理程式：把 plist 搬到垃圾桶（可以放回去）。系統層級的要管理員密碼
+    /// 程式已經不存在的使用者代理程式：把 plist 搬到垃圾桶（可以放回去）。系統層級的只列出，不提供任何需要管理員權限的操作
     private func removeAgent(_ item: StartupItem) {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        guard let plist = item.plistPath, let label = item.label, StartupItemLogic.isValidLabel(label),
+        guard item.kind == .userAgent, let plist = item.plistPath, let label = item.label, StartupItemLogic.isValidLabel(label),
               StartupItemLogic.isRemovablePlistPath(plist, home: home) else {
             message = "無法移除這個項目。"
             return
         }
-        let isUser = item.kind == .userAgent
-        let trash = "\(home)/.Trash"
         let uid = getuid()
         Task {
             let result = await Task.detached { () -> String? in
@@ -116,16 +102,9 @@ final class StartupItemsManager {
                       current.label == label, current.path == item.path, current.missing else {
                     return "這個項目剛剛已經變動，請重新整理後再試。"
                 }
-                if item.kind != .systemDaemon { _ = Self.run("/bin/launchctl", ["bootout", "gui/\(uid)/\(label)"]) }
-                if isUser {
-                    return (try? FileManager.default.trashItem(at: URL(fileURLWithPath: plist), resultingItemURL: nil)) != nil
-                        ? nil : "無法移除這個項目。"
-                }
-                let name = (plist as NSString).lastPathComponent
-                let target = trash + "/\(Int(Date().timeIntervalSince1970))-" + name
-                // 密碼視窗可能開很久；使用者慢慢輸入時不要被當成逾時中斷
-                let moved = Self.run("/usr/bin/osascript", ["-e", Self.adminMoveScript, plist, target, trash, String(uid)], timeout: 300)
-                return moved.status == 0 ? nil : "無法移除這個項目（可能取消了密碼輸入）。"
+                _ = Self.run("/bin/launchctl", ["bootout", "gui/\(uid)/\(label)"])
+                return (try? FileManager.default.trashItem(at: URL(fileURLWithPath: plist), resultingItemURL: nil)) != nil
+                    ? nil : "無法移除這個項目。"
             }.value
             message = result
             // 不管成功與否都重讀，用實際的檔案狀態更新畫面
@@ -189,6 +168,11 @@ final class StartupItemsManager {
             for name in names where name.hasSuffix(".plist") {
                 if let item = readAgent(at: "\(folder)/\(name)", kind: kind, disabled: disabled) { result.append(item) }
             }
+        }
+        let ownPath = Bundle.main.bundlePath
+        for index in result.indices where StartupItemLogic.isOwnItem(label: result[index].label, path: result[index].path,
+                                                                     ownLabel: LoginItem.label, ownBundlePath: ownPath) {
+            result[index].isOwn = true
         }
         return (StartupItemLogic.sorted(result), listing.status != 0)
     }

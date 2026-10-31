@@ -30,6 +30,8 @@ struct StartupItem: Identifiable, Equatable {
     var plistPath: String? = nil
     /// 指向的程式已經不存在（App 被刪掉但設定檔還在）
     var missing = false
+    /// 本 App 自己的登入項目或備援代理程式：停用會把正在跑的自己停掉，只顯示
+    var isOwn = false
 
     /// 圖示取自程式所在的 .app；不在 .app 裡時用程式本身
     var iconPath: String { StartupItemLogic.appBundlePath(of: path) ?? path }
@@ -42,13 +44,14 @@ struct StartupItem: Identifiable, Equatable {
 
     /// 只有使用者層級的第三方 LaunchAgent 能在這裡開關
     var canToggle: Bool {
-        kind == .userAgent && labelMatchesFile && label.map { !$0.hasPrefix("com.apple.") } == true
+        kind == .userAgent && !isOwn && labelMatchesFile && label.map { !$0.hasPrefix("com.apple.") } == true
     }
 
-    /// 登入項目隨時可移除；代理程式只有在程式已經不存在時才給移除
+    /// 登入項目是 .app 就可移除；使用者代理程式只有在程式已經不存在時才給移除。系統層級的只列出
     var canRemove: Bool {
-        if kind == .loginItem { return true }
-        guard missing, plistPath != nil, labelMatchesFile, let label else { return false }
+        guard !isOwn else { return false }
+        if kind == .loginItem { return StartupItemLogic.isValidAppPath(path) }
+        guard kind == .userAgent, missing, plistPath != nil, labelMatchesFile, let label else { return false }
         return !label.hasPrefix("com.apple.")
     }
 }
@@ -98,16 +101,37 @@ enum StartupItemLogic {
         return nil
     }
 
-    /// 刪除代理程式 plist 只允許這三個資料夾直接底下的 .plist
+    /// 刪除代理程式 plist 只允許使用者 LaunchAgents 資料夾直接底下的 .plist
     static func isRemovablePlistPath(_ path: String, home: String) -> Bool {
         guard path.hasSuffix(".plist"), !path.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return false }
         let url = URL(fileURLWithPath: path)
         guard url.standardizedFileURL.path == path else { return false }
-        return [home + "/Library/LaunchAgents", "/Library/LaunchAgents", "/Library/LaunchDaemons"].contains(url.deletingLastPathComponent().path)
+        return url.deletingLastPathComponent().path == home + "/Library/LaunchAgents"
+    }
+
+    /// 只有確定沒有這個檔案（ENOENT）才算程式不存在。外接磁碟沒接上、沒權限看的資料夾（EACCES）都不下結論
+    static func isMissing(path: String, statError: Int32) -> Bool {
+        guard path.hasPrefix("/"), path != "/Volumes", !path.hasPrefix("/Volumes/") else { return false }
+        return statError == ENOENT
+    }
+
+    /// stat 失敗時的 errno；成功回傳 0
+    static func statError(_ path: String) -> Int32 {
+        var info = stat()
+        return stat(path, &info) == 0 ? 0 : errno
+    }
+
+    /// 本 App 自己的項目：Label 相同，或指向本 App 的 bundle
+    static func isOwnItem(label: String?, path: String, ownLabel: String, ownBundlePath: String) -> Bool {
+        if label == ownLabel { return true }
+        let own = URL(fileURLWithPath: ownBundlePath).standardizedFileURL.path
+        guard path.hasPrefix("/") else { return false }
+        let target = URL(fileURLWithPath: path).standardizedFileURL.path
+        return target == own || target.hasPrefix(own + "/")
     }
 
     static func parseAgent(plist data: Data, fileName: String, kind: StartupItem.Kind, disabledLabels: Set<String>,
-                           plistPath: String? = nil, exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> StartupItem? {
+                           plistPath: String? = nil, statError: (String) -> Int32 = StartupItemLogic.statError) -> StartupItem? {
         guard let object = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
               let dict = object as? [String: Any] else { return nil }
         let fallback = fileName.hasSuffix(".plist") ? String(fileName.dropLast(6)) : fileName
@@ -120,7 +144,7 @@ enum StartupItemLogic {
                            kind: kind, label: label,
                            enabled: !disabledLabels.contains(label),
                            plistPath: plistPath,
-                           missing: executable.map { $0.hasPrefix("/") && !exists($0) } ?? false)
+                           missing: executable.map { isMissing(path: $0, statError: statError($0)) } ?? false)
     }
 
     /// osascript 的輸出：每行「名稱 TAB 路徑」

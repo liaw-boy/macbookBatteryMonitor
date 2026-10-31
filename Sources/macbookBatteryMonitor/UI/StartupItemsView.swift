@@ -25,7 +25,7 @@ struct StartupItemsView: View {
             Button("取消", role: .cancel) { pendingRemoval = nil }
         } message: {
             if let item = pendingRemoval, item.kind != .loginItem {
-                Text("「\(item.name)」的程式已經不存在。設定檔會移到垃圾桶，之後可以放回去。" + (item.kind == .userAgent ? "" : "系統層級的項目需要輸入管理員密碼。"))
+                Text("「\(item.name)」的程式已經不存在。設定檔會移到垃圾桶，之後可以放回去。")
             } else {
                 Text("「\(pendingRemoval?.name ?? "")」不會再於登入時打開，App 本身不會被刪除。")
             }
@@ -102,7 +102,7 @@ struct StartupItemsView: View {
             if let message = manager.message {
                 Text(message).font(.caption).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
-            Text("「背景 App 活動」與系統層級的項目只能在系統設定開關，這裡僅列出。停用使用者代理程式會在下次登入生效，並立刻停止目前執行中的那一份。")
+            Text("系統層級的項目只列出與顯示資訊，不能在這裡停用或移除。App 內用 SMAppService 註冊的背景項目不會出現在這裡，請到系統設定查看。停用使用者代理程式會在下次登入生效，並立刻停止目前執行中的那一份。")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
