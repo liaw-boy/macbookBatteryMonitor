@@ -4,14 +4,14 @@
 
 ## 為什麼有這份文件
 
-視窗切換器第一版（commit 3fbe460）的 WindowServer 查詢與視窗篩選，跟 alt-tab-macos（GPL-3.0）的對應程式碼在常數名稱、數值、結構欄位與查詢流程上幾乎一樣。本專案沒有授權條款、會散布執行檔，不能成為 GPL 作品的衍生作品，所以這幾個部分已經獨立重寫：
+視窗切換器第一版（commit 3fbe460）的 WindowServer 查詢與視窗篩選，跟 alt-tab-macos（GPL-3.0）的對應程式碼在常數名稱、數值、結構欄位與查詢流程上幾乎一樣。本專案以「保留所有權利」的條款（見根目錄 LICENSE）散布執行檔，不能成為 GPL 作品的衍生作品，所以這幾個部分已經獨立重寫：
 
 - 重寫時沒有讀、搜尋或憑記憶重現 alt-tab-macos 的原始碼；舊版的這幾段實作只看了其他檔案會呼叫的公開介面。
 - 來源只用三種：Apple 的公開 SDK 標頭、MIT 授權的 [yabai](https://github.com/koekeishiya/yabai)，以及在本機寫的一次性探測程式。
 - 能用公開 API 的就改用公開 API；名稱、結構、註解都是新寫的。
 - 舊版為了 Intel 上回傳 `CGRect` 的私有函式所做的特殊綁定已經不需要：新版的視窗位置改用公開的 `kCGWindowBounds`，沒有任何私有函式以傳回值回傳結構。
 
-yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07edd`（2026-06-14）為準，授權為 MIT（Copyright (c) 2019 Åsmund Vikane）。本專案只引用函式名稱、參數型別與數值這些關於 macOS 的事實，沒有複製 yabai 的程式碼。
+yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07edd`（2026-06-14）為準，授權為 MIT（Copyright (c) 2019 Åsmund Vikane）。本專案只引用函式名稱、參數型別與數值這些關於 macOS 的事實，並以本機探測確認；程式碼是自己寫的。早期版本曾依 yabai 的 `make_key_window` 組出 0xf8 位元組的事件記錄讓視窗成為作用中，後來已整段移除，改成切到視窗所在的 Space 後用「輔助使用」的 `kAXRaiseAction` 讓視窗成為作用中。
 
 ## 探測方式
 
@@ -34,7 +34,6 @@ yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07ed
 | `SLSWindowIteratorGetAttributes`、`SLSWindowIteratorGetTags` | 原始旗標，見下一節 | yabai `src/misc/extern.h` | 位元意義見下一節 |
 | `SLSHWCaptureWindowList` | 單一視窗截圖 | yabai `src/misc/extern.h` | 選項 `(1 << 11) \| (1 << 8)` 與回傳陣列要釋放，取自 yabai `src/window_manager.c` 擷取視窗代理圖的地方。探測：能取得自己視窗的 2 倍解析度圖 |
 | `_SLPSSetFrontProcessWithOptions` | 把行程與指定視窗帶到前面（可跨 Space） | yabai `src/misc/extern.h` | 模式 `0x200`（`kCPSUserGenerated`）見 yabai `src/window_manager.h` 與 `window_manager_focus_window_*` |
-| `SLPSPostEventRecordTo` | 讓指定視窗成為 key window | yabai `src/misc/extern.h` | 0xf8 位元組的事件記錄格式（`0x04`=0xf8、`0x08`=1 再 2、`0x20`–`0x2f`=0xff、`0x3a`=0x10、`0x3c` 起放視窗編號）取自 yabai `src/window_manager.c` 的 `window_manager_make_key_window`。探測：對自己隱藏中的 App 呼叫後，App 回到前面 |
 | `_AXUIElementGetWindow` | 「輔助使用」視窗物件對應的視窗編號 | yabai `src/misc/extern.h` | 改成以 `dlsym(RTLD_DEFAULT)` 載入；找不到時所有 AX 視窗都視為沒有編號（標題與 AX 操作停用，切換仍可走 WindowServer） |
 
 ## 公開 API

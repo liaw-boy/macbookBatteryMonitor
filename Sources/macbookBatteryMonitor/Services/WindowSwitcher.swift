@@ -111,8 +111,12 @@ final class WindowSwitcher {
     /// 放開修飾鍵的事件遺失（事件攔截中途被系統暫停）時，用實際的按鍵狀態結束切換
     private func settleIfReleased() {
         guard active else { return }
-        // 按鍵判斷已經不在切換中（被系統暫停後清空等）：不留下關不掉的切換器
-        guard let hold = InputTap.shared.activeHold() else { return end() }
+        // 按鍵判斷已經不在切換中：正常放開時攔截端先清掉狀態、確認切換已排在主執行緒，交給它處理；
+        // 只有攔截被系統暫停或失效（不會再有確認送來）時才自己結束，不留下關不掉的切換器
+        guard let hold = InputTap.shared.activeHold() else {
+            if !InputTap.shared.isRunning { end() }
+            return
+        }
         let flags = NSEvent.modifierFlags
         let held = (!hold.contains(.command) || flags.contains(.command)) && (!hold.contains(.option) || flags.contains(.option))
             && (!hold.contains(.control) || flags.contains(.control))

@@ -37,7 +37,6 @@ enum SkyLight {
     private typealias CursorFlags = @convention(c) (CFTypeRef) -> UInt64
     private typealias HardwareCapture = @convention(c) (Int32, UnsafeMutablePointer<UInt32>, Int32, UInt32) -> Unmanaged<CFArray>?
     private typealias BringProcessForward = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UInt32, UInt32) -> Int32
-    private typealias SendEventRecord = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> Int32
     private typealias SerialNumberForPID = @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
 
     private static let connectionID = resolve("SLSMainConnectionID", in: skyLight, as: MainConnectionID.self)
@@ -55,7 +54,6 @@ enum SkyLight {
     private static let cursorTags = resolve("SLSWindowIteratorGetTags", in: skyLight, as: CursorFlags.self)
     private static let hardwareCapture = resolve("SLSHWCaptureWindowList", in: skyLight, as: HardwareCapture.self)
     private static let bringForward = resolve("_SLPSSetFrontProcessWithOptions", in: skyLight, as: BringProcessForward.self)
-    private static let sendEventRecord = resolve("SLPSPostEventRecordTo", in: skyLight, as: SendEventRecord.self)
     // 公開標頭 HIServices/Processes.h 有宣告，但 Swift 不匯入 10.9 以前就淘汰的函式，只好動態找
     private static let serialNumberForPID = resolve("GetProcessForPID", in: anyImage, as: SerialNumberForPID.self)
 
@@ -180,21 +178,11 @@ enum SkyLight {
     /// kCPSUserGenerated（yabai window_manager.h）：當作使用者自己切換
     private static let userInitiated: UInt32 = 0x200
 
-    /// 把行程與它的某個視窗帶到前面，視窗不在目前 Space 也可以；做不到回傳 false
+    /// 把行程帶到前面並切到指定視窗所在的 Space；讓視窗成為作用中由呼叫的地方用「輔助使用」處理。做不到回傳 false
     static func focus(windowID: UInt32, pid: pid_t) -> Bool {
-        guard let bringForward, let sendEventRecord, let serialNumberForPID else { return false }
+        guard let bringForward, let serialNumberForPID else { return false }
         var process = ProcessSerialNumber()
         guard serialNumberForPID(pid, &process) == noErr, bringForward(&process, windowID, userInitiated) == 0 else { return false }
-        // 讓那個視窗成為 key window：同一筆記錄先送「按下」再送「放開」，格式依 yabai window_manager.c 的 make_key_window
-        var record = [UInt8](repeating: 0, count: 0xf8)
-        record[0x04] = 0xf8
-        record[0x3a] = 0x10
-        withUnsafeBytes(of: windowID.littleEndian) { record.replaceSubrange(0x3c..<0x40, with: $0) }
-        for offset in 0x20..<0x30 { record[offset] = 0xff }
-        for phase: UInt8 in [0x01, 0x02] {
-            record[0x08] = phase
-            _ = record.withUnsafeMutableBufferPointer { sendEventRecord(&process, $0.baseAddress!) }
-        }
         return true
     }
 }

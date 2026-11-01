@@ -264,7 +264,18 @@ final class WindowTracker {
                 return
             }
             if app.isHidden { app.unhide() }
-            if !SkyLight.focus(windowID: window.id, pid: window.pid) { app.activate() }
+            guard SkyLight.focus(windowID: window.id, pid: window.pid) else {
+                app.activate()
+                return
+            }
+            // 切到那個 Space 之後才讀得到它的視窗物件：稍等一下再讀一次，拉到最前面成為作用中
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                guard let self, request == self.focusRequest else { return }
+                self.withAXWindow(window) { [weak self] ax in
+                    guard let self, request == self.focusRequest, let ax else { return }
+                    Self.raise(ax.element, of: app)
+                }
+            }
         }
     }
 
