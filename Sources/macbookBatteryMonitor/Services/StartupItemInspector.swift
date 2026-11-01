@@ -42,6 +42,12 @@ enum StartupItemInspector {
         return StartupItemInfoLogic.friendlyName(fromIdentifier: id)
     }
 
+    /// 憑證鏈要接到 Apple 的根憑證：Apple 自己、Developer ID 與 Mac App Store 的簽章都符合
+    private nonisolated static let appleIssued: SecRequirement? = {
+        var requirement: SecRequirement?
+        return SecRequirementCreateWithString("anchor apple generic" as CFString, [], &requirement) == errSecSuccess ? requirement : nil
+    }()
+
     private nonisolated static func readSignature(at path: String, into info: inout StartupItemInfo, authorized: inout [String]) {
         var staticCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(URL(fileURLWithPath: path) as CFURL, [], &staticCode) == errSecSuccess, let staticCode else { return }
@@ -50,8 +56,8 @@ enum StartupItemInspector {
               let dict = cfInfo as? [String: Any] else { return }
         info.teamID = dict[kSecCodeInfoTeamIdentifier as String] as? String
         info.identifier = dict[kSecCodeInfoIdentifier as String] as? String
-        // 簽章沒通過驗證時，憑證上的名字可能是假的，標明未驗證
-        let valid = SecStaticCodeCheckValidity(staticCode, [], nil) == errSecSuccess
+        // 簽章沒通過驗證、或憑證不是 Apple 發的（自己簽的憑證可以取名叫「Apple」）時，名字可能是假的，標明未驗證
+        let valid = appleIssued.map { SecStaticCodeCheckValidity(staticCode, [], $0) == errSecSuccess } ?? false
         if let certs = dict[kSecCodeInfoCertificates as String] as? [SecCertificate], let leaf = certs.first,
            let summary = SecCertificateCopySubjectSummary(leaf) as String? {
             info.signer = valid ? summary : summary + "（未驗證）"
