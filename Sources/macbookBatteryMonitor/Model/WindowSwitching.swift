@@ -277,6 +277,8 @@ struct SwitcherKeys {
     private(set) var activeSlot: Int?
     /// 保持開啟模式下，修飾鍵已經放開、切換器留著等待確認
     private(set) var sticky = false
+    /// 每開始一次切換加一；切換器結束時用它確認結束的是同一次，不會打斷已經開始的下一次
+    private(set) var session = 0
     private var swallowedDown = Set<Int64>()
 
     init(shortcuts: [SwitcherShortcut] = [.commandTab], vimKeys: Bool = false, releaseCommits: Bool = true) {
@@ -309,6 +311,7 @@ struct SwitcherKeys {
         if let slot = shortcuts.firstIndex(where: { $0.keyCode == keyCode && $0.hold == held }) {
             let delta = modifiers.contains(.shift) ? -1 : 1
             let continuing = activeSlot == slot
+            if !continuing { session += 1 }
             activeSlot = slot
             sticky = false
             swallowedDown.insert(keyCode)
@@ -342,6 +345,12 @@ struct SwitcherKeys {
         }
         swallowedDown.insert(keyCode)
         return (true, action)
+    }
+
+    /// 切換器那邊結束了這次切換（清單空了、點了視窗、設定改變）。已經攔下的按鍵，放開時照樣攔下
+    mutating func endSwitching(session ended: Int) {
+        guard ended == session else { return }
+        _ = finish(.none)
     }
 
     private mutating func finish(_ action: Action) -> Action {

@@ -27,7 +27,8 @@ final class InputTap: @unchecked Sendable {
         return body()
     }
 
-    var isRunning: Bool { locked { port != nil } }
+    /// 攔截真的在運作：建立了、沒被系統作廢、也沒被暫停（設定頁的「運作中」看這個）
+    var isRunning: Bool { health() == .ok }
     var currentConfig: Config { locked { config } }
 
     /// 建立攔截並開一條執行緒跑它；沒有權限時回傳 false
@@ -96,6 +97,11 @@ final class InputTap: @unchecked Sendable {
         locked { keys = SwitcherKeys(shortcuts: keys.shortcuts, vimKeys: keys.vimKeys, releaseCommits: keys.releaseCommits) }
     }
 
+    /// 切換器結束了第 session 次切換：按鍵判斷離開這次切換（保持開啟模式也一樣），已經開始的下一次不受影響
+    func endSwitching(session: Int) {
+        locked { keys.endSwitching(session: session) }
+    }
+
     func health() -> Health {
         guard let port = locked({ self.port }) else { return .stopped }
         guard CFMachPortIsValid(port) else { return .invalid }
@@ -126,12 +132,12 @@ final class InputTap: @unchecked Sendable {
             if flags.contains(.maskShift) { modifiers.insert(.shift) }
             let kind: SwitcherKeys.Event = type == .keyDown ? .keyDown : type == .keyUp ? .keyUp : .flagsChanged
             let code = event.getIntegerValueField(.keyboardEventKeycode)
-            let result = locked {
-                config.keys ? keys.handle(kind, keyCode: code, modifiers: modifiers) : (swallow: false, action: .none)
+            let (result, session) = locked {
+                (config.keys ? keys.handle(kind, keyCode: code, modifiers: modifiers) : (swallow: false, action: .none), keys.session)
             }
             if result.action != .none {
                 let action = result.action
-                DispatchQueue.main.async { MainActor.assumeIsolated { WindowSwitcher.shared.handle(action) } }
+                DispatchQueue.main.async { MainActor.assumeIsolated { WindowSwitcher.shared.handle(action, keySession: session) } }
             }
             return result.swallow ? nil : pass
         default:
@@ -183,7 +189,9 @@ final class InputController {
     }
 
     private func check() {
-        if wanted.keys, AXIsProcessTrusted(), !WindowTracker.shared.isRunning { WindowTracker.shared.start() }
+        // 權限被收回時攔截可能仍顯示正常：交給 start 停掉
+        guard AXIsProcessTrusted() else { return start(reason: "定時檢查") }
+        if wanted.keys, !WindowTracker.shared.isRunning { WindowTracker.shared.start() }
         switch InputTap.shared.health() {
         case .ok: return
         case .disabled: InputTap.shared.reenable(reason: "檢查時發現被暫停")
@@ -193,6 +201,12 @@ final class InputController {
 
     private func start(reason: String) {
         guard AXIsProcessTrusted() else {
+            // 權限被收回：舊的攔截已經收不到事件，停掉它，設定頁才不會還顯示運作中
+            if InputTap.shared.health() != .stopped {
+                InputTap.shared.stop()
+                WindowSwitcher.shared.handle(.cancel)
+                InputTap.log.notice("沒有「輔助使用」權限，停止攔截")
+            }
             onChange?()
             return
         }

@@ -222,13 +222,21 @@ final class WindowTracker {
 
     // MARK: - 操作
 
-    /// 視窗的「輔助使用」物件。快取沒有時（剛換到全螢幕、剛開的視窗）現場讀一次，最多等 0.5 秒
-    func axWindow(_ window: SwitcherWindow) -> AXWindow? {
-        if let cached = cache[window.pid]?[window.id] { return cached }
-        guard !window.isWindowless, observers[window.pid] != nil else { return nil }
-        let fresh = Self.readWindows(window.pid)
-        cache[window.pid] = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return cache[window.pid]?[window.id]
+    /// 視窗的「輔助使用」物件交給 done（在主執行緒）。快取有就馬上給；沒有時（剛換到全螢幕、剛開的視窗）在背景佇列讀一次再給，
+    /// 沒回應的 App 最多讓背景等 0.5 秒，不會卡住主執行緒
+    private func withAXWindow(_ window: SwitcherWindow, _ done: @escaping @MainActor (AXWindow?) -> Void) {
+        if let cached = cache[window.pid]?[window.id] { return done(cached) }
+        guard !window.isWindowless, observers[window.pid] != nil else { return done(nil) }
+        let pid = window.pid, id = window.id
+        readQueue.async { [weak self] in
+            let fresh = Self.readWindows(pid)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    if let self, self.observers[pid] != nil { self.cache[pid] = Dictionary(fresh.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first }) }
+                    done(fresh.first { $0.id == id })
+                }
+            }
+        }
     }
 
     /// 切過去：有視窗物件就直接操作；在別的 Space 的視窗沒有物件，改用 WindowServer 的方式
@@ -244,12 +252,14 @@ final class WindowTracker {
             if let url = app.bundleURL { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) } else { app.activate() }
             return
         }
-        if let ax = axWindow(window) {
-            Self.raise(ax.element, of: app)
-            return
+        withAXWindow(window) { ax in
+            if let ax {
+                Self.raise(ax.element, of: app)
+                return
+            }
+            if app.isHidden { app.unhide() }
+            if !SkyLight.focus(windowID: window.id, pid: window.pid) { app.activate() }
         }
-        if app.isHidden { app.unhide() }
-        if !SkyLight.focus(windowID: window.id, pid: window.pid) { app.activate() }
     }
 
     /// 這個 App 自己的視窗：不經過「輔助使用」，直接用 AppKit
@@ -309,35 +319,46 @@ final class WindowTracker {
         case updated(minimized: Bool? = nil, fullscreen: Bool? = nil, hidden: Bool? = nil)
     }
 
-    @discardableResult
-    func perform(_ action: SwitcherWindowAction, on window: SwitcherWindow) -> Outcome {
-        guard let app = NSRunningApplication(processIdentifier: window.pid) else { return .removed }
-        if window.pid == ProcessInfo.processInfo.processIdentifier { return performOwn(action, on: window) }
+    /// 執行視窗動作，結果交給 done（在主執行緒；需要現場讀視窗物件時會晚一點才呼叫）
+    func perform(_ action: SwitcherWindowAction, on window: SwitcherWindow, done: @escaping @MainActor (Outcome) -> Void) {
+        guard let app = NSRunningApplication(processIdentifier: window.pid) else { return done(.removed) }
+        if window.pid == ProcessInfo.processInfo.processIdentifier { return done(performOwn(action, on: window)) }
         // 沒有視窗可以關、縮小、全螢幕；只有隱藏與結束 App 有意義
-        if window.isWindowless, ![.hide, .quit].contains(action) { return .unchanged }
+        if window.isWindowless, ![.hide, .quit].contains(action) { return done(.unchanged) }
         switch action {
-        case .close:
-            guard let ax = axWindow(window) else { return .unchanged }
-            var button: AnyObject?
-            guard AXUIElementCopyAttributeValue(ax.element, kAXCloseButtonAttribute as CFString, &button) == .success, let button,
-                  CFGetTypeID(button) == AXUIElementGetTypeID() else { return .unchanged }
-            AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
-            refresh(window.pid)
-            return .removed
-        case .minimize:
-            guard let ax = axWindow(window), let now = Self.toggle(ax.element, kAXMinimizedAttribute) else { return .unchanged }
-            refresh(window.pid)
-            return .updated(minimized: now)
-        case .fullscreen:
-            guard let ax = axWindow(window), let now = Self.toggle(ax.element, "AXFullScreen") else { return .unchanged }
-            refresh(window.pid)
-            return .updated(fullscreen: now)
+        case .close, .minimize, .fullscreen:
+            withAXWindow(window) { [weak self] ax in
+                guard let self, let ax else { return done(.unchanged) }
+                done(self.perform(action, on: ax.element, pid: window.pid))
+            }
         case .hide:
             if window.isHidden { app.unhide() } else { app.hide() }
-            return .updated(hidden: !window.isHidden)
+            done(.updated(hidden: !window.isHidden))
         case .quit:
             app.terminate()
+            done(.removed)
+        }
+    }
+
+    private func perform(_ action: SwitcherWindowAction, on element: AXUIElement, pid: pid_t) -> Outcome {
+        switch action {
+        case .close:
+            var button: AnyObject?
+            guard AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute as CFString, &button) == .success, let button,
+                  CFGetTypeID(button) == AXUIElementGetTypeID() else { return .unchanged }
+            AXUIElementPerformAction(button as! AXUIElement, kAXPressAction as CFString)
+            refresh(pid)
             return .removed
+        case .minimize:
+            guard let now = Self.toggle(element, kAXMinimizedAttribute) else { return .unchanged }
+            refresh(pid)
+            return .updated(minimized: now)
+        case .fullscreen:
+            guard let now = Self.toggle(element, "AXFullScreen") else { return .unchanged }
+            refresh(pid)
+            return .updated(fullscreen: now)
+        case .hide, .quit:
+            return .unchanged
         }
     }
 

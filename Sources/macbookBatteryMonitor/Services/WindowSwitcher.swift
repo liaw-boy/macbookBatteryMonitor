@@ -23,6 +23,8 @@ final class WindowSwitcher {
     private var releaseTimer: Timer?
     private var clickMonitor: Any?
     private var active = false
+    /// 這次切換在按鍵判斷那邊是第幾次（InputTap 傳來）；結束時用來讓按鍵判斷也結束同一次
+    private var keySession: Int?
     /// 預覽的世代：選取換了，舊的擷取結果不再顯示
     private var previewToken = 0
     private var shownMouse = NSEvent.mouseLocation
@@ -34,13 +36,17 @@ final class WindowSwitcher {
         settings = new
     }
 
-    func handle(_ action: SwitcherKeys.Action) {
+    func handle(_ action: SwitcherKeys.Action, keySession: Int? = nil) {
         switch action {
         case .start(let slot, let delta):
             if active { end() }
+            self.keySession = keySession
             begin(slot: slot, delta)
         case .step(let delta):
-            guard active else { return begin(slot: 0, delta) }
+            guard active else {
+                self.keySession = keySession
+                return begin(slot: 0, delta)
+            }
             model.select(SwitcherLayout.step(from: model.selected, delta: delta, count: model.items.count))
         case .move(let dx, let dy):
             guard active, !model.items.isEmpty else { return }
@@ -95,6 +101,7 @@ final class WindowSwitcher {
         releaseTimer?.invalidate()
         releaseTimer = nil
         show()
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { _ in
             MainActor.assumeIsolated {
                 InputTap.shared.cancelSwitching()
@@ -124,6 +131,9 @@ final class WindowSwitcher {
 
     private func end() {
         active = false
+        // 不論怎麼結束（含保持開啟模式下清單被關到空），按鍵判斷都要一起結束，否則方向鍵、W、Return 等會在所有 App 被攔下
+        if let keySession { InputTap.shared.endSwitching(session: keySession) }
+        keySession = nil
         showTimer?.invalidate()
         showTimer = nil
         releaseTimer?.invalidate()
@@ -144,7 +154,13 @@ final class WindowSwitcher {
 
     private func perform(_ action: SwitcherWindowAction, on window: SwitcherWindow) {
         guard active else { return }
-        switch WindowTracker.shared.perform(action, on: window) {
+        WindowTracker.shared.perform(action, on: window) { outcome in WindowSwitcher.shared.apply(outcome, to: window) }
+    }
+
+    /// 動作的結果可能晚一點才到（要先在背景讀視窗物件）：那時切換器已經關掉或換了清單就不處理
+    private func apply(_ outcome: WindowTracker.Outcome, to window: SwitcherWindow) {
+        guard active, model.items.contains(where: { $0.id == window.id }) else { return }
+        switch outcome {
         case .unchanged:
             break
         case .updated(let minimized, let fullscreen, let hidden):

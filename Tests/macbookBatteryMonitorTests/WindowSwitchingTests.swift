@@ -284,6 +284,28 @@ final class WindowSwitchingTests {
         XCTAssertTrue(press(&normal, 36, .command) == (false, .none))
     }
 
+    func testKeepOpenEndsWhenSwitcherEnds() {
+        var keys = SwitcherKeys(releaseCommits: false)
+        _ = press(&keys, 48, .command)
+        let session = keys.session
+        _ = keys.handle(.flagsChanged, keyCode: 55, modifiers: [])
+        // 保持開啟、清單只剩一個視窗：按 W 關掉它，切換器因為清單空了而結束
+        XCTAssertTrue(keys.handle(.keyDown, keyCode: 13, modifiers: []) == (true, .window(.close)))
+        keys.endSwitching(session: session)
+        XCTAssertTrue(!keys.active && !keys.sticky)
+        // W 自己的放開照樣攔下；之後方向鍵、W、M、F、H、Q、Return、Esc 都交還給 App
+        XCTAssertTrue(keys.handle(.keyUp, keyCode: 13, modifiers: []).swallow)
+        for code: Int64 in [123, 124, 125, 126, 13, 46, 3, 4, 12, 36, 76, 53] {
+            XCTAssertTrue(press(&keys, code, []) == (false, .none))
+        }
+        // 晚到的舊結束通知不會打斷已經開始的下一次切換
+        _ = press(&keys, 48, .command)
+        keys.endSwitching(session: session)
+        XCTAssertTrue(keys.active)
+        keys.endSwitching(session: keys.session)
+        XCTAssertTrue(!keys.active)
+    }
+
     func testShortcutValidationAndNames() {
         XCTAssertEqual(SwitcherShortcut.commandTab.displayName, "⌘ Tab")
         XCTAssertEqual(SwitcherShortcut(keyCode: 50, hold: [.control, .option]).displayName, "⌃⌥ `")
