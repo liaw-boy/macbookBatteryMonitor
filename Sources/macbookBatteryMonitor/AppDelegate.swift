@@ -396,7 +396,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // 剛好按著 Shift 時結束或更新重啟：送出排隊的按鍵、切回原本的輸入法
+        // 結束或更新重啟前停止攔截；剛好按著 Shift 時，還排在主佇列的按鍵會被丟掉，不會晚到別的 App
         InputSourceFix.shared.applyShift(false)
         store.adminCPU.stop()
         store.chargingWake.stop()

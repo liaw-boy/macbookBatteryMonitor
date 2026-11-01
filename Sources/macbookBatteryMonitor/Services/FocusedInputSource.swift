@@ -5,7 +5,7 @@ import Carbon
 /// 從背景程式呼叫 TISSelectInputSource 時，系統只先改全系統的設定，前景 App 常常沒跟上：
 /// 選單列顯示注音，打出來卻還是英文。改送 Text Services Manager 的切換要求給焦點 App 就會生效。
 /// 做法參考 macism（MIT，https://github.com/laishulu/macism）的說明；用到的都是私有符號，執行時才載入，
-/// 找不到或失敗時退回 TISSelectInputSource
+/// 找不到或失敗時，select 退回 TISSelectInputSource，selectInFocusedApp 回傳 false 交給呼叫端處理
 enum FocusedInputSource {
     private typealias KeyFocus = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<DarwinBoolean>) -> Int32
     private typealias ProcessPID = @convention(c) (UnsafePointer<ProcessSerialNumber>, UnsafeMutablePointer<pid_t>) -> OSStatus
@@ -46,7 +46,7 @@ enum FocusedInputSource {
     }
 
     private static func askFocusedApp(_ source: TISInputSource) -> Bool {
-        // 焦點在本 App 自己（例如設定視窗在最前面）：主執行緒等不到自己的回覆，直接用一般的切換
+        // 焦點在本 App 自己（例如設定視窗在最前面）：主執行緒等不到自己的回覆，回傳 false 交給呼叫端
         guard let remotePort, let flatten, let pid = focusedPID(), pid != getpid() else { return false }
         var flattened: Unmanaged<AnyObject>?
         guard flatten(source, &flattened).boolValue, let flat = flattened?.takeRetainedValue() else { return false }

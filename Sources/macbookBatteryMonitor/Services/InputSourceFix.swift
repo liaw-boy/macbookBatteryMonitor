@@ -48,7 +48,7 @@ final class InputSourceFix {
         guard enabled else {
             watchdog?.invalidate()
             watchdog = nil
-            // 停止會讓還排在主佇列的按鍵過期：之後只送出，不再送出組字
+            // 停止會讓還排在主佇列的按鍵過期：主執行緒拿到時直接丟掉（見 ShiftTap.send）
             tap.stop()
             if let sourceObserver { DistributedNotificationCenter.default().removeObserver(sourceObserver) }
             sourceObserver = nil
@@ -144,7 +144,7 @@ final class ShiftTap: @unchecked Sendable {
     /// 開始排隊的時間；主執行緒卡住太久時攔截這邊自己放行，整台 Mac 的鍵盤不會跟著卡死
     private var queuedSince: CFTimeInterval = 0
     private static let stuckAfter: CFTimeInterval = 1.0
-    /// 每次放行、停止、啟動加一；主執行緒拿到舊編號的按鍵就只送出
+    /// 每次放行、停止、啟動加一；主執行緒拿到舊編號的按鍵就丟掉
     private var currentGeneration = 0
     /// 交給主執行緒的按鍵（已轉換好）、要不要先送出組字、編號。只在攔截還沒啟動時設定
     var onDeferred: ((CGEvent, Bool, Int) -> Void)?
