@@ -27,8 +27,12 @@ enum FocusedInputSource {
     /// 先請焦點 App 切換，不行再用 TISSelectInputSource。回傳 noErr 表示切換已送出
     @discardableResult
     static func select(_ source: TISInputSource) -> OSStatus {
-        let tested = testedMajorVersions.contains(ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
-        return tested && askFocusedApp(source) ? noErr : TISSelectInputSource(source)
+        selectInFocusedApp(source) ? noErr : TISSelectInputSource(source)
+    }
+
+    /// 只請焦點 App 切換，不退回 TISSelectInputSource；沒送出回傳 false
+    static func selectInFocusedApp(_ source: TISInputSource) -> Bool {
+        testedMajorVersions.contains(ProcessInfo.processInfo.operatingSystemVersion.majorVersion) && askFocusedApp(source)
     }
 
     /// 接收按鍵的程式（不一定是最前面的 App，例如可以打字的浮動面板）
@@ -52,9 +56,10 @@ enum FocusedInputSource {
         // 同步送出：回來時 App 已經切好，接著送出的按鍵就會進新的輸入法。App 沒回應時送出、等回覆各最多 0.15 秒。
         // 等回覆時用自己的 run loop mode：用預設 mode 會在等待中處理下一個按鍵，順序會亂
         var reply: Unmanaged<CFData>?
-        guard CFMessagePortSendRequest(port, 7, data, 0.15, 0.15, "com.kuan.batterymonitor.tsmReply" as CFString, &reply) == kCFMessagePortSuccess else {
-            return false
-        }
+        let status = CFMessagePortSendRequest(port, 7, data, 0.15, 0.15, "com.kuan.batterymonitor.tsmReply" as CFString, &reply)
+        // 等回覆逾時：要求已經送到，App 忙完還是會切，當成已送出（否則呼叫端以為沒切、不會切回）
+        if status == kCFMessagePortReceiveTimeout { return true }
+        guard status == kCFMessagePortSuccess else { return false }
         // 回覆來自對方 App，只看大小合理的
         if let replyData = reply?.takeRetainedValue(), CFDataGetLength(replyData) < 4096,
            let dict = CFPropertyListCreateWithData(nil, replyData, 0, nil, nil)?.takeRetainedValue() as? [String: Any],
