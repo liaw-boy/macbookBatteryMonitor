@@ -178,7 +178,8 @@ enum SkyLight {
     /// kCPSUserGenerated（yabai window_manager.h）：當作使用者自己切換
     private static let userInitiated: UInt32 = 0x200
 
-    /// 把行程帶到前面並切到指定視窗所在的 Space；讓視窗成為作用中由呼叫的地方用「輔助使用」處理。做不到回傳 false
+    /// 把行程帶到前面，並告訴系統要的是哪個視窗。實測只呼叫它不會切 Space：切 Space 靠呼叫的地方再啟用 App，
+    /// 視窗成為作用中則用「輔助使用」處理。做不到回傳 false
     static func focus(windowID: UInt32, pid: pid_t) -> Bool {
         guard let bringForward, let serialNumberForPID else { return false }
         var process = ProcessSerialNumber()

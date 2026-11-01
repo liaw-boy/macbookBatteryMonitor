@@ -11,7 +11,7 @@
 - 能用公開 API 的就改用公開 API；名稱、結構、註解都是新寫的。
 - 舊版為了 Intel 上回傳 `CGRect` 的私有函式所做的特殊綁定已經不需要：新版的視窗位置改用公開的 `kCGWindowBounds`，沒有任何私有函式以傳回值回傳結構。
 
-yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07edd`（2026-06-14）為準，授權為 MIT（Copyright (c) 2019 Åsmund Vikane）。本專案只引用函式名稱、參數型別與數值這些關於 macOS 的事實，並以本機探測確認；程式碼是自己寫的。早期版本曾依 yabai 的 `make_key_window` 組出 0xf8 位元組的事件記錄讓視窗成為作用中，後來已整段移除，改成切到視窗所在的 Space 後用「輔助使用」的 `kAXRaiseAction` 讓視窗成為作用中。
+yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07edd`（2026-06-14）為準，授權為 MIT（Copyright (c) 2019 Åsmund Vikane）。本專案只引用函式名稱、參數型別與數值這些關於 macOS 的事實，並以本機探測確認；程式碼是自己寫的。早期版本曾依 yabai 的 `make_key_window` 組出 0xf8 位元組的事件記錄讓視窗成為作用中，後來已整段移除。實測只呼叫 `_SLPSSetFrontProcessWithOptions` 不會切 Space，所以改成再啟用 App，由 macOS 切到它有視窗的 Space（系統設定「切換到應用程式時，切換到有其打開視窗的空間」，預設開啟），等目標出現在畫面上後用「輔助使用」的 `kAXRaiseAction` 讓它成為作用中。
 
 ## 探測方式
 

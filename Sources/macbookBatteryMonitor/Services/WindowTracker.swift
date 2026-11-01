@@ -264,18 +264,28 @@ final class WindowTracker {
                 return
             }
             if app.isHidden { app.unhide() }
-            guard SkyLight.focus(windowID: window.id, pid: window.pid) else {
-                app.activate()
-                return
+            _ = SkyLight.focus(windowID: window.id, pid: window.pid)
+            // 光把行程帶到前面不會切 Space；強制啟用 App，macOS 會切到它有視窗的 Space（系統設定預設開啟）
+            AXUIElementSetAttributeValue(AXUIElementCreateApplication(app.processIdentifier), kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+            app.activate()
+            self.raiseWhenOnScreen(window, of: app, request: request, deadline: CACurrentMediaTime() + 1.5)
+        }
+    }
+
+    /// 切到目標的 Space 之後才讀得到它的視窗物件：每 0.1 秒看一次，出現在畫面上而且讀得到物件，就拉到最前面成為作用中。
+    /// 剛切過去時物件常常還讀不到，所以讀不到也繼續等，最多 1.5 秒
+    private func raiseWhenOnScreen(_ window: SwitcherWindow, of app: NSRunningApplication, request: Int, deadline: CFTimeInterval) {
+        guard request == focusRequest, CACurrentMediaTime() < deadline else { return }
+        let retry = { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self?.raiseWhenOnScreen(window, of: app, request: request, deadline: deadline)
             }
-            // 切到那個 Space 之後才讀得到它的視窗物件：稍等一下再讀一次，拉到最前面成為作用中
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                guard let self, request == self.focusRequest else { return }
-                self.withAXWindow(window) { [weak self] ax in
-                    guard let self, request == self.focusRequest, let ax else { return }
-                    Self.raise(ax.element, of: app)
-                }
-            }
+        }
+        guard SkyLight.onScreenFrontToBack().contains(window.id) else { return retry() }
+        withAXWindow(window) { [weak self] ax in
+            guard let self, request == self.focusRequest else { return }
+            guard let ax else { return retry() }
+            Self.raise(ax.element, of: app)
         }
     }
 
