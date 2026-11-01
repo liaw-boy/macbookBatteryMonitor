@@ -1,5 +1,5 @@
-/// 中文輸入法（例如內建注音）按住 Shift 打字母或數字那排會打出全形英文「Ａ」、全形符號「！」。這裡決定什麼時候暫時切到英文鍵盤：
-/// 按住 Shift 打第一個字母或數字那排時切過去（這個字就打成半形），放開 Shift 時切回原本的輸入法。
+/// 中文輸入法（例如內建注音）按住 Shift 打字會出現全形「Ａ」「！」「，」。這裡決定什麼時候暫時切到英文鍵盤：
+/// 按住 Shift 打第一個字時切過去（和英文鍵盤一樣，全部是半形），放開 Shift 時切回原本的輸入法。
 /// 只做判斷，切換與事件攔截在 InputSourceFix
 struct ShiftHalfWidth {
     enum Event {
@@ -14,8 +14,10 @@ struct ShiftHalfWidth {
                                            31, 32, 34, 35, 37, 38, 40, 45, 46]
     /// 數字那排 1～0、-、=（Shift 時是 !@#$%^&*()_+）
     static let numberRowKeyCodes: Set<Int> = [18, 19, 20, 21, 23, 22, 26, 28, 25, 29, 27, 24]
-    /// Shift + 這些鍵才處理。逗號、句號等標點不動：注音用 Shift 打「，」「。」
-    static let switchKeyCodes = letterKeyCodes.union(numberRowKeyCodes)
+    /// 標點鍵 ` [ ] \ ; ' , . /（Shift 時是 ~{}|:"<>?）。中文的「，」「。」改用其他方式打
+    static let punctuationKeyCodes: Set<Int> = [50, 33, 30, 42, 41, 39, 43, 47, 44]
+    /// Shift + 這些鍵才處理；空白鍵不動
+    static let switchKeyCodes = letterKeyCodes.union(numberRowKeyCodes).union(punctuationKeyCodes)
 
     /// 只對中文輸入法生效：不能直接打 ASCII、而且主要語言是中文。俄文、韓文、日文等鍵盤不處理
     static func isChineseInputMethod(languages: [String], asciiCapable: Bool) -> Bool {

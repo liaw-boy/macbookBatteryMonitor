@@ -314,7 +314,7 @@ struct SettingsView: View {
                     CardTitle("中文輸入法", systemImage: "keyboard")
                     SwitchRow("Caps Lock 切換中英不延遲", isOn: binding(\.capsLockNoDelay))
                     SwitchRow("按住 Shift 打半形英文與符號", isOn: binding(\.shiftHalfWidth))
-                    Text("macOS 為了防誤觸，Caps Lock 要按住一下才切換；打開後按一下就切。注音等中文輸入法按住 Shift 打字母或數字那排會變全形「Ａ」「！」；打開後按住 Shift 時暫時改用英文鍵盤，放開就切回原本的輸入法（逗號、句號照樣打出「，」「。」）。關掉「不延遲」後要重新開機才恢復原本的延遲。")
+                    Text("macOS 為了防誤觸，Caps Lock 要按住一下才切換；打開後按一下就切。注音等中文輸入法按住 Shift 打字會變全形「Ａ」「！」「，」；打開後按住 Shift 時和英文鍵盤一樣全部打出半形，放開就切回原本的輸入法（Shift + 逗號、句號會是 < >，中文標點請改用其他方式打）。關掉「不延遲」後要重新開機才恢復原本的延遲。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

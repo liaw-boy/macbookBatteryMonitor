@@ -147,7 +147,7 @@ final class InputSourceFix {
         case .switchToASCII:
             let current = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
             let ascii = TISCopyCurrentASCIICapableKeyboardLayoutInputSource().takeRetainedValue()
-            if TISSelectInputSource(ascii) == noErr {
+            if FocusedInputSource.select(ascii) == noErr {
                 // 上次切回失敗還留著目標時保留原本的，不要記成英文鍵盤
                 if restoreTo == nil { restoreTo = current }
                 switchedToID = Self.id(of: ascii)
@@ -217,7 +217,7 @@ final class InputSourceFix {
             switchedToID = nil
             return nil
         }
-        guard TISSelectInputSource(source) == noErr else {
+        guard FocusedInputSource.select(source) == noErr else {
             // 保留目標，下次放開 Shift、收尾或每 5 秒的檢查再試
             Self.log.error("切回原本的輸入法失敗")
             return nil

@@ -14,9 +14,8 @@ final class ShiftHalfWidthTests {
 
     func testLeavesOtherKeysAlone() {
         var logic = ShiftHalfWidth()
-        // 沒按 Shift、空白、逗號（注音用 Shift 打「，」）、Cmd/Ctrl/Option 組合、非中文輸入法：都不切
+        // 沒按 Shift、空白、Cmd/Ctrl/Option 組合、非中文輸入法：都不切
         XCTAssertEqual(logic.handle(.keyDown(keyCode: a, shift: false, otherModifiers: false), imeActive: true), .pass)
-        XCTAssertEqual(logic.handle(.keyDown(keyCode: comma, shift: true, otherModifiers: false), imeActive: true), .pass)
         XCTAssertEqual(logic.handle(.keyDown(keyCode: space, shift: true, otherModifiers: false), imeActive: true), .pass)
         XCTAssertEqual(logic.handle(.keyDown(keyCode: a, shift: true, otherModifiers: true), imeActive: true), .pass)
         XCTAssertEqual(logic.handle(.keyDown(keyCode: a, shift: true, otherModifiers: false), imeActive: false), .pass)
@@ -32,8 +31,10 @@ final class ShiftHalfWidthTests {
         XCTAssertEqual(logic.switched, false)
     }
 
-    /// 數字那排（!@#$%^&*()_+）也切到英文，打出半形符號
+    /// 數字那排（!@#$%^&*()_+）與標點鍵（<>?:"{}|~）也切到英文，和英文鍵盤一樣
     func testNumberRowSwitchesToo() {
+        var punctuation = ShiftHalfWidth()
+        XCTAssertEqual(punctuation.handle(.keyDown(keyCode: comma, shift: true, otherModifiers: false), imeActive: true), .switchToASCII)
         var logic = ShiftHalfWidth()
         XCTAssertEqual(logic.handle(.keyDown(keyCode: one, shift: true, otherModifiers: false), imeActive: true), .switchToASCII)
         XCTAssertEqual(logic.handle(.shiftReleased, imeActive: false), .restore)
