@@ -24,6 +24,7 @@ The app's interface is in Traditional Chinese. This README quotes the Chinese la
 - **Peripheral batteries**: Bluetooth keyboards, mice and trackpads (including Logitech, Razer and other Bluetooth LE devices) and the left bud, right bud and case of AirPods, each with its own low-battery notification
 - **System monitors**: CPU/GPU (with fans and temperatures), memory, disks (including external drives and drive health) and network (with a speed test), one menu bar icon each, or one shared icon for memory and disk; one switch turns them all off
 - **Separate mouse and trackpad scroll directions**: for example natural scrolling on the trackpad and the traditional direction on the mouse wheel
+- **Login items**: lists the apps, agents and daemons that start at login, shows what each one is and where it comes from, and lets you clear the user-level config files an uninstalled app left behind; system-level items are view-only
 - **Light on power**: updates every second by default and uses about 0.2% CPU with the panel closed; slower update intervals and a power saving mode are available
 - **One-click updates that keep permissions**: one click in Settings downloads, verifies and installs the new version; only versions carrying the publisher's update signature and signed with the same certificate are installed; Accessibility and Bluetooth permissions don't have to be granted again
 - **Never changes charging behind your back**: the charge limit only changes when you drag the slider or set up smart charging; macOS itself stops charging at the limit
@@ -142,6 +143,7 @@ Click the gear at the bottom right of the panel, or "設定…" (Settings…) in
 | 周邊設備 (Peripherals) | Each device's low-battery notification |
 | 滑鼠與觸控板 (Mouse & trackpad) | Separate scroll directions |
 | 視窗切換 (Window switching) | The window switcher that replaces Cmd+Tab: shortcuts, appearance, which windows to list, exceptions |
+| 登入項目 (Login items) | What starts at login: list, add and remove, disable, and where each one comes from (see "[Login items](#login-items)") |
 | 更新 (Update) | One-click update, automatic checks and new-version notifications |
 
 Desktop Macs have no Charging or Charging companion sections. The panel's gear reopens the section you last viewed, "有新版本" (new version available) opens Update, and the gear in a monitor panel opens Monitoring & power saving.
@@ -245,6 +247,18 @@ Turn on "用視窗切換取代 Cmd+Tab" (replace Cmd+Tab with window switching) 
 - **Privacy**: window titles are never logged or uploaded; with the switch off no keys are intercepted
 
 The system integration uses private macOS functions, all loaded at run time and disabled if missing; their sources are listed in [docs/design/window-server-provenance.md](docs/design/window-server-provenance.md) (Chinese).
+## Login items
+
+Settings → 登入項目 (Login items) lists everything that starts by itself when you log in, and explains what each one is, where it comes from and which app it belongs to. System Settings' "Login Items & Extensions" only lists app names; this also shows background agents and daemons.
+
+- **Sources**: the "open at login" items, `~/Library/LaunchAgents`, `/Library/LaunchAgents` and `/Library/LaunchDaemons`. Every row has an icon, and items whose program no longer exists say so
+- **What you can do**: add or remove "open at login" apps; disable or enable your own (user-level) agents. Disabling takes effect at the next login and also stops the copy that is running now. Every action asks first. This app's own login item and agent are listed only and can't be disabled or removed here
+- **System-level items are view-only**: items in `/Library/LaunchAgents` and `/Library/LaunchDaemons` are listed with their details (you can reveal the file in Finder), but can't be disabled or removed, and nothing asks for an admin password
+- **Items whose program is gone**: when a user-level agent points to a program that definitely no longer exists, you can move its config file to the Trash here (and put it back later). Programs on external drives (`/Volumes`) or in folders this app can't read are never judged missing. Apple's own items and items whose program still exists have no remove button
+- **Detail page** (the ⓘ on each row): program path, identifier, the signer on the certificate (marked "未驗證" (unverified) when the signature doesn't validate), related apps (declared by the helper itself, or inferred from leftover preference file names and marked as inferred) and the full paths of possibly related files, each of which you can reveal in Finder or copy. It re-reads when you come back to the settings window. "Search the web" only opens your browser's search engine when you press it and sends nothing but the identifier
+- **Information only**: leftover files are listed by path and never deleted for you; similarly named files may belong to other software, so check before you act
+- **Limits**: system-level items can only be switched in System Settings; background items that apps register with SMAppService inside their own bundle aren't listed here, so check System Settings for those; macOS has no public way to toggle other apps' background items
+- **Permission**: reading, adding and removing "open at login" items needs you to allow this app to control System Events (System Settings → Privacy & Security → Automation); macOS asks the first time. If you decline, the other sources still list
 
 ## App icon
 
@@ -401,7 +415,7 @@ CPU usage measured on an M1 MacBook Air:
 | CPU panel temperatures | IOHIDEventSystem temperature sensors (private interface, hidden if missing); SMC core temperature keys on M2 chips; Intel: see "Intel Macs" |
 | Network speed and totals | 64-bit interface counters from `sysctl` (`NET_RT_IFLIST2`), active interface only |
 | Network interface and IP | `SCDynamicStore` (default route interface), `getifaddrs` |
-| Network speed test | macOS's built-in `/usr/bin/networkQuality -c` (Apple's test servers; limited to 30 seconds when the system's `networkQuality` has `-M`, and force-stopped if not done after 60 either way; idle latency shows "—" when it isn't reported), only when 「開始測速」 is pressed; the live rates during the test come from the interface counters above |
+| Network speed test | macOS's built-in `/usr/bin/networkQuality -c` (Apple's test servers; limited to 30 seconds when the system's `networkQuality` has `-M`, and force-stopped if not done after 60 either way; idle latency shows "—" when it isn't reported; a download or upload reported as 0 wasn't measured, for example because the upload connections timed out, so it also shows "—" with a hint to test again), only when 「開始測速」 is pressed; the live rates during the test come from the interface counters above |
 | Top CPU / memory apps | `top -o cpu`, `top -o mem` |
 | Peripheral batteries (keyboards, mice, trackpads) | IORegistry services with `BatteryPercent` |
 | Peripheral batteries (Bluetooth LE mice, keyboards) | CoreBluetooth: the Battery Level (`0x2A19`) of the standard Battery Service (`0x180F`) on connected devices, Bluetooth permission required; the IORegistry HID usage tells mice and keyboards apart when the name doesn't |
@@ -539,4 +553,15 @@ The cat in the app icon is `Resources/icon-cat.png` (a cut-out photo); the charg
 ## Thanks
 
 - [@melvin0kuo](https://github.com/melvin0kuo): animated power flow, layered component power, power sensor fallbacks, percentage inside the menu bar icon, stable full-charge display and admin CPU sampling (#1, #2, #4–#7), and the ideas for smart charging, charging schedules and the daily recap (#13)
-- [@liaw-boy](https://github.com/liaw-boy): external disks, fans and temperatures, menu bar icon alignment on 1x screens, the layout idea of merging the charge limit slider into the info card, closing the panel by clicking outside, and power saving only on battery (#8–#10, #12); the network speed test and the shared memory and disk icon (#15, #16)
+- [@liaw-boy](https://github.com/liaw-boy): external disks, fans and temperatures, menu bar icon alignment on 1x screens, the layout idea of merging the charge limit slider into the info card, closing the panel by clicking outside, and power saving only on battery (#8–#10, #12); the network speed test and the shared memory and disk icon (#15, #16); the login items page (#20)
+
+## License
+
+Copyright © 2026 TSENG KUAN-CHENG and contributors. All rights reserved. This is not an open source license:
+
+- The source code is public for viewing; you may build and modify it on your own devices for personal use or to prepare a contribution, but you may not distribute it
+- Builds published on [Releases](https://github.com/sgeric910601/macbookBatteryMonitor/releases) (including pre-releases and in-app updates) are free to download and use
+- Submitting a pull request means you agree to the contribution terms in section 4 of the LICENSE
+- The cat photos and animations in the app icon, the charging companion and the desktop pet were provided by others; their copyright belongs to their rights holders
+
+See [LICENSE](LICENSE) for the full terms. If the English and Chinese versions differ, the Chinese version prevails.
