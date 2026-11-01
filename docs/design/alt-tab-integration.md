@@ -2,6 +2,8 @@
 
 狀態：已在本機實作並實機測試，尚未送出實作的 PR。分析對象是 alt-tab-macos v11.10.1（2026-10-23）。這份文件記錄做了什麼、為什麼這樣做、還沒做什麼。
 
+> 後續：審查發現第一版的 WindowServer 查詢（`Services/SkyLight.swift`）與視窗篩選（原 `WindowServerWindow`／`WindowAdmission`）跟 alt-tab-macos 的程式碼過於相近，之後已不參考 alt-tab 原始碼獨立重寫，改名為 `ServerWindowRecord`、`ServerWindowBits`、`WindowCandidacy`，並盡量改用公開 API。每個私有符號與常數的出處見 [window-server-provenance.md](window-server-provenance.md)。下文描述的是第一版的狀態，保留作為紀錄；其中「回傳 `CGRect` 的函式必須以 `@convention(c)` 綁定」一項在重寫後已不適用。
+
 ## 授權與做法
 
 alt-tab-macos 是 GPL-3.0。本專案沒有 LICENSE 檔，也不打算改成 GPL，所以：

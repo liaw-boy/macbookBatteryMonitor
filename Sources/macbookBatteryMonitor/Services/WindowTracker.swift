@@ -175,26 +175,24 @@ final class WindowTracker {
         let numberOfSpace = Dictionary(displays.flatMap { display in display.spaces.enumerated().map { ($1, $0 + 1) } }, uniquingKeysWith: { first, _ in first })
         let displayOfSpace = Dictionary(displays.flatMap { display in display.spaces.map { ($0, display.identifier) } }, uniquingKeysWith: { first, _ in first })
         let allSpaces = displays.flatMap(\.spaces)
-        // 由前到後；沒排進畫面的視窗（縮到 Dock、隱藏、別的 Space、幻影）不在這份清單裡
-        let stacking = SkyLight.windowIDs(inSpaces: allSpaces)
-        let candidates = SkyLight.query(SkyLight.windowIDs(inSpaces: allSpaces, includeInvisible: true))
+        // 由前到後；沒畫在畫面上的視窗（縮到 Dock、隱藏、別的 Space、幻影）不在這份清單裡
+        let stacking = SkyLight.onScreenFrontToBack()
         var windows: [SwitcherWindow] = []
-        for server in candidates {
-            guard let app = apps[server.pid] else { continue }
-            let spaces = SkyLight.spaces(of: server.id)
-            guard WindowAdmission.verdict(server, spaces: spaces, currentSpaces: currentSpaces) == .admit else { continue }
-            let ax = cache[server.pid]?[server.id]
+        for record in SkyLight.windows(in: allSpaces, ownedBy: Set(apps.keys)) {
+            guard let app = apps[record.ownerPID], WindowCandidacy.of(record, visibleSpaces: currentSpaces) == .listed else { continue }
+            let ax = cache[record.ownerPID]?[record.windowID]
             // 「輔助使用」明確說不是一般視窗（對話框、工具面板）就不列；沒有資料時相信 WindowServer
             if let ax, !ax.isStandard { continue }
-            let title = ax?.title.isEmpty == false ? ax!.title : server.title
-            windows.append(SwitcherWindow(id: server.id, pid: server.pid, appName: app.localizedName ?? "", bundleID: app.bundleIdentifier, title: title,
-                                          isMinimized: WindowAdmission.isMinimized(server) || ax?.isMinimized == true,
-                                          isHidden: app.isHidden || WindowAdmission.isAppHidden(server),
-                                          isFullscreen: WindowAdmission.isFullscreen(server) || ax?.isFullscreen == true,
+            let title = ax?.title.isEmpty == false ? ax!.title : record.name
+            let spaces = record.spaces
+            windows.append(SwitcherWindow(id: record.windowID, pid: record.ownerPID, appName: app.localizedName ?? "", bundleID: app.bundleIdentifier, title: title,
+                                          isMinimized: record.minimized || ax?.isMinimized == true,
+                                          isHidden: app.isHidden || record.hiddenWithApp,
+                                          isFullscreen: record.onFullscreenSpace || ax?.isFullscreen == true,
                                           spaces: spaces, displayID: spaces.first.flatMap { displayOfSpace[$0] },
                                           spaceNumber: Self.spaceNumber(of: spaces, current: currentSpaces, numbers: numberOfSpace),
-                                          aspect: server.frame.height > 0 ? server.frame.width / server.frame.height : 1.6,
-                                          frame: server.frame))
+                                          aspect: record.bounds.height > 0 ? record.bounds.width / record.bounds.height : 1.6,
+                                          frame: record.bounds))
         }
         recency.prune(keeping: Set(windows.map(\.id)))
         let appsWithWindows = Set(windows.map(\.pid))

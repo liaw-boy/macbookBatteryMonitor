@@ -2,180 +2,212 @@ import AppKit
 import ApplicationServices
 import OSLog
 
-/// 系統私有的 SkyLight（WindowServer 的介面）：列出所有 Space 的視窗、視窗在哪個 Space、視窗截圖、指定視窗帶到最前面。
-/// 全部用 dlsym 取得；任何一個找不到（系統更新移除了）對應功能就停用，其他功能照常運作，不會崩潰。
-/// 這些是私有介面，macOS 大版本更新後要重新驗證
+/// 跟 WindowServer 打交道的地方：Space 清單、某些 Space 上有哪些視窗、截圖、把指定視窗帶到前面。
+/// 能用公開 API 的就用公開 API（CGWindowListCopyWindowInfo 給擁有者、層級、透明度、位置、名稱）；
+/// 公開 API 沒有的（Space、縮小與隱藏的標記、父視窗、截圖、跨 Space 切換）才用 SkyLight 私有函式。
+/// 私有函式一律在第一次用到時以 dlsym 載入，缺哪一個就只停用依賴它的功能。
+/// 每個私有符號、常數的出處與實測結果見 docs/design/window-server-provenance.md；macOS 大版本更新後要重跑實測
 enum SkyLight {
-    static let log = Logger(subsystem: "com.kuan.batterymonitor", category: "skylight")
+    private static let log = Logger(subsystem: "com.kuan.batterymonitor", category: "windowserver")
 
-    private typealias MainConnection = @convention(c) () -> Int32
-    private typealias ManagedSpaces = @convention(c) (Int32) -> Unmanaged<CFArray>?
-    private typealias SpacesForWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
-    private typealias WindowsWithOptions = @convention(c) (Int32, Int32, CFArray, Int32, UnsafeMutablePointer<UInt64>, UnsafeMutablePointer<UInt64>) -> Unmanaged<CFArray>?
-    private typealias HWCapture = @convention(c) (Int32, UnsafeMutablePointer<UInt32>, UInt32, UInt32) -> Unmanaged<CFArray>?
-    private typealias SetFrontProcess = @convention(c) (UnsafeMutableRawPointer, UInt32, UInt32) -> Int32
-    private typealias QueryWindows = @convention(c) (Int32, CFArray, Int32) -> Unmanaged<CFTypeRef>?
-    private typealias QueryResultWindows = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
-    private typealias IteratorAdvance = @convention(c) (CFTypeRef) -> Bool
-    private typealias IteratorUInt32 = @convention(c) (CFTypeRef) -> UInt32
-    private typealias IteratorInt32 = @convention(c) (CFTypeRef) -> Int32
-    private typealias IteratorUInt64 = @convention(c) (CFTypeRef) -> UInt64
-    private typealias IteratorFloat = @convention(c) (CFTypeRef) -> Float
-    private typealias IteratorTitle = @convention(c) (CFTypeRef) -> Unmanaged<CFString>?
-    /// 回傳 CGRect 這種 32 位元組的結構：x86_64 用隱藏的指標回傳、arm64 用暫存器，一定要用 C 的呼叫慣例綁定，
-    /// 否則 Intel 上下一次呼叫會在 SkyLight 裡崩潰
-    private typealias IteratorBounds = @convention(c) (UnsafeRawPointer) -> CGRect
-    private typealias ProcessForPID = @convention(c) (pid_t, UnsafeMutableRawPointer) -> Int32
-    private typealias PostEventRecord = @convention(c) (UnsafeMutableRawPointer, UnsafeMutablePointer<UInt8>) -> Int32
+    private static let skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY)
+    /// <dlfcn.h> 的 RTLD_DEFAULT（(void *)-2）：在已載入的所有映像檔裡找
+    private static let anyImage = UnsafeMutableRawPointer(bitPattern: -2)
 
-    private static let handle = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_NOW)
-
-    /// 預設只在 SkyLight 裡找；SkyLight 載不進來就全部停用。anywhere 為 true 時才在所有已載入的框架裡找
-    /// （GetProcessForPID 在 ApplicationServices），只限這種明確列出的名稱，避免同名符號解析到別處
-    private static func function<T>(_ name: String, _ type: T.Type, anywhere: Bool = false) -> T? {
-        let symbol: UnsafeMutableRawPointer?
-        if let handle {
-            symbol = dlsym(handle, name) ?? (anywhere ? dlsym(UnsafeMutableRawPointer(bitPattern: -2), name) : nil)
-        } else {
-            symbol = nil
+    private static func resolve<Signature>(_ name: String, in image: UnsafeMutableRawPointer?, as _: Signature.Type) -> Signature? {
+        guard let image, let address = dlsym(image, name) else {
+            log.error("找不到 \(name, privacy: .public)，依賴它的功能停用")
+            return nil
         }
-        guard let symbol else { return nil }
-        return unsafeBitCast(symbol, to: type)
+        return unsafeBitCast(address, to: Signature.self)
     }
 
-    private static let mainConnection = function("SLSMainConnectionID", MainConnection.self)
-    private static let managedSpaces = function("SLSCopyManagedDisplaySpaces", ManagedSpaces.self)
-    private static let spacesForWindows = function("SLSCopySpacesForWindows", SpacesForWindows.self)
-    private static let windowsWithOptions = function("SLSCopyWindowsWithOptionsAndTags", WindowsWithOptions.self)
-    private static let hwCapture = function("CGSHWCaptureWindowList", HWCapture.self)
-    private static let setFrontProcess = function("_SLPSSetFrontProcessWithOptions", SetFrontProcess.self)
-    private static let queryWindows = function("SLSWindowQueryWindows", QueryWindows.self)
-    private static let queryResultWindows = function("SLSWindowQueryResultCopyWindows", QueryResultWindows.self)
-    private static let iteratorAdvance = function("SLSWindowIteratorAdvance", IteratorAdvance.self)
-    private static let iteratorID = function("SLSWindowIteratorGetWindowID", IteratorUInt32.self)
-    private static let iteratorPID = function("SLSWindowIteratorGetPID", IteratorInt32.self)
-    private static let iteratorAttributes = function("SLSWindowIteratorGetAttributes", IteratorUInt64.self)
-    private static let iteratorTags = function("SLSWindowIteratorGetTags", IteratorUInt64.self)
-    private static let iteratorLevel = function("SLSWindowIteratorGetLevel", IteratorInt32.self)
-    private static let iteratorSpaceTypeMask = function("SLSWindowIteratorGetSpaceTypeMask", IteratorUInt64.self)
-    private static let iteratorAlpha = function("SLSWindowIteratorGetAlpha", IteratorFloat.self)
-    private static let iteratorParent = function("SLSWindowIteratorGetParentID", IteratorUInt32.self)
-    private static let iteratorTitle = function("SLSWindowIteratorCopyTitle", IteratorTitle.self)
-    private static let iteratorBounds = function("SLSWindowIteratorGetBounds", IteratorBounds.self)
-    private static let processForPID = function("GetProcessForPID", ProcessForPID.self, anywhere: true)
-    private static let postEventRecord = function("SLPSPostEventRecordTo", PostEventRecord.self)
+    // MARK: - 函式型別（參數依 yabai src/misc/extern.h 的宣告）
 
-    private static let connection: Int32? = mainConnection?()
+    private typealias MainConnectionID = @convention(c) () -> Int32
+    private typealias CopyArrayForConnection = @convention(c) (Int32) -> Unmanaged<CFArray>?
+    private typealias CurrentSpaceForDisplay = @convention(c) (Int32, CFString) -> UInt64
+    private typealias SpaceKind = @convention(c) (Int32, UInt64) -> Int32
+    private typealias CopyWindowsInSpaces = @convention(c) (Int32, UInt32, CFArray, UInt32, UnsafeMutablePointer<UInt64>, UnsafeMutablePointer<UInt64>) -> Unmanaged<CFArray>?
+    private typealias CopySpacesOfWindows = @convention(c) (Int32, Int32, CFArray) -> Unmanaged<CFArray>?
+    private typealias StartWindowQuery = @convention(c) (Int32, CFArray, Int32) -> Unmanaged<CFTypeRef>?
+    private typealias CopyQueryWindows = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
+    private typealias CursorStep = @convention(c) (CFTypeRef) -> Bool
+    private typealias CursorWord = @convention(c) (CFTypeRef) -> UInt32
+    private typealias CursorFlags = @convention(c) (CFTypeRef) -> UInt64
+    private typealias HardwareCapture = @convention(c) (Int32, UnsafeMutablePointer<UInt32>, Int32, UInt32) -> Unmanaged<CFArray>?
+    private typealias BringProcessForward = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UInt32, UInt32) -> Int32
+    private typealias SendEventRecord = @convention(c) (UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> Int32
+    private typealias SerialNumberForPID = @convention(c) (pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus
 
-    /// 截圖選項：最佳解析度、忽略全域裁切（視窗被別的視窗蓋住也拍整個）
-    private static let captureOptions: UInt32 = (1 << 8) | (1 << 11)
+    private static let connectionID = resolve("SLSMainConnectionID", in: skyLight, as: MainConnectionID.self)
+    private static let copyDisplaySpaces = resolve("SLSCopyManagedDisplaySpaces", in: skyLight, as: CopyArrayForConnection.self)
+    private static let currentSpace = resolve("SLSManagedDisplayGetCurrentSpace", in: skyLight, as: CurrentSpaceForDisplay.self)
+    private static let spaceKind = resolve("SLSSpaceGetType", in: skyLight, as: SpaceKind.self)
+    private static let copyWindowsInSpaces = resolve("SLSCopyWindowsWithOptionsAndTags", in: skyLight, as: CopyWindowsInSpaces.self)
+    private static let copySpacesOfWindows = resolve("SLSCopySpacesForWindows", in: skyLight, as: CopySpacesOfWindows.self)
+    private static let startQuery = resolve("SLSWindowQueryWindows", in: skyLight, as: StartWindowQuery.self)
+    private static let queryWindows = resolve("SLSWindowQueryResultCopyWindows", in: skyLight, as: CopyQueryWindows.self)
+    private static let cursorAdvance = resolve("SLSWindowIteratorAdvance", in: skyLight, as: CursorStep.self)
+    private static let cursorWindowID = resolve("SLSWindowIteratorGetWindowID", in: skyLight, as: CursorWord.self)
+    private static let cursorParentID = resolve("SLSWindowIteratorGetParentID", in: skyLight, as: CursorWord.self)
+    private static let cursorAttributes = resolve("SLSWindowIteratorGetAttributes", in: skyLight, as: CursorFlags.self)
+    private static let cursorTags = resolve("SLSWindowIteratorGetTags", in: skyLight, as: CursorFlags.self)
+    private static let hardwareCapture = resolve("SLSHWCaptureWindowList", in: skyLight, as: HardwareCapture.self)
+    private static let bringForward = resolve("_SLPSSetFrontProcessWithOptions", in: skyLight, as: BringProcessForward.self)
+    private static let sendEventRecord = resolve("SLPSPostEventRecordTo", in: skyLight, as: SendEventRecord.self)
+    // 公開標頭 HIServices/Processes.h 有宣告，但 Swift 不匯入 10.9 以前就淘汰的函式，只好動態找
+    private static let serialNumberForPID = resolve("GetProcessForPID", in: anyImage, as: SerialNumberForPID.self)
 
-    static var canListSpaces: Bool { connection != nil && managedSpaces != nil && windowsWithOptions != nil && spacesForWindows != nil }
-    static var canQueryWindows: Bool {
-        connection != nil && queryWindows != nil && queryResultWindows != nil && iteratorAdvance != nil && iteratorID != nil && iteratorPID != nil
-            && iteratorAttributes != nil && iteratorTags != nil && iteratorLevel != nil && iteratorSpaceTypeMask != nil && iteratorAlpha != nil
-            && iteratorParent != nil && iteratorTitle != nil && iteratorBounds != nil
-    }
-    static var canCapture: Bool { connection != nil && hwCapture != nil }
-    static var canFocusAcrossSpaces: Bool { setFrontProcess != nil && postEventRecord != nil && processForPID != nil }
+    private static let connection: Int32? = connectionID?()
+
+    // MARK: - Space
 
     struct Display: Equatable {
+        /// 螢幕的 UUID 字串；「顯示器有各自的 Space」關閉時所有螢幕合成一個
         var identifier: String
         var spaces: [UInt64]
         var current: UInt64?
     }
 
-    /// 每個螢幕的 Space 與目前顯示的那個。「顯示器有各自的 Space」關閉時所有螢幕合成一個，識別碼是 "Main"
     static func displays() -> [Display] {
-        guard let connection, let managedSpaces, let raw = managedSpaces(connection)?.takeRetainedValue() as? [[String: Any]] else { return [] }
-        return raw.map { display in
-            let spaces = (display["Spaces"] as? [[String: Any]] ?? []).compactMap { ($0["id64"] as? NSNumber)?.uint64Value }
-            let current = ((display["Current Space"] as? [String: Any])?["id64"] as? NSNumber)?.uint64Value
-            return Display(identifier: display["Display Identifier"] as? String ?? "", spaces: spaces, current: current)
+        guard let connection, let copyDisplaySpaces,
+              let list = copyDisplaySpaces(connection)?.takeRetainedValue() as? [[String: Any]] else { return [] }
+        return list.compactMap { entry in
+            guard let identifier = entry["Display Identifier"] as? String else { return nil }
+            let spaces = (entry["Spaces"] as? [[String: Any]] ?? []).compactMap { ($0["id64"] as? NSNumber)?.uint64Value }
+            let shown = currentSpace.map { $0(connection, identifier as CFString) }
+            return Display(identifier: identifier, spaces: spaces, current: shown.flatMap { $0 == 0 ? nil : $0 })
         }
     }
 
-    /// 所有 Space（包括沒在顯示的）上的視窗編號，由前到後。includeInvisible 連沒排進畫面的視窗（縮到 Dock、隱藏、幻影）一起列出
-    static func windowIDs(inSpaces spaces: [UInt64], includeInvisible: Bool = false) -> [UInt32] {
-        guard let connection, let windowsWithOptions, !spaces.isEmpty else { return [] }
-        var set: UInt64 = 0, clear: UInt64 = 0
-        let options: Int32 = includeInvisible ? 0x2 | 0x1 | 0x4 : 0x2
-        let result = windowsWithOptions(connection, 0, spaces.map { NSNumber(value: $0) } as CFArray, options, &set, &clear)?.takeRetainedValue()
-        return (result as? [NSNumber])?.map(\.uint32Value) ?? []
+    /// 這個視窗所在的 Space；選擇子 0x7 依 yabai window.c 的用法（包含所有種類的 Space）
+    static func spaces(ofWindow id: UInt32) -> [UInt64] {
+        guard let connection, let copySpacesOfWindows,
+              let list = copySpacesOfWindows(connection, 0x7, [NSNumber(value: id)] as CFArray)?.takeRetainedValue() as? [NSNumber] else { return [] }
+        return list.map(\.uint64Value)
     }
 
-    /// 一次向 WindowServer 查詢一批視窗的所有欄位；必須在主執行緒以外呼叫更理想（WindowServer 忙的時候會等），
-    /// 但閒置時整個畫面約 0.1 毫秒
-    static func query(_ ids: [UInt32]) -> [WindowServerWindow] {
-        guard canQueryWindows, !ids.isEmpty, let connection, let queryWindows, let queryResultWindows, let advance = iteratorAdvance,
-              let id = iteratorID, let pid = iteratorPID, let attributes = iteratorAttributes, let tags = iteratorTags, let level = iteratorLevel,
-              let mask = iteratorSpaceTypeMask, let alpha = iteratorAlpha, let parent = iteratorParent, let title = iteratorTitle,
-              let bounds = iteratorBounds,
-              let query = queryWindows(connection, ids.map { NSNumber(value: $0) } as CFArray, 1)?.takeRetainedValue(),
-              let iterator = queryResultWindows(query)?.takeRetainedValue() else { return [] }
-        let wanted = Set(ids)
-        var rows: [WindowServerWindow] = []
-        var guardrail = ids.count * 2 + 16
-        while guardrail > 0, advance(iterator) {
-            guardrail -= 1
-            let windowID = id(iterator)
-            guard wanted.contains(windowID) else { continue }
-            rows.append(WindowServerWindow(id: windowID, pid: pid(iterator), attributes: attributes(iterator), tags: tags(iterator),
-                                           level: level(iterator), spaceTypeMask: mask(iterator), alpha: alpha(iterator), parent: parent(iterator),
-                                           frame: bounds(Unmanaged.passUnretained(iterator).toOpaque()),
-                                           title: title(iterator)?.takeRetainedValue() as String? ?? ""))
-        }
-        return rows
-    }
+    // MARK: - 視窗
 
-    /// 視窗所在的 Space；縮到 Dock 的視窗不屬於任何 Space
-    static func spaces(of windowID: UInt32) -> [UInt64] {
-        guard let connection, let spacesForWindows else { return [] }
-        let result = spacesForWindows(connection, 0x7, [NSNumber(value: windowID)] as CFArray)?.takeRetainedValue()
-        return (result as? [NSNumber])?.map(\.uint64Value) ?? []
-    }
-
-    /// 視窗截圖（原始大小）；沒有「螢幕錄製」權限、視窗不存在或在別的 Space 抓不到時回傳 nil
-    static func capture(_ windowID: UInt32) -> CGImage? {
-        guard let connection, let hwCapture else { return nil }
-        var id = windowID
-        let result = hwCapture(connection, &id, 1, captureOptions)?.takeRetainedValue()
-        return (result as? [CGImage])?.first
-    }
-
-    /// 把某個 App 的某個視窗帶到最前面，包括在別的 Space 的視窗（macOS 會切過去）。
-    /// 只用在沒有「輔助使用」視窗物件可以操作的時候
-    static func focus(windowID: UInt32, pid: pid_t) -> Bool {
-        guard let setFrontProcess, let postEventRecord, let processForPID else { return false }
-        var psn = [UInt32](repeating: 0, count: 2)
-        let found = psn.withUnsafeMutableBytes { processForPID(pid, $0.baseAddress!) }
-        guard found == 0 else { return false }
-        return psn.withUnsafeMutableBytes { raw -> Bool in
-            let base = raw.baseAddress!
-            guard setFrontProcess(base, windowID, 0x200) == 0 else { return false }
-            // 通知該 App 這個視窗成為主要視窗：固定長度 0xf8 的事件記錄，位元組 0x04 = 0xf8、0x08 = 0x01（按下）／0x02（放開）、
-            // 0x3a 起放視窗編號
-            var record = [UInt8](repeating: 0, count: 0xf8)
-            record[0x04] = 0xf8
-            record[0x3a] = 0x10
-            for index in 0x20..<0x30 { record[index] = 0xff }
-            withUnsafeBytes(of: windowID.littleEndian) { record.replaceSubrange(0x3c..<0x40, with: $0) }
-            for flag: UInt8 in [0x01, 0x02] {
-                record[0x08] = flag
-                _ = postEventRecord(base, &record)
+    /// 這些 Space 上、屬於 owners 這些行程的視窗，順序跟 WindowServer 給的一樣。
+    /// 不會問任何 App，所以忙碌的 App 拖不慢它
+    static func windows(in spaces: [UInt64], ownedBy owners: Set<pid_t>) -> [ServerWindowRecord] {
+        guard let connection, let copyWindowsInSpaces, !spaces.isEmpty else { return [] }
+        var setMask: UInt64 = 0, clearMask: UInt64 = 0
+        // 選項 0x7：連縮到 Dock 的視窗也列出（yabai space.c 的 include_minimized）
+        guard let numbers = copyWindowsInSpaces(connection, 0, spaces as CFArray, 0x7, &setMask, &clearMask)?.takeRetainedValue() as? [NSNumber],
+              !numbers.isEmpty else { return [] }
+        let described = publicDescriptions()
+        let flags = rawFlags(numbers)
+        var kindOfSpace: [UInt64: Int32] = [:]
+        return numbers.compactMap { number -> ServerWindowRecord? in
+            let id = number.uint32Value
+            guard let info = described[id], let pid = (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, owners.contains(pid) else { return nil }
+            var record = ServerWindowRecord(windowID: id, ownerPID: pid, orderedIn: false)
+            record.layer = (info[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+            record.opacity = (info[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            if let rect = info[kCGWindowBounds as String] as? NSDictionary { record.bounds = CGRect(dictionaryRepresentation: rect) ?? .zero }
+            record.name = info[kCGWindowName as String] as? String ?? ""
+            if let raw = flags[id] {
+                let state = ServerWindowBits.decode(attributes: raw.attributes, tags: raw.tags)
+                record.parentID = raw.parent
+                record.orderedIn = state.orderedIn
+                record.minimized = state.minimized
+                record.hiddenWithApp = state.hiddenWithApp
+            } else {
+                // 私有查詢不能用時退回公開的「在畫面上」
+                record.orderedIn = info[kCGWindowIsOnscreen as String] as? Bool ?? false
             }
-            return true
+            record.spaces = Self.spaces(ofWindow: id)
+            record.onFullscreenSpace = record.spaces.contains { space in
+                if kindOfSpace[space] == nil { kindOfSpace[space] = spaceKind?(connection, space) ?? -1 }
+                return kindOfSpace[space] == fullscreenSpaceKind
+            }
+            return record
         }
+    }
+
+    /// SLSSpaceGetType 對全螢幕 Space 回傳 4（yabai space.c 的 space_is_fullscreen，並經本機實測）
+    private static let fullscreenSpaceKind: Int32 = 4
+
+    /// 公開 API 的視窗描述（包含畫面外的視窗），以視窗編號索引
+    private static func publicDescriptions() -> [UInt32: [String: Any]] {
+        let all = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
+        var byID: [UInt32: [String: Any]] = [:]
+        for info in all {
+            if let id = (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value { byID[id] = info }
+        }
+        return byID
+    }
+
+    /// 一次批次查詢取得父視窗與原始旗標
+    private static func rawFlags(_ numbers: [NSNumber]) -> [UInt32: (parent: UInt32, attributes: UInt64, tags: UInt64)] {
+        guard let connection, let startQuery, let queryWindows, let cursorAdvance, let cursorWindowID, let cursorParentID,
+              let cursorAttributes, let cursorTags,
+              let query = startQuery(connection, numbers as CFArray, Int32(numbers.count))?.takeRetainedValue(),
+              let cursor = queryWindows(query)?.takeRetainedValue() else { return [:] }
+        var result: [UInt32: (parent: UInt32, attributes: UInt64, tags: UInt64)] = [:]
+        while cursorAdvance(cursor) {
+            result[cursorWindowID(cursor)] = (cursorParentID(cursor), cursorAttributes(cursor), cursorTags(cursor))
+        }
+        return result
+    }
+
+    /// 現在畫在畫面上的視窗編號，由前到後（公開 API，CGWindow.h 保證這個順序）
+    static func onScreenFrontToBack() -> [UInt32] {
+        let list = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] ?? []
+        return list.compactMap { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value }
+    }
+
+    // MARK: - 截圖
+
+    static var canCapture: Bool { connection != nil && hardwareCapture != nil }
+
+    /// 單一視窗的畫面；選項 (1 << 11) | (1 << 8) 與 yabai window_manager.c 擷取視窗代理圖時相同
+    static func capture(_ windowID: UInt32) -> CGImage? {
+        guard let connection, let hardwareCapture else { return nil }
+        var id = windowID
+        guard let images = hardwareCapture(connection, &id, 1, (1 << 11) | (1 << 8))?.takeRetainedValue() as? [CGImage] else { return nil }
+        return images.first
+    }
+
+    // MARK: - 帶到前面
+
+    /// kCPSUserGenerated（yabai window_manager.h）：當作使用者自己切換
+    private static let userInitiated: UInt32 = 0x200
+
+    /// 把行程與它的某個視窗帶到前面，視窗不在目前 Space 也可以；做不到回傳 false
+    static func focus(windowID: UInt32, pid: pid_t) -> Bool {
+        guard let bringForward, let sendEventRecord, let serialNumberForPID else { return false }
+        var process = ProcessSerialNumber()
+        guard serialNumberForPID(pid, &process) == noErr, bringForward(&process, windowID, userInitiated) == 0 else { return false }
+        // 讓那個視窗成為 key window：同一筆記錄先送「按下」再送「放開」，格式依 yabai window_manager.c 的 make_key_window
+        var record = [UInt8](repeating: 0, count: 0xf8)
+        record[0x04] = 0xf8
+        record[0x3a] = 0x10
+        withUnsafeBytes(of: windowID.littleEndian) { record.replaceSubrange(0x3c..<0x40, with: $0) }
+        for offset in 0x20..<0x30 { record[offset] = 0xff }
+        for phase: UInt8 in [0x01, 0x02] {
+            record[0x08] = phase
+            _ = record.withUnsafeMutableBufferPointer { sendEventRecord(&process, $0.baseAddress!) }
+        }
+        return true
     }
 }
 
-/// 視窗編號：用「輔助使用」視窗物件對到 WindowServer 的視窗（私有函式，只有這個方向）
-@_silgen_name("_AXUIElementGetWindow")
-private func _AXUIElementGetWindow(_ element: AXUIElement, _ id: UnsafeMutablePointer<UInt32>) -> AXError
-
 extension AX {
+    private typealias WindowNumberOfElement = @convention(c) (AXUIElement, UnsafeMutablePointer<UInt32>) -> AXError
+    // 私有但穩定多年的 HIServices 函式；動態載入，找不到時所有視窗都視為沒有編號
+    private static let windowNumberOfElement: WindowNumberOfElement? = {
+        guard let address = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "_AXUIElementGetWindow") else { return nil }
+        return unsafeBitCast(address, to: WindowNumberOfElement.self)
+    }()
+
+    /// 「輔助使用」視窗物件對應的 WindowServer 視窗編號
     static func windowID(of element: AXUIElement) -> UInt32? {
+        guard let windowNumberOfElement else { return nil }
         var id: UInt32 = 0
-        return _AXUIElementGetWindow(element, &id) == .success && id != 0 ? id : nil
+        return windowNumberOfElement(element, &id) == .success && id != 0 ? id : nil
     }
 }

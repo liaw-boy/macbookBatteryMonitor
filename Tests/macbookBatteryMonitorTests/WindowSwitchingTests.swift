@@ -71,36 +71,43 @@ final class WindowSwitchingTests {
         XCTAssertEqual(ids(SwitcherFilter(spaces: .current).apply(all, context: context)), [1, 2, 4])
     }
 
-    private func server(id: UInt32 = 10, attributes: UInt64 = 0x3, tags: UInt64 = 0, level: Int32 = 0, mask: UInt64 = 0x1, alpha: Float = 1,
-                        parent: UInt32 = 0, size: CGSize = CGSize(width: 800, height: 600)) -> WindowServerWindow {
-        WindowServerWindow(id: id, pid: 1, attributes: attributes, tags: tags, level: level, spaceTypeMask: mask, alpha: alpha, parent: parent,
-                           frame: CGRect(origin: .zero, size: size), title: "")
+    private func record(id: UInt32 = 10, orderedIn: Bool = true, minimized: Bool = false, hiddenWithApp: Bool = false, layer: Int = 0,
+                        opacity: Double = 1, parent: UInt32 = 0, size: CGSize = CGSize(width: 800, height: 600), spaces: [UInt64]) -> ServerWindowRecord {
+        ServerWindowRecord(windowID: id, ownerPID: 1, parentID: parent, layer: layer, opacity: opacity, bounds: CGRect(origin: .zero, size: size),
+                           orderedIn: orderedIn, minimized: minimized, hiddenWithApp: hiddenWithApp, spaces: spaces)
     }
 
     func testWindowAdmission() {
-        let current: Set<UInt64> = [1]
+        let visible: Set<UInt64> = [1]
+        func candidacy(_ r: ServerWindowRecord) -> WindowCandidacy { WindowCandidacy.of(r, visibleSpaces: visible) }
         // 一般視窗：排進畫面
-        XCTAssertEqual(WindowAdmission.verdict(server(), spaces: [1], currentSpaces: current), .admit)
+        XCTAssertEqual(candidacy(record(spaces: [1])), .listed)
         // 縮到 Dock、App 被隱藏：沒排進畫面，但是真的視窗
-        XCTAssertEqual(WindowAdmission.verdict(server(attributes: 0, tags: WindowAdmission.minimizedTag), spaces: [], currentSpaces: current), .admit)
-        XCTAssertEqual(WindowAdmission.verdict(server(attributes: 0, tags: WindowAdmission.hiddenTag), spaces: [1], currentSpaces: current), .admit)
+        XCTAssertEqual(candidacy(record(orderedIn: false, minimized: true, spaces: [])), .listed)
+        XCTAssertEqual(candidacy(record(orderedIn: false, hiddenWithApp: true, spaces: [1])), .listed)
         // 在別的 Space：真的視窗
-        XCTAssertEqual(WindowAdmission.verdict(server(attributes: 0), spaces: [2], currentSpaces: current), .admit)
+        XCTAssertEqual(candidacy(record(orderedIn: false, spaces: [2])), .listed)
         // Electron 的 show:false：還在目前的 Space、沒排進畫面 → 幻影
-        XCTAssertEqual(WindowAdmission.verdict(server(attributes: 0), spaces: [1], currentSpaces: current), .phantom)
+        XCTAssertEqual(candidacy(record(orderedIn: false, spaces: [1])), .ghost)
         // 原生分頁的背景分頁：沒有 Space、沒排進畫面 → 幻影
-        XCTAssertEqual(WindowAdmission.verdict(server(attributes: 0), spaces: [], currentSpaces: current), .phantom)
+        XCTAssertEqual(candidacy(record(orderedIn: false, spaces: [])), .ghost)
         // 透明度 0（Outlook 提醒）：即使排進畫面也是幻影
-        XCTAssertEqual(WindowAdmission.verdict(server(alpha: 0), spaces: [1], currentSpaces: current), .phantom)
+        XCTAssertEqual(candidacy(record(opacity: 0, spaces: [1])), .ghost)
         // 附屬視窗、浮動面板（層級不是 0）、輔助用的小表面、編號 0：不是切換目標
-        XCTAssertEqual(WindowAdmission.verdict(server(parent: 5), spaces: [1], currentSpaces: current), .notAWindow)
-        XCTAssertEqual(WindowAdmission.verdict(server(level: 3), spaces: [1], currentSpaces: current), .notAWindow)
-        XCTAssertEqual(WindowAdmission.verdict(server(size: CGSize(width: 2, height: 66)), spaces: [1], currentSpaces: current), .notAWindow)
-        XCTAssertEqual(WindowAdmission.verdict(server(id: 0), spaces: [1], currentSpaces: current), .notAWindow)
-        // 狀態位元的解讀；全螢幕看 Space 類型
-        XCTAssertTrue(WindowAdmission.isFullscreen(server(mask: 0x20)) && !WindowAdmission.isFullscreen(server()))
-        XCTAssertTrue(WindowAdmission.isMinimized(server(tags: 1 << 60)) && !WindowAdmission.isMinimized(server(tags: 1 << 39)))
-        XCTAssertTrue(WindowAdmission.isAppHidden(server(tags: 1 << 39)))
+        XCTAssertEqual(candidacy(record(parent: 5, spaces: [1])), .ignored)
+        XCTAssertEqual(candidacy(record(layer: 3, spaces: [1])), .ignored)
+        XCTAssertEqual(candidacy(record(size: CGSize(width: 2, height: 66), spaces: [1])), .ignored)
+        XCTAssertEqual(candidacy(record(id: 0, spaces: [1])), .ignored)
+    }
+
+    func testWindowServerBits() {
+        // 數值來自本機實測（docs/design/window-server-provenance.md）
+        let shown = ServerWindowBits.decode(attributes: 0x3, tags: 0)
+        XCTAssertTrue(shown.orderedIn && !shown.minimized && !shown.hiddenWithApp)
+        let minimized = ServerWindowBits.decode(attributes: 0x1, tags: 1 << 60)
+        XCTAssertTrue(!minimized.orderedIn && minimized.minimized && !minimized.hiddenWithApp)
+        let hidden = ServerWindowBits.decode(attributes: 0x1, tags: 1 << 39)
+        XCTAssertTrue(!hidden.orderedIn && !hidden.minimized && hidden.hiddenWithApp)
     }
 
     func testWindowlessApps() {

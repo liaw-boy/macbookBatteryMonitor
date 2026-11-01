@@ -84,55 +84,57 @@ struct WindowRecency: Equatable {
     }
 }
 
-/// WindowServer 對一個視窗回報的原始欄位（一次批次查詢取得，不用問 App，所以 App 忙碌也不會卡住）
-struct WindowServerWindow: Equatable {
-    var id: UInt32
-    var pid: Int32
-    var attributes: UInt64
-    var tags: UInt64
-    var level: Int32
-    var spaceTypeMask: UInt64
-    var alpha: Float
-    /// 附屬關係：對話框（sheet）和子視窗會指向它們的主視窗；一般視窗與原生分頁是 0
-    var parent: UInt32
-    var frame: CGRect
-    var title: String
+/// 一個視窗在 WindowServer 那邊的樣子；SkyLight.swift 已經把原始資料解讀成下面這些事實。
+/// 每個欄位的來源與驗證方式見 docs/design/window-server-provenance.md
+struct ServerWindowRecord: Equatable {
+    var windowID: UInt32
+    var ownerPID: Int32
+    /// 掛在別的視窗底下（sheet、子視窗）時是父視窗編號，獨立視窗是 0
+    var parentID: UInt32 = 0
+    var layer: Int = 0
+    var opacity: Double = 1
+    var bounds: CGRect = .zero
+    var name: String = ""
+    /// 已排進所在的 Space（不一定是目前看得到的那個）；縮小、隱藏、orderOut 時為 false
+    var orderedIn: Bool
+    var minimized = false
+    /// 因為整個 App 被隱藏才收起來；App 自己收起的視窗沒有這個標記
+    var hiddenWithApp = false
+    /// 所在的 Space（可能不只一個），以及其中是否有全螢幕 Space
+    var spaces: [UInt64] = []
+    var onFullscreenSpace = false
 }
 
-/// 哪些 WindowServer 視窗是使用者能切過去的「視窗」，哪些是幻影（畫在系統裡、但 App 不打算給人看）。
-/// 位元的意義是對照實際視窗狀態逆向得來（macOS 15、26、27 實測相同），任何一項在未來的系統改變都要重新驗證
-enum WindowAdmission {
-    /// attributes：視窗已排進畫面（ordered-in）。縮到 Dock、App 隱藏、換到別的 Space、正在關閉都會清掉它
-    static let orderedInAttribute: UInt64 = 0x2
-    /// tags：正好在視窗縮到 Dock 時設起
-    static let minimizedTag: UInt64 = 1 << 60
-    /// tags：視窗所屬的 App 被隱藏（Cmd+H）
-    static let hiddenTag: UInt64 = 1 << 39
-    /// spaceTypeMask：視窗在全螢幕的 Space
-    static let fullscreenSpaceMask: UInt64 = 0x20
+/// WindowServer 原始旗標裡本專案讀的三個位元，意義以實測確認（見 provenance 文件）
+enum ServerWindowBits {
+    /// attributes 第 1 位元：已排進 Space
+    static let attributeOrdered: UInt64 = 1 << 1
+    /// tags 第 60 位元：縮到 Dock
+    static let tagMinimized: UInt64 = 1 << 60
+    /// tags 第 39 位元：跟著 App 一起隱藏
+    static let tagHiddenByApp: UInt64 = 1 << 39
 
-    enum Verdict: Equatable {
-        case admit
-        /// 有資料、但不是使用者看得到的視窗：Electron 的 show:false、透明度 0 的提醒、原生分頁的背景分頁
-        case phantom
-        /// 根本不是切換的目標：附屬視窗、浮動面板與 HUD、輔助用的小表面
-        case notAWindow
+    static func decode(attributes: UInt64, tags: UInt64) -> (orderedIn: Bool, minimized: Bool, hiddenWithApp: Bool) {
+        (attributes & attributeOrdered != 0, tags & tagMinimized != 0, tags & tagHiddenByApp != 0)
     }
+}
 
-    static func isOrderedIn(_ w: WindowServerWindow) -> Bool { w.attributes & orderedInAttribute != 0 }
-    static func isMinimized(_ w: WindowServerWindow) -> Bool { w.tags & minimizedTag != 0 }
-    static func isAppHidden(_ w: WindowServerWindow) -> Bool { w.tags & hiddenTag != 0 }
-    static func isFullscreen(_ w: WindowServerWindow) -> Bool { w.spaceTypeMask & fullscreenSpaceMask != 0 }
+/// 一個 WindowServer 視窗能不能出現在切換器
+enum WindowCandidacy: Equatable {
+    case listed
+    /// 存在但使用者看不到也叫不出來（背景分頁、Electron 的 show:false、透明的提醒視窗）
+    case ghost
+    /// 根本不是切換對象（子視窗、面板、小表面）
+    case ignored
 
-    /// spaces 是視窗所屬的 Space，currentSpaces 是各螢幕目前顯示的 Space
-    static func verdict(_ w: WindowServerWindow, spaces: [UInt64], currentSpaces: Set<UInt64>) -> Verdict {
-        guard w.id != 0, w.parent == 0, w.level == 0,
-              SwitcherFilter.isRealWindow(size: w.frame.size, layer: Int(w.level)) else { return .notAWindow }
-        guard w.alpha > 0 else { return .phantom }
-        if isOrderedIn(w) || isMinimized(w) || isAppHidden(w) { return .admit }
-        // 沒排進畫面、也不是縮小或隱藏：在別的 Space 才是真的視窗；還在目前的 Space 或沒有 Space 就是幻影
-        let elsewhere = !spaces.isEmpty && currentSpaces.isDisjoint(with: spaces)
-        return elsewhere ? .admit : .phantom
+    static func of(_ record: ServerWindowRecord, visibleSpaces: Set<UInt64>) -> WindowCandidacy {
+        if record.windowID == 0 || record.parentID != 0 { return .ignored }
+        if !SwitcherFilter.isRealWindow(size: record.bounds.size, layer: record.layer) { return .ignored }
+        if record.opacity <= 0 { return .ghost }
+        if record.orderedIn || record.minimized || record.hiddenWithApp { return .listed }
+        // 收起來、又不是縮小或隱藏：只有整個待在目前看不到的 Space 才是真的視窗
+        let onHiddenSpaceOnly = !record.spaces.isEmpty && visibleSpaces.isDisjoint(with: record.spaces)
+        return onHiddenSpaceOnly ? .listed : .ghost
     }
 }
 
