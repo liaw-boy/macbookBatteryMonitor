@@ -239,8 +239,13 @@ final class WindowTracker {
         }
     }
 
+    /// 每次切換加一：在背景讀視窗物件的切換晚到時，已經有更新的切換就不再搶焦點
+    private var focusRequest = 0
+
     /// 切過去：有視窗物件就直接操作；在別的 Space 的視窗沒有物件，改用 WindowServer 的方式
     func focus(_ window: SwitcherWindow) {
+        focusRequest += 1
+        let request = focusRequest
         guard let app = NSRunningApplication(processIdentifier: window.pid) else { return }
         if window.pid == ProcessInfo.processInfo.processIdentifier {
             focusOwn(window)
@@ -252,7 +257,8 @@ final class WindowTracker {
             if let url = app.bundleURL { NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) } else { app.activate() }
             return
         }
-        withAXWindow(window) { ax in
+        withAXWindow(window) { [weak self] ax in
+            guard let self, request == self.focusRequest else { return }
             if let ax {
                 Self.raise(ax.element, of: app)
                 return
