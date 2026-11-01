@@ -247,6 +247,20 @@ Turn on "用視窗切換取代 Cmd+Tab" (replace Cmd+Tab with window switching) 
 - **Privacy**: window titles are never logged or uploaded; with the switch off no keys are intercepted
 
 The system integration uses private macOS functions, all loaded at run time and disabled if missing; their sources are listed in [docs/design/window-server-provenance.md](docs/design/window-server-provenance.md) (Chinese).
+
+## Chinese input methods
+
+The "中文輸入法" (Chinese input) card under Settings → 滑鼠、觸控板與鍵盤 has two switches, both off by default:
+
+- **Caps Lock switches without delay**: macOS makes you hold Caps Lock briefly before it switches between Chinese and English, to avoid accidental presses. This runs the built-in `hidutil` (fixed arguments, no shell) to set the delay to 0 at launch and after wake. The value only lives in memory, so after turning the switch off it takes a restart to get the original delay back. No extra permission needed
+- **Half-width letters and symbols while holding Shift**: in Chinese input methods such as Zhuyin or Pinyin, holding Shift types full-width characters like Ａ, ！ and ，. With this on, holding Shift behaves like the English keyboard and everything is half-width: letters `A`, the number row `!@#$%^&*()_+`, punctuation `<>?:"{}|~`. You stay in the Chinese input method, so you keep typing Chinese after releasing Shift. If a Zhuyin composition is in progress (underlined), it is committed first and the English follows it. Because every punctuation key is half-width while Shift is held, full-width punctuation that Zhuyin types with Shift (，。？：！（）) has to be typed another way, for example from Zhuyin's punctuation keyboard. Only Chinese input methods are affected; English, Russian, Korean and Japanese keyboards are left alone. So far it has only been tested with the built-in Zhuyin on macOS 27; Pinyin and other Chinese input methods are untested
+- **How the composition is committed**: while Zhuyin is composing it swallows every key, so the first key of each Shift hold first has the input method commit the composition. To do that it asks the app you are typing in to switch to the English layout and straight back, the way the Input menu in the menu bar does; changing the system setting from the background can leave the menu bar showing Zhuyin while the app keeps typing English. This uses a private macOS interface whose argument formats are assumed from testing, so it is only used on macOS 27, where it was tested. The approach follows [macism](https://github.com/laishulu/macism)'s description; the code is our own
+- **Other macOS versions**: the composition is not committed first, so the key typed with Shift in the middle of a Zhuyin composition is swallowed by the input method; finish choosing the character before pressing Shift. The same happens when typing in this app's own windows, such as Settings
+- **Shift is removed**: letter, number-row and punctuation keys typed with Shift held are sent without Shift, carrying the half-width character; combinations that also hold Command, Control or Option are left alone. Shortcuts that check for Shift (Shift+letter in web pages, games or design apps) may see the key without Shift while a Chinese input method is on; switch to the English layout to use them
+- **When this app is busy**: while the composition is being committed, the following keys wait in a queue. If this app has not handled them within 1 s, the next key makes the interception give up the queue and start over, so the Mac's keyboard does not stay stuck; the keys given up are dropped rather than arriving late in another app
+- **Permission**: half-width Shift needs Accessibility, asked for when you turn the switch on; with the switch off no keys are intercepted. Secure input (password fields) is never touched, and no keys are logged
+- **System behaviour**: on macOS 27, the first key of each Shift hold switches to the English layout and back, so macOS may briefly show its input method indicator
+
 ## Login items
 
 Settings → 登入項目 (Login items) lists everything that starts by itself when you log in, and explains what each one is, where it comes from and which app it belongs to. System Settings' "Login Items & Extensions" only lists app names; this also shows background agents and daemons.
@@ -553,7 +567,7 @@ The cat in the app icon is `Resources/icon-cat.png` (a cut-out photo); the charg
 ## Thanks
 
 - [@melvin0kuo](https://github.com/melvin0kuo): animated power flow, layered component power, power sensor fallbacks, percentage inside the menu bar icon, stable full-charge display and admin CPU sampling (#1, #2, #4–#7), and the ideas for smart charging, charging schedules and the daily recap (#13)
-- [@liaw-boy](https://github.com/liaw-boy): external disks, fans and temperatures, menu bar icon alignment on 1x screens, the layout idea of merging the charge limit slider into the info card, closing the panel by clicking outside, and power saving only on battery (#8–#10, #12); the network speed test and the shared memory and disk icon (#15, #16); the login items page (#20)
+- [@liaw-boy](https://github.com/liaw-boy): external disks, fans and temperatures, menu bar icon alignment on 1x screens, the layout idea of merging the charge limit slider into the info card, closing the panel by clicking outside, and power saving only on battery (#8–#10, #12); the network speed test and the shared memory and disk icon (#15, #16); the login items page (#20); Caps Lock without delay and half-width Shift for Chinese input methods (#21)
 
 ## License
 
