@@ -162,6 +162,15 @@ extension StartupItemsTests {
         XCTAssertEqual(StartupItemLogic.statError(file), ENOENT)
         FileManager.default.createFile(atPath: file, contents: Data())
         XCTAssertEqual(StartupItemLogic.statError(file), 0)
+        // 經過符號連結、目標不在（例如外接磁碟沒接上）：不下結論
+        let gone = dir.appendingPathComponent("unplugged-disk").path
+        let linkedFile = dir.appendingPathComponent("link-tool").path
+        try! FileManager.default.createSymbolicLink(atPath: linkedFile, withDestinationPath: gone + "/tool")
+        XCTAssertEqual(StartupItemLogic.statError(linkedFile), ESTALE)
+        let linkedDir = dir.appendingPathComponent("link-dir").path
+        try! FileManager.default.createSymbolicLink(atPath: linkedDir, withDestinationPath: gone)
+        XCTAssertEqual(StartupItemLogic.statError(linkedDir + "/bin/tool"), ESTALE)
+        XCTAssertTrue(!StartupItemLogic.isMissing(path: linkedDir + "/bin/tool", statError: StartupItemLogic.statError(linkedDir + "/bin/tool")))
 
         let plist: [String: Any] = ["Label": "com.example.ext", "Program": "/Volumes/External/tool"]
         let data = try! PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)

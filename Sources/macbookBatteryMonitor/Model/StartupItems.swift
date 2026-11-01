@@ -115,18 +115,34 @@ enum StartupItemLogic {
         return statError == ENOENT
     }
 
-    /// stat 失敗時的 errno；成功回傳 0
+    /// stat 失敗時的 errno；成功回傳 0。
+    /// 找不到（ENOENT）但路徑本身或某一層存在的資料夾是符號連結時，目標可能只是在沒接上的外接磁碟：回傳 ESTALE，不算不存在
     static func statError(_ path: String) -> Int32 {
         var info = stat()
-        return stat(path, &info) == 0 ? 0 : errno
+        if stat(path, &info) == 0 { return 0 }
+        let error = errno
+        guard error == ENOENT else { return error }
+        // 找到最深一層存在的資料夾；下一層若是斷掉的符號連結，或解開連結後落在 /Volumes，目標可能在沒接上的磁碟
+        var existing = "/"
+        for component in path.split(separator: "/") {
+            let next = existing == "/" ? "/" + component : existing + "/" + component
+            guard stat(next, &info) == 0 else {
+                if lstat(next, &info) == 0, (info.st_mode & S_IFMT) == S_IFLNK { return ESTALE }
+                break
+            }
+            existing = next
+        }
+        let resolved = URL(fileURLWithPath: existing).resolvingSymlinksInPath().path
+        return resolved == "/Volumes" || resolved.hasPrefix("/Volumes/") ? ESTALE : ENOENT
     }
 
     /// 本 App 自己的項目：Label 相同，或指向本 App 的 bundle
     static func isOwnItem(label: String?, path: String, ownLabel: String, ownBundlePath: String) -> Bool {
         if label == ownLabel { return true }
-        let own = URL(fileURLWithPath: ownBundlePath).standardizedFileURL.path
+        // 解開符號連結再比，經過連結指到本 App 的也算
+        let own = URL(fileURLWithPath: ownBundlePath).resolvingSymlinksInPath().standardizedFileURL.path
         guard path.hasPrefix("/") else { return false }
-        let target = URL(fileURLWithPath: path).standardizedFileURL.path
+        let target = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path
         return target == own || target.hasPrefix(own + "/")
     }
 
