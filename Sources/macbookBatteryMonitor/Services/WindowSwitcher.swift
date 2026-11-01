@@ -43,10 +43,8 @@ final class WindowSwitcher {
             self.keySession = keySession
             begin(slot: slot, delta)
         case .step(let delta):
-            guard active else {
-                self.keySession = keySession
-                return begin(slot: 0, delta)
-            }
+            // 沒在切換時晚到的 step（切換器剛結束）不重新開始：按鍵判斷那邊也已經結束，下一次按快捷鍵會送 start
+            guard active else { return }
             model.select(SwitcherLayout.step(from: model.selected, delta: delta, count: model.items.count))
         case .move(let dx, let dy):
             guard active, !model.items.isEmpty else { return }
@@ -74,7 +72,8 @@ final class WindowSwitcher {
         let items = settings.filter(forProfile: settings.profiles.indices.contains(slot) ? slot : 0).apply(snapshot.windows, context: snapshot.context)
         InputTap.log.notice("切換開始：視窗 \(snapshot.windows.count)，篩選後 \(items.count)，取得快照 \(Int(Date().timeIntervalSince(started) * 1000)) ms")
         guard !items.isEmpty else {
-            InputTap.shared.cancelSwitching()
+            if let keySession { InputTap.shared.endSwitching(session: keySession) }
+            keySession = nil
             return
         }
         active = true
@@ -104,7 +103,6 @@ final class WindowSwitcher {
         if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { _ in
             MainActor.assumeIsolated {
-                InputTap.shared.cancelSwitching()
                 WindowSwitcher.shared.handle(.cancel)
             }
         }
@@ -112,12 +110,13 @@ final class WindowSwitcher {
 
     /// 放開修飾鍵的事件遺失（事件攔截中途被系統暫停）時，用實際的按鍵狀態結束切換
     private func settleIfReleased() {
-        guard active, let hold = InputTap.shared.activeHold() else { return }
+        guard active else { return }
+        // 按鍵判斷已經不在切換中（被系統暫停後清空等）：不留下關不掉的切換器
+        guard let hold = InputTap.shared.activeHold() else { return end() }
         let flags = NSEvent.modifierFlags
         let held = (!hold.contains(.command) || flags.contains(.command)) && (!hold.contains(.option) || flags.contains(.option))
             && (!hold.contains(.control) || flags.contains(.control))
         guard !held else { return }
-        InputTap.shared.cancelSwitching()
         commit()
     }
 
@@ -189,7 +188,6 @@ final class WindowSwitcher {
         self.panel = panel
         let view = SwitcherView(model: model, pick: { index in
             WindowSwitcher.shared.model.selected = index
-            InputTap.shared.cancelSwitching()
             WindowSwitcher.shared.commit()
         }, act: { action, window in
             WindowSwitcher.shared.perform(action, on: window)

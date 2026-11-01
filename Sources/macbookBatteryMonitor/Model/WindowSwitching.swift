@@ -347,6 +347,13 @@ struct SwitcherKeys {
         return (true, action)
     }
 
+    /// 換設定或強制清空：其他狀態全部重來，session 繼續往上數，晚到的舊結束通知才不會對到新的切換
+    mutating func reset(shortcuts: [SwitcherShortcut]? = nil, vimKeys: Bool? = nil, releaseCommits: Bool? = nil) {
+        var fresh = SwitcherKeys(shortcuts: shortcuts ?? self.shortcuts, vimKeys: vimKeys ?? self.vimKeys, releaseCommits: releaseCommits ?? self.releaseCommits)
+        fresh.session = session
+        self = fresh
+    }
+
     /// 切換器那邊結束了這次切換（清單空了、點了視窗、設定改變）。已經攔下的按鍵，放開時照樣攔下
     mutating func endSwitching(session ended: Int) {
         guard ended == session else { return }

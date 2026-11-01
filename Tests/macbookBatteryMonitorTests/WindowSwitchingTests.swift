@@ -304,6 +304,12 @@ final class WindowSwitchingTests {
         XCTAssertTrue(keys.active)
         keys.endSwitching(session: keys.session)
         XCTAssertTrue(!keys.active)
+        // 換設定或強制清空時編號不歸零，舊編號永遠對不到之後的切換
+        let before = keys.session
+        keys.reset(shortcuts: [.commandTab], vimKeys: true, releaseCommits: true)
+        XCTAssertTrue(keys.vimKeys && keys.releaseCommits && keys.session == before)
+        _ = press(&keys, 48, .command)
+        XCTAssertTrue(keys.session > before)
     }
 
     func testShortcutValidationAndNames() {

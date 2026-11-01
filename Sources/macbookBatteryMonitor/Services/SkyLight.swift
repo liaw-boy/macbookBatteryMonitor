@@ -148,8 +148,11 @@ enum SkyLight {
               let query = startQuery(connection, numbers as CFArray, Int32(numbers.count))?.takeRetainedValue(),
               let cursor = queryWindows(query)?.takeRetainedValue() else { return [:] }
         var result: [UInt32: (parent: UInt32, attributes: UInt64, tags: UInt64)] = [:]
-        while cursorAdvance(cursor) {
-            result[cursorWindowID(cursor)] = (cursorParentID(cursor), cursorAttributes(cursor), cursorTags(cursor))
+        // 走完游標之前查詢本身不能先被釋放
+        withExtendedLifetime(query) {
+            while cursorAdvance(cursor) {
+                result[cursorWindowID(cursor)] = (cursorParentID(cursor), cursorAttributes(cursor), cursorTags(cursor))
+            }
         }
         return result
     }

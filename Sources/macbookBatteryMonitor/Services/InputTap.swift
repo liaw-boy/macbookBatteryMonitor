@@ -38,7 +38,7 @@ final class InputTap: @unchecked Sendable {
         let mask: CGEventMask = (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
         locked {
             config = new
-            keys = SwitcherKeys(shortcuts: keys.shortcuts, vimKeys: keys.vimKeys, releaseCommits: keys.releaseCommits)
+            keys.reset()
         }
         let ready = DispatchSemaphore(value: 0)
         let thread = Thread { [self] in
@@ -84,7 +84,7 @@ final class InputTap: @unchecked Sendable {
 
     /// 設定改變時換上新的快捷鍵（切換中的狀態會結束）
     func setSwitcher(shortcuts: [SwitcherShortcut], vimKeys: Bool, releaseCommits: Bool) {
-        locked { keys = SwitcherKeys(shortcuts: shortcuts, vimKeys: vimKeys, releaseCommits: releaseCommits) }
+        locked { keys.reset(shortcuts: shortcuts, vimKeys: vimKeys, releaseCommits: releaseCommits) }
     }
 
     /// 切換中要按住的修飾鍵；沒在切換時為 nil
@@ -94,7 +94,7 @@ final class InputTap: @unchecked Sendable {
 
     /// 切換已經由別處結束（點了某個視窗、沒有視窗可選、補收尾）：按鍵判斷也一起結束
     func cancelSwitching() {
-        locked { keys = SwitcherKeys(shortcuts: keys.shortcuts, vimKeys: keys.vimKeys, releaseCommits: keys.releaseCommits) }
+        locked { keys.reset() }
     }
 
     /// 切換器結束了第 session 次切換：按鍵判斷離開這次切換（保持開啟模式也一樣），已經開始的下一次不受影響
@@ -201,9 +201,10 @@ final class InputController {
 
     private func start(reason: String) {
         guard AXIsProcessTrusted() else {
-            // 權限被收回：舊的攔截已經收不到事件，停掉它，設定頁才不會還顯示運作中
+            // 權限被收回：舊的攔截已經收不到事件，停掉它，設定頁才不會還顯示運作中；觀察者也重建，重新允許後才會再收到事件
             if InputTap.shared.health() != .stopped {
                 InputTap.shared.stop()
+                WindowTracker.shared.stop()
                 WindowSwitcher.shared.handle(.cancel)
                 InputTap.log.notice("沒有「輔助使用」權限，停止攔截")
             }
