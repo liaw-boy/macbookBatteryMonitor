@@ -30,7 +30,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .charging: return "充電"
         case .companion: return "充電夥伴"
         case .peripherals: return "周邊設備"
-        case .input: return "滑鼠與觸控板"
+        case .input: return "滑鼠、觸控板與鍵盤"
         case .startup: return "登入項目"
         case .update: return "更新"
         }
@@ -174,6 +174,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         ui.loginStatus = LoginItem.status
         ui.scrollTrusted = ScrollDirection.trusted
         ui.scrollRunning = ScrollDirection.shared.isRunning
+        ui.shiftRunning = InputSourceFix.shared.isRunning
     }
 
     func windowWillClose(_ notification: Notification) {

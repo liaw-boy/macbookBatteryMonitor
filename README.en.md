@@ -235,6 +235,16 @@ This usually happens after updating from v1.7.3 or earlier: the "電池與系統
 3. Click "+", choose `macbookBatteryMonitor` in Applications, click Open and make sure its switch is on
 4. Back in the app's settings the status turns to "運作中" (working) within seconds, no relaunch needed
 
+## Chinese input methods
+
+The "中文輸入法" (Chinese input) card under Settings → 滑鼠、觸控板與鍵盤 has two switches, both off by default:
+
+- **Caps Lock switches without delay**: macOS makes you hold Caps Lock briefly before it switches between Chinese and English, to avoid accidental presses. This runs the built-in `hidutil` (fixed arguments, no shell) to set the delay to 0 at launch and after wake. The value only lives in memory, so after turning the switch off it takes a restart to get the original delay back. No extra permission needed
+- **Half-width letters and symbols while holding Shift**: in Chinese input methods such as Zhuyin or Pinyin, holding Shift types full-width characters like Ａ, ！ and ，. With this on, holding Shift behaves like the English keyboard and everything is half-width: letters `A`, the number row `!@#$%^&*()_+`, punctuation `<>?:"{}|~`. The input method is never switched, so you keep typing Chinese after releasing Shift. If a Zhuyin composition is in progress (underlined), it is committed first and the English follows it. Because every punctuation key is half-width while Shift is held, full-width punctuation that Zhuyin types with Shift (，。？：！（）) has to be typed another way, for example from Zhuyin's punctuation keyboard. Only Chinese input methods are affected; English, Russian, Korean and Japanese keyboards are left alone
+- **How it switches**: like the Input menu in the menu bar, it asks the app you are typing in to switch input methods itself; changing the system setting from the background can leave the menu bar showing Zhuyin while the app keeps typing English. The approach follows [macism](https://github.com/laishulu/macism)'s description; the code is our own. The private interface's argument formats are assumed from testing, so it is only used on macOS 27, where it was tested; other versions fall back to the regular switching
+- **Permission**: half-width Shift needs Accessibility, asked for when you turn the switch on; with the switch off no keys are intercepted. Secure input (password fields) is never touched, and no keys are logged
+- **System behaviour**: macOS briefly shows its input method indicator when switching back to Chinese
+
 ## Login items
 
 Settings → 登入項目 (Login items) lists everything that starts by itself when you log in, and explains what each one is, where it comes from and which app it belongs to. System Settings' "Login Items & Extensions" only lists app names; this also shows background agents and daemons.

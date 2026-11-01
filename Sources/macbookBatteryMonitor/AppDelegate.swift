@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var refreshTimer: Timer?
     /// 等使用者允許「輔助使用」：允許了就開始分開設定捲動方向
     private var scrollTrustTimer: Timer?
+    private var shiftTrustTimer: Timer?
     /// 更新頻率慢於每秒時，下一次更新前 1 秒先讀變壓器輸入（見 BatteryReader.recordAdapterInput）
     private var adapterPreReadTimer: Timer?
     private var processTimer: Timer?
@@ -116,6 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self?.ui.scrollRunning = ScrollDirection.shared.isRunning
         }
         applyScrollDirection(prompt: false)
+        settings.onInputSourceFixChange = { [weak self] in self?.applyInputSourceFix(prompt: true) }
+        applyInputSourceFix(prompt: false)
         desktopPet.openPanel = { [weak self] in self?.showPopover(page: .main) }
         desktopPet.openSettings = { [weak self] in self?.showSettings(.companion) }
         desktopPet.sync()
@@ -247,6 +250,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
+    /// 中文輸入法：Caps Lock 不延遲（hidutil，不需權限）、按住 Shift 打半形（需要「輔助使用」，允許後每 2 秒檢查一次就開始）
+    private func applyInputSourceFix(prompt: Bool) {
+        if settings.capsLockNoDelay { InputSourceFix.removeCapsLockDelay() }
+        applyShiftHalfWidth(prompt: prompt)
+    }
+
+    private func applyShiftHalfWidth(prompt: Bool) {
+        let running = InputSourceFix.shared.applyShift(settings.shiftHalfWidth)
+        ui.shiftRunning = settings.shiftHalfWidth && InputSourceFix.shared.isRunning
+        ui.scrollTrusted = ScrollDirection.trusted
+        shiftTrustTimer?.invalidate()
+        shiftTrustTimer = nil
+        guard settings.shiftHalfWidth, !running else { return }
+        if prompt { ScrollDirection.requestTrust() }
+        shiftTrustTimer = repeating(every: 2) { delegate in
+            guard ScrollDirection.trusted else { return }
+            delegate.applyShiftHalfWidth(prompt: false)
+        }
+    }
+
     /// 開發用：`--selftest-update` 檢查 GitHub 上的新版本，有就直接一鍵更新（App 會結束並由安裝程序重新開啟）
     private func runUpdateSelfTestIfRequested() {
         guard CommandLine.arguments.contains("--selftest-update") else { return }
@@ -373,6 +396,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        // 剛好按著 Shift 時結束或更新重啟：送出排隊的按鍵、切回原本的輸入法
+        InputSourceFix.shared.applyShift(false)
         store.adminCPU.stop()
         store.chargingWake.stop()
         store.history.save()
@@ -477,6 +502,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         sleeping = false
         monitors.setSleeping(false)
         store.evaluateChargingPlan(.didWake)
+        // hidutil 的設定在睡眠後可能被重設
+        if settings.capsLockNoDelay { InputSourceFix.removeCapsLockDelay() }
         refresh()
         store.peripherals.refresh()
         store.recordHistory()
