@@ -524,3 +524,14 @@ App 圖示的貓咪是 `Resources/icon-cat.png`（照片去背），充電墊、
 
 - [@melvin0kuo](https://github.com/melvin0kuo)：動畫電力流向、分層硬體功耗、功率感測備援、選單列圖示內百分比、滿電穩定顯示與管理員 CPU 取樣（#1、#2、#4～#7），智慧充電、充電排程與每日回顧的構想（#13）
 - [@liaw-boy](https://github.com/liaw-boy)：外接磁碟、風扇與溫度、1x 螢幕的選單列圖示對齊、充電上限滑桿併入資訊卡的版面構想、點面板外面關閉與只在使用電池時省電（#8～#10、#12），網路測速、記憶體與磁碟共用一個圖示（#15、#16）
+
+## 授權
+
+Copyright © 2026 TSENG KUAN-CHENG 及各貢獻者，保留所有權利。這不是開源授權：
+
+- 原始碼公開供檢視；可以在自己的裝置上編譯、修改，供個人使用或準備貢獻，但不得散布
+- [Releases](https://github.com/sgeric910601/macbookBatteryMonitor/releases) 發佈的版本（包括預先發行版本與 App 內更新）可以免費下載使用
+- 提交 PR 即表示同意 LICENSE 第 4 條的貢獻條款
+- App 圖示、充電夥伴與桌面寵物的貓咪照片和動畫由他人提供，著作權屬於原權利人
+
+完整條款見 [LICENSE](LICENSE)，中英文有出入時以中文為準。

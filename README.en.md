@@ -527,3 +527,14 @@ The cat in the app icon is `Resources/icon-cat.png` (a cut-out photo); the charg
 
 - [@melvin0kuo](https://github.com/melvin0kuo): animated power flow, layered component power, power sensor fallbacks, percentage inside the menu bar icon, stable full-charge display and admin CPU sampling (#1, #2, #4–#7), and the ideas for smart charging, charging schedules and the daily recap (#13)
 - [@liaw-boy](https://github.com/liaw-boy): external disks, fans and temperatures, menu bar icon alignment on 1x screens, the layout idea of merging the charge limit slider into the info card, closing the panel by clicking outside, and power saving only on battery (#8–#10, #12); the network speed test and the shared memory and disk icon (#15, #16)
+
+## License
+
+Copyright © 2026 TSENG KUAN-CHENG and contributors. All rights reserved. This is not an open source license:
+
+- The source code is public for viewing; you may build and modify it on your own devices for personal use or to prepare a contribution, but you may not distribute it
+- Builds published on [Releases](https://github.com/sgeric910601/macbookBatteryMonitor/releases) (including pre-releases and in-app updates) are free to download and use
+- Submitting a pull request means you agree to the contribution terms in section 4 of the LICENSE
+- The cat photos and animations in the app icon, the charging companion and the desktop pet were provided by others; their copyright belongs to their rights holders
+
+See [LICENSE](LICENSE) for the full terms. If the English and Chinese versions differ, the Chinese version prevails.
