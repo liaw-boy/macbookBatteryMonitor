@@ -21,10 +21,14 @@ enum FocusedInputSource {
     private static let remotePort = symbol("CFMessagePortCreatePerProcessRemote", as: RemotePort.self)
     private static let flatten = symbol("_CreateFlattenedInputSource", as: Flatten.self)
 
+    /// 私有函式的參數格式是依實測假設的，系統改了會當掉而不是失敗，所以只在實測過的 macOS 主版本走這條路
+    static let testedMajorVersions: Set<Int> = [27]
+
     /// 先請焦點 App 切換，不行再用 TISSelectInputSource。回傳 noErr 表示切換已送出
     @discardableResult
     static func select(_ source: TISInputSource) -> OSStatus {
-        askFocusedApp(source) ? noErr : TISSelectInputSource(source)
+        let tested = testedMajorVersions.contains(ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
+        return tested && askFocusedApp(source) ? noErr : TISSelectInputSource(source)
     }
 
     /// 接收按鍵的程式（不一定是最前面的 App，例如可以打字的浮動面板）
@@ -38,16 +42,17 @@ enum FocusedInputSource {
     }
 
     private static func askFocusedApp(_ source: TISInputSource) -> Bool {
-        guard let remotePort, let flatten, let pid = focusedPID() else { return false }
+        // 焦點在本 App 自己（例如設定視窗在最前面）：主執行緒等不到自己的回覆，直接用一般的切換
+        guard let remotePort, let flatten, let pid = focusedPID(), pid != getpid() else { return false }
         var flattened: Unmanaged<AnyObject>?
         guard flatten(source, &flattened).boolValue, let flat = flattened?.takeRetainedValue() else { return false }
         let request = ["tsmInputSourceSelectedInpSrcKey": flat] as CFDictionary
         guard let data = CFPropertyListCreateData(nil, request, .xmlFormat_v1_0, 0, nil)?.takeRetainedValue(),
               let port = remotePort(nil, "com.apple.tsm.portname" as CFString, CFIndex(pid))?.takeRetainedValue() else { return false }
-        // 同步送出：回來時 App 已經切好，接著送出的按鍵就會進新的輸入法。App 沒回應時最多等 0.3 秒。
+        // 同步送出：回來時 App 已經切好，接著送出的按鍵就會進新的輸入法。App 沒回應時送出、等回覆各最多 0.15 秒。
         // 等回覆時用自己的 run loop mode：用預設 mode 會在等待中處理下一個按鍵，順序會亂
         var reply: Unmanaged<CFData>?
-        guard CFMessagePortSendRequest(port, 7, data, 0.3, 0.3, "com.kuan.batterymonitor.tsmReply" as CFString, &reply) == kCFMessagePortSuccess else {
+        guard CFMessagePortSendRequest(port, 7, data, 0.15, 0.15, "com.kuan.batterymonitor.tsmReply" as CFString, &reply) == kCFMessagePortSuccess else {
             return false
         }
         // 回覆來自對方 App，只看大小合理的

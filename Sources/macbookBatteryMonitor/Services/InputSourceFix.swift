@@ -15,8 +15,6 @@ final class InputSourceFix {
     private let tap = ShiftTap()
     /// 切到英文鍵盤前的輸入法，放開 Shift 時切回去
     private var restoreTo: TISInputSource?
-    /// 切過去的英文鍵盤；切回前確認還是它，使用者中途自己換了輸入法就不切
-    private var switchedToID: String?
     private var sourceObserver: NSObjectProtocol?
     /// 開關打開；監看攔截有沒有被系統暫停或作廢
     private var wanted = false
@@ -128,8 +126,8 @@ final class InputSourceFix {
     private var holdingGeneration = 0
     /// 每次開始或清掉排隊加一；舊的等待輪詢看到不一樣就停，不會提早送出新排隊的按鍵
     private var holdEpoch = 0
-    /// 等切回生效最多等這麼久
-    private static let restoreTimeout: TimeInterval = 0.6
+    /// 等切回生效最多等這麼久：切換本身最多 0.3 秒，加上這裡的 0.3 秒，合起來低於攔截端 1 秒的放行時限
+    private static let restoreTimeout: TimeInterval = 0.3
 
     /// 依序在主執行緒做：切輸入法、把攔下來的按鍵重新送出（切到英文鍵盤馬上生效，實測不用等）
     private func perform(_ action: ShiftHalfWidth.Action, replay event: CGEvent?, generation: Int) {
@@ -150,7 +148,6 @@ final class InputSourceFix {
             if FocusedInputSource.select(ascii) == noErr {
                 // 上次切回失敗還留著目標時保留原本的，不要記成英文鍵盤
                 if restoreTo == nil { restoreTo = current }
-                switchedToID = Self.id(of: ascii)
             } else {
                 Self.log.error("切到英文鍵盤失敗")
             }
@@ -209,21 +206,15 @@ final class InputSourceFix {
     /// 呼叫前要先送出放開 Shift：實測在「文字編輯」先切回再送出放開時，選單列是注音、打出來卻是英文（原因未確認）
     @discardableResult
     private func restore() -> String? {
+        // 不檢查「目前是不是還是切過去的英文鍵盤」：本 App 讀到的狀態可能還沒跟上焦點 App，誤判會停在英文。
+        // 代價是按住 Shift 期間自己換了輸入法時，放開仍會切回原本的
         guard let source = restoreTo else { return nil }
-        let expected = switchedToID
-        // 使用者在這期間自己換了輸入法：尊重他的選擇，不切回（讀不到 ID 時照樣切回）
-        if let expected, Self.id(of: TISCopyCurrentKeyboardInputSource().takeRetainedValue()) != expected {
-            restoreTo = nil
-            switchedToID = nil
-            return nil
-        }
         guard FocusedInputSource.select(source) == noErr else {
             // 保留目標，下次放開 Shift、收尾或每 5 秒的檢查再試
             Self.log.error("切回原本的輸入法失敗")
             return nil
         }
         restoreTo = nil
-        switchedToID = nil
         return Self.id(of: source)
     }
 
@@ -390,21 +381,25 @@ final class ShiftTap: @unchecked Sendable {
             input = nil
         }
         guard let onAction else { return Unmanaged.passUnretained(event) }
-        let (action, deferIt, generation, didReset) = locked { () -> (ShiftHalfWidth.Action, Bool, Int, Bool) in
+        let isRepeat = type == .keyDown && event.getIntegerValueField(.keyboardEventAutorepeat) != 0
+        let (action, deferIt, generation, didReset, drop) = locked { () -> (ShiftHalfWidth.Action, Bool, Int, Bool, Bool) in
             var didReset = false
             if queued > 0, CACurrentMediaTime() - queuedSince > Self.stuckAfter {
                 // 主執行緒沒在處理：放棄排隊、直接放行，鍵盤不會跟著卡死；主執行緒之後收尾（onReset）
                 resetLocked()
                 didReset = true
             }
+            // 切換輸入法期間系統自動產生的重複按鍵：切好後一次送出會冒出一串，丟掉；切好之後照常重複
+            if isRepeat, queued > 0 { return (.pass, false, currentGeneration, didReset, true) }
             // 不是中文輸入法、也沒切過、沒在排隊：直接放行，不複製事件
-            guard imeActive || logic.switched || queued > 0 else { return (.pass, false, currentGeneration, didReset) }
+            guard imeActive || logic.switched || queued > 0 else { return (.pass, false, currentGeneration, didReset, false) }
             let action = input.map { logic.handle($0, imeActive: imeActive) } ?? .pass
             let deferIt = action != .pass || queued > 0
             if deferIt { enqueue() }
-            return (action, deferIt, currentGeneration, didReset)
+            return (action, deferIt, currentGeneration, didReset, false)
         }
         if didReset { onReset?() }
+        if drop { return nil }
         guard deferIt else { return Unmanaged.passUnretained(event) }
         guard let copy = event.copy() else {
             // 複製失敗：原事件直接放行。已經判斷過的切換照樣交出去（不帶按鍵），狀態才不會亂
