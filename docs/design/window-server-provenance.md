@@ -33,7 +33,7 @@ yabai 的引用以 master 分支 commit `dd845723416f5fe92af49fad5ebab00369e07ed
 | `SLSWindowIteratorGetWindowID`、`SLSWindowIteratorGetParentID` | 視窗編號、父視窗編號 | yabai `src/misc/extern.h` | 探測：`addChildWindow` 之後子視窗的父視窗編號是主視窗，其他視窗是 0 |
 | `SLSWindowIteratorGetAttributes`、`SLSWindowIteratorGetTags` | 原始旗標，見下一節 | yabai `src/misc/extern.h` | 位元意義見下一節 |
 | `SLSHWCaptureWindowList` | 單一視窗截圖 | yabai `src/misc/extern.h` | 選項 `(1 << 11) \| (1 << 8)` 與回傳陣列要釋放，取自 yabai `src/window_manager.c` 擷取視窗代理圖的地方。探測：能取得自己視窗的 2 倍解析度圖 |
-| `_SLPSSetFrontProcessWithOptions` | 把行程與指定視窗帶到前面（可跨 Space） | yabai `src/misc/extern.h` | 模式 `0x200`（`kCPSUserGenerated`）見 yabai `src/window_manager.h` 與 `window_manager_focus_window_*` |
+| `_SLPSSetFrontProcessWithOptions` | 把行程帶到前面並指定視窗；實測單獨用不會切 Space，切 Space 靠再啟用 App | yabai `src/misc/extern.h` | 模式 `0x200`（`kCPSUserGenerated`）見 yabai `src/window_manager.h` 與 `window_manager_focus_window_*` |
 | `_AXUIElementGetWindow` | 「輔助使用」視窗物件對應的視窗編號 | yabai `src/misc/extern.h` | 改成以 `dlsym(RTLD_DEFAULT)` 載入；找不到時所有 AX 視窗都視為沒有編號（標題與 AX 操作停用，切換仍可走 WindowServer） |
 
 ## 公開 API

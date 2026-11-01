@@ -30,7 +30,7 @@ alt-tab-macos 是 GPL-3.0。本專案以「保留所有權利」的條款散布�
 - **幻影視窗判斷**：視窗在畫面上（ordered-in）、縮小或所屬 App 隱藏就收；否則只有它位在「目前沒顯示的 Space」才收，背景分頁與 Electron `show:false` 的視窗因此不會出現。這些位元來自對照實際視窗狀態的逆向，每次 macOS 大版本要重新驗證。
 - **最近使用順序只因真正的焦點事件移動**（App 啟用、AX 回報焦點／主視窗改變），不因輪詢移動。
 - **沒有視窗的 App**（例如「音樂」按紅色叉叉）以佔位磚塊列出，選到時用 `NSWorkspace` 讓它重新開窗。
-- **跨 Space 切換**用 `_SLPSSetFrontProcessWithOptions` 與合成事件記錄；同 Space 用 AX 的 raise。
+- **跨 Space 切換**：`_SLPSSetFrontProcessWithOptions` 把行程帶到前面（單獨用不會切 Space），再設成最前面的 App 並啟用它，由 macOS 切到它有視窗的 Space；目標視窗出現在畫面上後用 AX 的 raise。同 Space 直接用 AX 的 raise。
 
 ## 功能狀態
 
@@ -74,7 +74,7 @@ alt-tab 也有同樣的問題，它提供「在背景擷取視窗」開關處理
 
 ## 風險
 
-- **私有 API**：`_AXUIElementGetWindow`、SkyLight／CGS 與焦點事件記錄的位元組格式。本專案不上 App Store，可以用，但每次 macOS 大版本要重測；所有函式都以 dlsym 載入，找不到就降級，不會崩潰。回傳 `CGRect` 的函式必須以 `@convention(c)` 綁定，否則 Intel 上會崩潰。
+- **私有 API**：`_AXUIElementGetWindow` 與 SkyLight 的函式。本專案不上 App Store，可以用，但每次 macOS 大版本要重測；所有函式都以 dlsym 載入，找不到就降級，不會崩潰。
 - **事件攔截**：只在使用者開啟開關時建立，只攔按鍵，不記錄按鍵；被系統暫停時自動重新啟用。
 - **權限**：輔助使用必要；螢幕錄製可選。本機簽章必須沿用穩定的開發憑證，否則每次重建都要重新授權。
 - **資安**：視窗標題可能含敏感內容，不寫入日誌、不上傳；設定從 UserDefaults 讀回時逐欄驗證，例外清單的 Bundle ID 限制字元與長度。

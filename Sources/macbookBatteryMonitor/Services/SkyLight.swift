@@ -2,9 +2,10 @@ import AppKit
 import ApplicationServices
 import OSLog
 
-/// 跟 WindowServer 打交道的地方：Space 清單、某些 Space 上有哪些視窗、截圖、把指定視窗帶到前面。
+/// 跟 WindowServer 打交道的地方：Space 清單、某些 Space 上有哪些視窗、截圖、把指定視窗的行程帶到前面。
 /// 能用公開 API 的就用公開 API（CGWindowListCopyWindowInfo 給擁有者、層級、透明度、位置、名稱）；
-/// 公開 API 沒有的（Space、縮小與隱藏的標記、父視窗、截圖、跨 Space 切換）才用 SkyLight 私有函式。
+/// 公開 API 沒有的（Space、縮小與隱藏的標記、父視窗、截圖、把行程帶到前面並指定視窗）才用 SkyLight 私有函式；
+/// 切 Space 本身靠啟用 App，由 macOS 處理。
 /// 私有函式一律在第一次用到時以 dlsym 載入，缺哪一個就只停用依賴它的功能。
 /// 每個私有符號、常數的出處與實測結果見 docs/design/window-server-provenance.md；macOS 大版本更新後要重跑實測
 enum SkyLight {
