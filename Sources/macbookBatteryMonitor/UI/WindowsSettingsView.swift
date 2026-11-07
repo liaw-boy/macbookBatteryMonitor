@@ -80,7 +80,7 @@ struct WindowsSettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.green)
         } else if !ui.scrollTrusted {
-            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)

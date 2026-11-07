@@ -48,7 +48,7 @@ struct WindowSwitcherSettingsView: View {
         } else if ui.scrollTrusted {
             Label("啟動中…", systemImage: "clock").font(.caption).foregroundStyle(.secondary)
         } else {
-            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                 .font(.caption)
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)

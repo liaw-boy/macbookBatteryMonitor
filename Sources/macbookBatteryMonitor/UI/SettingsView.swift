@@ -430,7 +430,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。清單裡已經有它、開關也開著的話，那是 v1.7.3 以前版本的允許，先按「－」移除再加一次；之後更新都會保留。")
+                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。清單裡已經有它、開關也開著的話，那是 v1.7.3 以前版本的允許，先按「－」移除再加一次；之後更新都會保留。")
                                     .font(.caption)
                                     .foregroundStyle(.orange)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -458,7 +458,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.green)
                             } else if !ui.scrollTrusted {
-                                Text("「按住 Shift 打半形英文」需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+                                Text("「按住 Shift 打半形英文」需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                                     .font(.caption)
                                     .foregroundStyle(.orange)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -492,7 +492,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.green)
                             } else if !ui.scrollTrusted {
-                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                                     .font(.caption)
                                     .foregroundStyle(.orange)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -524,7 +524,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         if !ui.scrollTrusted {
-                            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+                            Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -554,7 +554,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundStyle(.green)
                             } else if !ui.scrollTrusted {
-                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 → 輔助使用，打開「\(AppEdition.appName)」。")
+                                Text("需要允許「輔助使用」：系統設定 → 隱私權與安全性 →「輔助使用」（macOS 27 起叫「裝置控制和資料取用」），打開「\(AppEdition.appName)」。")
                                     .font(.caption)
                                     .foregroundStyle(.orange)
                                     .fixedSize(horizontal: false, vertical: true)

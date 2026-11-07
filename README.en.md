@@ -251,7 +251,7 @@ macOS's "natural scrolling" is one setting for both mouse and trackpad: if you l
 - **"左右捲動也反向"** (reverse horizontal scrolling too): on by default, reversing vertical and horizontal scrolling together; turn it off to reverse only vertical scrolling
 - **How it tells them apart**: scrolling with two or more fingers on the trackpad counts as trackpad, including the momentum after lifting your fingers; everything else (wheels, Magic Mouse one-finger scrolling) counts as mouse. Turning the wheel while trackpad momentum is still gliding follows the mouse setting for the wheel and keeps the trackpad setting for the rest of the momentum
 - **No bouncing back in web pages**: reversed trackpad and Magic Mouse scrolls are replaced with newly created events, so the raw deltas web pages use for momentum are reversed too
-- **Permission**: needs Accessibility. Turning a switch on asks you to enable "電池與系統監控" in System Settings → Privacy & Security → Accessibility; it starts working within seconds, no relaunch needed, and stays allowed after updates and reinstalls
+- **Permission**: needs Accessibility. Turning a switch on asks you to enable "電池與系統監控" in System Settings → Privacy & Security → Accessibility (macOS 27 renamed it; the Traditional Chinese UI calls it 「裝置控制和資料取用」); it starts working within seconds, no relaunch needed, and stays allowed after updates and reinstalls
 - **Status**: the settings page shows the real state. "運作中" (working) means scroll events are being intercepted, "啟動中…" (starting) means permission is there and it starts shortly; without permission it shows an orange note and "打開輔助使用設定" (open Accessibility settings)
 - **Power and reliability**: nothing is intercepted while both switches are off; when on, events are only handled at the moment you scroll. The interception runs on its own high-priority thread and is checked every 5 seconds: re-enabled if macOS paused it, rebuilt if it became invalid
 
@@ -274,7 +274,7 @@ Turn on "用視窗切換取代 Cmd+Tab" (replace Cmd+Tab with window switching) 
 - **Settings**: up to 9 shortcuts, each with its own appearance (thumbnails, app icons, titles), size and which windows to list (Space, screen, minimized, hidden, full screen, apps without windows); optionally keep the switcher open after releasing the modifier and confirm with Return; apps on the exception list are never listed
 - **Windows on another Space**: picking one brings its app forward so macOS moves to a Space with the app's windows, then raises the window once it is on screen. This relies on "When switching to an application, switch to a Space with open windows for the application" in System Settings → Desktop & Dock (on by default); with it off, picking a window on another Space does not move there
 - **Accessibility (required)**: needed to intercept the shortcut, read window titles and perform window actions. Without it the settings page shows an orange note and "打開輔助使用設定" (open Accessibility settings); it starts working within seconds after you allow it. If the permission is revoked the interception stops and the status no longer shows "運作中" (working)
-- **Screen Recording (optional)**: only used for window thumbnails and the preview. Without it you get app icons and titles only, everything else works; while capturing, macOS shows its screen capture indicator in the menu bar. Turning off "切換時更新視窗縮圖" (refresh thumbnails while switching) or picking the app icon or title appearance avoids capturing
+- **Screen Recording (optional)**: macOS 27 lists it as 「螢幕與系統錄音」 in the Traditional Chinese UI. Only used for window thumbnails and the preview. Without it you get app icons and titles only, everything else works; while capturing, macOS shows its screen capture indicator in the menu bar. Turning off "切換時更新視窗縮圖" (refresh thumbnails while switching) or picking the app icon or title appearance avoids capturing
 - **Privacy**: window titles are never logged or uploaded; with the switch off no keys are intercepted
 
 The system integration uses private macOS functions, all loaded at run time and disabled if missing; their sources are listed in [docs/design/window-server-provenance.md](docs/design/window-server-provenance.md) (Chinese).
@@ -587,7 +587,7 @@ CPU usage measured on an M1 MacBook Air:
 ## Uninstall
 
 1. If smart charging is set up, click "取消排程並還原" (cancel and restore) on the smart charging page first to restore the charge limit
-2. In Settings, turn off admin CPU sampling, set smart charging's "睡眠時" (while asleep) back to finish on time first (this removes the system service if it was installed) and turn off launch at login, then quit the app. If you used scroll directions, remove the app from System Settings → Privacy & Security → Accessibility
+2. In Settings, turn off admin CPU sampling, set smart charging's "睡眠時" (while asleep) back to finish on time first (this removes the system service if it was installed) and turn off launch at login, then quit the app. If you used scroll directions, remove the app from System Settings → Privacy & Security → Accessibility (「裝置控制和資料取用」 in the Traditional Chinese UI of macOS 27)
 3. Delete `/Applications/macbookBatteryMonitor.app`
 4. If you deleted the app first and the system service is still there, run:
    ```bash
