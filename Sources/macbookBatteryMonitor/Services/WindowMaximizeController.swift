@@ -64,7 +64,7 @@ final class WindowMaximizeController {
             // 被暫停或作廢的攔截先清掉再重建
             tap.stop()
             let started = tap.start()
-            Self.log.notice("綠色按鈕放大：\(started ? "開始" : "失敗", privacy: .public)")
+            Self.log.notice("綠色按鈕填滿：\(started ? "開始" : "失敗", privacy: .public)")
         }
         if watchdog == nil {
             watchdog = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in

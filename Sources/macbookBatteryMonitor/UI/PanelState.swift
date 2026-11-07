@@ -74,15 +74,15 @@ final class PanelState {
     var quitGuardRunning = false
     /// 滑鼠側鍵的攔截在運作
     var mouseButtonsRunning = false
-    /// 關閉最後視窗時結束 App 在運作
+    /// 關掉最後視窗就結束 在運作
     var lastWindowQuitRunning = false
-    /// 點 Dock 圖示縮到 Dock 在運作
+    /// 點 Dock 圖示收起 在運作
     var dockClickRunning = false
-    /// 綠色按鈕放大在運作
+    /// 綠色按鈕填滿在運作
     var greenButtonRunning = false
     /// 視窗吸附在運作
     var windowSnapRunning = false
-    /// Finder 加強在運作
+    /// Finder 快捷鍵在運作
     var finderKeysRunning = false
     /// 無法確認「輔助使用」權限，會擋住輸入的按鍵與滑鼠功能已暫停（EventTapAccess 停用中）
     var inputPaused = false

@@ -1,7 +1,7 @@
 import Carbon
 import Foundation
 
-/// 目前的鍵盤配置按著 ⌘ 時，US 鍵盤 Q、W、X、C、V 那幾個位置打出來的字母（⌘Q／⌘W 防誤觸與 Finder 加強用，判斷在 KeyLayout）。
+/// 目前的鍵盤配置按著 ⌘ 時，US 鍵盤 Q、W、X、C、V 那幾個位置打出來的字母（⌘Q／⌘W 防誤觸與 Finder 快捷鍵用，判斷在 KeyLayout）。
 /// 用 ASCII 鍵盤配置（注音、拼音底下是 ABC）按著 ⌘ 的對照表算，和 App 認快捷鍵的方式一樣（Dvorak - QWERTY ⌘ 也對）。
 /// 在主執行緒算、切換輸入法時重算；攔截執行緒只讀結果
 final class KeyboardLetters: @unchecked Sendable {

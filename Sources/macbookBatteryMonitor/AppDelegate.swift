@@ -324,7 +324,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    /// 「視窗與 Dock」的擴充功能：關閉最後視窗時結束 App、點 Dock 圖示縮到 Dock。
+    /// 「視窗與 Dock」的擴充功能：關掉最後視窗就結束、點 Dock 圖示收起。
     /// 需要「輔助使用」：剛加入時跳出系統的詢問，允許之後每 2 秒檢查一次就開始
     private func applyLastWindowQuit(prompt: Bool) {
         let lastWindow = sessionActive && settings.isInstalled(.lastWindowQuit), dock = sessionActive && settings.isInstalled(.dockClick)

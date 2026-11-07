@@ -9,8 +9,8 @@ struct WindowsSettingsView: View {
         if settings.isInstalled(.finderKeys) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("Finder 加強", systemImage: "folder")
-                    Text("在 Finder 按 ⌘X 剪下檔案，到別的資料夾按 ⌘V 就是搬移（等於 Finder 的 ⌥⌘V「搬移項目到這裡」）；剪下後如果又複製了別的東西，⌘V 照常拷貝，不會誤把檔案搬走。按 F2 重新命名（等於按 Return）。只在 Finder 是最前面的 App、而且不是在改檔名或搜尋框打字時才轉換。")
+                    CardTitle("Finder 快捷鍵", systemImage: "folder")
+                    Text("⌘X 剪下、⌘V 搬移檔案，F2 重新命名。剪下後又複製了別的東西，⌘V 就照常貼上，不會誤搬檔案。改檔名或在搜尋框打字時不作用。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -22,7 +22,7 @@ struct WindowsSettingsView: View {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
                     CardTitle("視窗吸附", systemImage: "rectangle.split.2x1")
-                    Text("把視窗拖到螢幕左右邊緣排成半邊、拖到上緣填滿、拖到四個角排成四分之一；拖到邊緣時先顯示預覽框，放開才排版，拖離邊緣就取消。只監聽滑鼠，拖曳本身照常。系統設定 → 桌面與 Dock 的「拖移視窗到螢幕邊緣以並排」開著時，交給系統處理，這裡不動作。")
+                    Text("拖到左右邊緣排成半邊、上緣填滿、四個角排成四分之一。先顯示預覽，放開才排版，拖離邊緣就取消。系統設定已開「拖移視窗到螢幕邊緣以並排」時交給系統處理。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -33,8 +33,8 @@ struct WindowsSettingsView: View {
         if settings.isInstalled(.greenButton) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("綠色按鈕放大", systemImage: "arrow.up.left.and.arrow.down.right")
-                    Text("點視窗左上角的綠色按鈕，改成填滿視窗所在螢幕的可用範圍（選單列與 Dock 還在，不進全螢幕，和「視窗 → 填滿」一樣有系統動畫）；再按一次還原成原本的位置大小。按著 Option 點照系統原本的行為。判斷是不是點到綠色按鈕最多等 15 毫秒，來不及時那一下照原本的方式進入全螢幕，不會拖慢點擊。")
+                    CardTitle("綠色按鈕填滿", systemImage: "arrow.up.left.and.arrow.down.right")
+                    Text("點綠色按鈕填滿所在螢幕（不進全螢幕，選單列與 Dock 還在），再點一次還原。按住 Option 點照系統原本的行為。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -45,12 +45,12 @@ struct WindowsSettingsView: View {
         if settings.isInstalled(.dockClick) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("點 Dock 圖示縮到 Dock", systemImage: "dock.arrow.down.rectangle")
-                    Picker("點目前 App 的 Dock 圖示時", selection: Binding(get: { settings.dockClickMode }, set: { settings.dockClickMode = $0 })) {
-                        Text("把它的視窗縮到 Dock").tag(DockClick.Mode.minimize)
+                    CardTitle("點 Dock 圖示收起", systemImage: "dock.arrow.down.rectangle")
+                    Picker("點最前面 App 的圖示時", selection: Binding(get: { settings.dockClickMode }, set: { settings.dockClickMode = $0 })) {
+                        Text("視窗縮到 Dock").tag(DockClick.Mode.minimize)
                         Text("隱藏 App").tag(DockClick.Mode.hide)
                     }
-                    Text("只有點的是目前最前面的 App、而且它有開著的視窗時才收起來；再點一次照 Dock 原本的方式叫回來。點別的 App、拖曳圖示、按右鍵都照常。只監聽滑鼠，不攔截。")
+                    Text("只在點最前面、而且有開著視窗的 App 時作用，再點一次叫回來。點別的 App、拖曳、按右鍵都照常。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -61,8 +61,8 @@ struct WindowsSettingsView: View {
         if settings.isInstalled(.lastWindowQuit) {
             Card {
                 VStack(alignment: .leading, spacing: 8) {
-                    CardTitle("關閉最後視窗時結束 App", systemImage: "xmark.app")
-                    Text("App 的最後一個視窗關掉時自動結束它。要所有 Space（包括縮到 Dock 的）都沒有它的視窗、而且它原本有視窗才會結束；Finder 與隱藏中的 App 不會結束。下面的 App 也不會被結束，例如關掉視窗後還要在背景播放的音樂 App。")
+                    CardTitle("關掉最後視窗就結束", systemImage: "xmark.app")
+                    Text("App 的最後一個視窗關掉就結束它（縮到 Dock 的也算還開著）。Finder、隱藏中的 App 和下面列出的 App 不會結束，例如要在背景播音樂的 App。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

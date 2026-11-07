@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import OSLog
 
-/// 點 Dock 圖示縮到 Dock（判斷在 DockClick）。只監聽滑鼠（listenOnly），不攔截，Dock 原本的點擊與拖曳都照常。
+/// 點 Dock 圖示收起（判斷在 DockClick）。只監聽滑鼠（listenOnly），不攔截，Dock 原本的點擊與拖曳都照常。
 /// 按下時判斷（Dock 在放開時才動作，這時讀到的是點擊前的狀態），放開時執行。
 /// 只有點在螢幕邊緣附近（Dock 可能出現的地方）才去讀 Dock 的圖示位置，其他點擊不做事。需要「輔助使用」權限
 @MainActor

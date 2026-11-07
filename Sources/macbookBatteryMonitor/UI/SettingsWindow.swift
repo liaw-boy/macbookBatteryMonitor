@@ -18,7 +18,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
     case input
     /// 視窗切換（取代 Cmd+Tab）：快捷鍵、外觀、要列出的視窗、例外清單
     case windowSwitcher
-    /// 視窗與 Dock 的其他擴充功能（關閉最後視窗時結束 App 等）
+    /// 視窗與 Dock 的其他擴充功能（關掉最後視窗就結束 等）
     case windows
     /// 登入時自動啟動的項目
     case startup
@@ -99,7 +99,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
         case .peripherals: return "藍牙設備的低電量通知與目前連著的裝置"
         case .input: return "捲動、滑鼠側鍵、中文輸入法、防誤觸與鍵盤清潔"
         case .windowSwitcher: return "取代 Cmd+Tab 的視窗切換"
-        case .windows: return "視窗吸附、綠色按鈕放大、Finder 加強、關閉最後視窗、Dock 點擊"
+        case .windows: return "視窗吸附、綠色按鈕填滿、Finder 快捷鍵、關掉最後視窗、Dock 點擊"
         case .features: return "啟用或停用擴充功能"
         case .update: return "版本、自動檢查與一鍵更新"
         }

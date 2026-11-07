@@ -3,7 +3,7 @@ import ApplicationServices
 import Carbon
 import OSLog
 
-/// Finder 加強（判斷在 FinderKeys）。攔截在自己的執行緒上跑；只有 X、C、V、F2 而且 Finder 在最前面時才問
+/// Finder 快捷鍵（判斷在 FinderKeys）。攔截在自己的執行緒上跑；只有 X、C、V、F2 而且 Finder 在最前面時才問
 /// 「輔助使用」現在是不是在打字（最多等 50 毫秒），其他按鍵直接放行。要改寫的鍵：攔下原本的事件、另外送出新的按鍵
 /// （直接改鍵盤送來的事件，Finder 不認），放開時也一樣。
 /// 需要「輔助使用」權限；停用時完全不攔截
@@ -40,7 +40,7 @@ final class FinderKeysController {
             // 被暫停或作廢的攔截先清掉再重建
             tap.stop()
             let started = tap.start()
-            Self.log.notice("Finder 加強：\(started ? "開始" : "失敗", privacy: .public)")
+            Self.log.notice("Finder 快捷鍵：\(started ? "開始" : "失敗", privacy: .public)")
         }
         if watchdog == nil {
             watchdog = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
@@ -122,7 +122,7 @@ final class FinderKeysTap: @unchecked Sendable {
             ready.signal()
             CFRunLoopRun()
         }
-        thread.name = "Finder 加強"
+        thread.name = "Finder 快捷鍵"
         thread.qualityOfService = .userInteractive
         thread.start()
         ready.wait()

@@ -334,7 +334,7 @@ Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a
 
 ## Finder shortcuts
 
-Turn on "Finder 加強" (Finder shortcuts) in Settings → 功能管理 and:
+Turn on "Finder 快捷鍵" (Finder shortcuts) in Settings → 功能管理 and:
 
 - **⌘X to cut, ⌘V to move**: select files in Finder, press ⌘X, then ⌘V in another folder to move them (Finder's ⌥⌘V "Move Item Here"). If something else is copied after cutting, ⌘V pastes the clipboard as usual and never moves the files by mistake
 - **F2 to rename**: press F2 on a selected file to rename it (same as Return)
@@ -353,7 +353,7 @@ Turn on "視窗吸附" (window snapping) in Settings → 功能管理 and draggi
 
 ## Green button maximizes
 
-Turn on "綠色按鈕放大" (green button maximizes) in Settings → 功能管理 and the green button at the top left of a window fills the usable area of the screen the window is on instead (menu bar and Dock stay, no full screen Space); clicking it again restores the previous position and size, both with the system animation:
+Turn on "綠色按鈕填滿" (green button fills the screen) in Settings → 功能管理 and the green button at the top left of a window fills the usable area of the screen the window is on instead (menu bar and Dock stay, no full screen Space); clicking it again restores the previous position and size, both with the system animation:
 
 - **Full screen**: with the feature on, the green button no longer enters full screen. Option-click is the system's own "Zoom", not full screen either. Use Window → Full Screen or ⌃⌘F instead
 - **Windows already in full screen, windows that cannot be resized**: keep the system behaviour (leave full screen; nothing happens when the button is disabled)
@@ -366,7 +366,7 @@ Turn on "綠色按鈕放大" (green button maximizes) in Settings → 功能管�
 
 ## Click a Dock icon to minimize
 
-Turn on "點 Dock 圖示縮到 Dock" (click a Dock icon to minimize) in Settings → 功能管理. Clicking the Dock icon of the frontmost app then minimizes its open windows (or hides the app, set under 視窗與 Dock); clicking again brings back the windows it minimized:
+Turn on "點 Dock 圖示收起" (click a Dock icon to put it away) in Settings → 功能管理. Clicking the Dock icon of the frontmost app then minimizes its open windows (or hides the app, set under 視窗與 Dock); clicking again brings back the windows it minimized:
 
 - **Only then**: the click must be on the app that was frontmost when the button went down, the app must have open windows, and it must be a single click, not a drag or long press. Clicking another app switches to it as usual, and double-clicking a background app's icon only switches to it; windows you minimized yourself are not restored; this app's own icon (while Settings is open) is ignored
 - **How it decides**: on mouse down, before the Dock reacts (the Dock acts on mouse up), asking WindowServer whether the app has open windows instead of waiting on the app. On mouse up the Dock asks the app to reopen and the app restores a window itself, so minimizing waits 0.05 s; for apps that answer later (for example LINE), windows restored within 0.4 s are minimized again, unless you click again in the meantime. Clicking again brings back every window it minimized
@@ -375,7 +375,7 @@ Turn on "點 Dock 圖示縮到 Dock" (click a Dock icon to minimize) in Settings
 
 ## Quit an app when its last window closes
 
-Turn on "關閉最後視窗時結束 App" (quit when the last window closes) in Settings → 功能管理, and an app quits by itself when its last window is closed (Settings → 視窗與 Dock):
+Turn on "關掉最後視窗就結束" (quit when the last window closes) in Settings → 功能管理, and an app quits by itself when its last window is closed (Settings → 視窗與 Dock):
 
 - **When it quits**: 0.6 s after a window closes and again 1 s later, both the WindowServer (every Space, minimized windows included) and Accessibility must report no windows, and the app must have had a window before. If either still sees a window it stays open, and if the WindowServer query fails (for example after a macOS update breaks the private call) the app counts as having windows. An app is quit only after it has finished launching and has run for at least 10 seconds (apps with a splash screen may show their main window seconds later). Finder and hidden apps are never quit
 - **Never quit**: call and meeting apps (FaceTime, Phone, Zoom, Microsoft Teams, Slack, Discord, Webex, Skype, LINE; they may have no window during a call, and quitting would hang up) and virtual machines (Parallels, VMware Fusion, UTM). Add other call apps to the exception list yourself
