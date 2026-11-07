@@ -309,6 +309,7 @@ print("4 smooth scroll tests passed")
 let audio = AudioDevicesTests()
 audio.testOutputMenu()
 audio.testMutePlan()
+audio.testDeviceSymbol()
 audio.testAccessibilityNeeds()
 print("3 audio device tests passed")
 
