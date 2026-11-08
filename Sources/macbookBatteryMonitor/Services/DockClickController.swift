@@ -273,9 +273,14 @@ final class DockClickController {
         guard let dock = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.dock").first else { return nil }
         let element = AXUIElementCreateApplication(dock.processIdentifier)
         AXUIElementSetMessagingTimeout(element, 0.2)
-        guard let list = (attribute(element, kAXChildrenAttribute) as? [AXUIElement])?.first,
-              let items = attribute(list, kAXChildrenAttribute) as? [AXUIElement] else { return nil }
+        guard let list = (attribute(element, kAXChildrenAttribute) as? [AXUIElement])?.first else { return nil }
+        // 子元素不會沿用 App 元素的等待上限（預設約 6 秒），每個都要自己設；整趟另有總時限，Dock 沒回應時不拖住點擊
+        AXUIElementSetMessagingTimeout(list, 0.2)
+        guard let items = attribute(list, kAXChildrenAttribute) as? [AXUIElement] else { return nil }
+        let deadline = ProcessInfo.processInfo.systemUptime + 0.2
         for item in items {
+            guard ProcessInfo.processInfo.systemUptime < deadline else { return nil }
+            AXUIElementSetMessagingTimeout(item, 0.05)
             var subrole: AnyObject?
             guard AXUIElementCopyAttributeValue(item, kAXSubroleAttribute as CFString, &subrole) == .success else { return nil }
             guard subrole as? String == "AXApplicationDockItem" else { continue }
