@@ -179,6 +179,8 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(!settings.systemMonitors)
+                    SwitchRow("標籤不加底色（標籤在上、數值在下）", isOn: binding(\.monitorPlainLabels))
+                        .disabled(!settings.systemMonitors)
                     SwitchRow("記憶體與磁碟放在同一個圖示", isOn: binding(\.mergeMemoryDisk))
                         .disabled(!settings.systemMonitors || !settings.monitorMemory || !settings.monitorDisk)
                     if settings.systemMonitors {

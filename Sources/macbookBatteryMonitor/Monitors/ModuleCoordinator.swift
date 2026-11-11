@@ -18,6 +18,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private var lastKeys: [MonitorKind: String] = [:]
     /// 選單列的記憶體圖示目前是不是和磁碟合併的兩行版本
     private var memoryItemMerged = false
+    /// 選單列圖示目前畫的是不是不加底色的標籤
+    private var plainLabels = false
     private var timer: Timer?
     /// 每次打開都建立新的，關閉後整個釋放
     private var popover: NSPopover?
@@ -110,6 +112,14 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 if openKind == .memory { popover?.closeNow() }
                 item.length = NSStatusItem.variableLength
                 lastKeys[.memory] = nil
+            }
+        }
+        // 換標籤樣式後每個圖示的寬度都不同：鎖住的長度全部放開重新量
+        if settings.monitorPlainLabels != plainLabels {
+            plainLabels = settings.monitorPlainLabels
+            for (kind, item) in items {
+                item.length = NSStatusItem.variableLength
+                lastKeys[kind] = nil
             }
         }
         // 關掉測速開關或網路模組後就看不到測速卡片，正在跑的測速也一起停掉
@@ -214,39 +224,50 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     }
 
     private func menuBarContent(_ kind: MonitorKind) -> (key: String, tooltip: String, image: () -> NSImage) {
+        let content = menuBarParts(kind)
+        let plain = settings.monitorPlainLabels
+        // 樣式也放進 key：換樣式時一定重畫
+        return ((plain ? "plain|" : "") + content.key, content.tooltip, {
+            plain ? content.plain() : content.badge()
+        })
+    }
+
+    /// 每個模組兩種畫法：彩色底塊的標籤（badge）與不加底色、標籤在上數值在下（plain）
+    private func menuBarParts(_ kind: MonitorKind) -> (key: String, tooltip: String, badge: () -> NSImage, plain: () -> NSImage) {
+        typealias R = MonitorMenuBarRenderer
         switch kind {
         case .cpu:
             let c = cpu.usage.map { ByteFormat.percent($0.total) } ?? "—"
             let g = cpu.gpu.map(ByteFormat.percent) ?? "—"
-            return ("\(c)|\(g)", "CPU \(c)・GPU \(g)", {
-                MonitorMenuBarRenderer.twoLines([("CPU", c, MonitorMenuBarRenderer.green), ("GPU", g, MonitorMenuBarRenderer.orange)], valueTemplate: "100%")
-            })
+            return ("\(c)|\(g)", "CPU \(c)・GPU \(g)",
+                    { R.twoLines([("CPU", c, R.green), ("GPU", g, R.orange)], valueTemplate: "100%") },
+                    { R.columns([("CPU", c, nil), ("GPU", g, nil)], valueTemplate: "100%") })
         case .memory where settings.memoryDiskMerged:
             let m = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let d = diskUsedText
             let pressure = memory.usage?.pressure ?? .normal
-            return ("merged|\(m)|\(d)|\(pressure.rawValue)", "\(memoryTooltip)\n\(diskTooltip)", {
-                MonitorMenuBarRenderer.memoryDisk(memory: m, disk: d, pressure: pressure)
-            })
+            return ("merged|\(m)|\(d)|\(pressure.rawValue)", "\(memoryTooltip)\n\(diskTooltip)",
+                    { R.memoryDisk(memory: m, disk: d, pressure: pressure) },
+                    { R.columns([("MEM", m, R.pressureColor(pressure)), ("DISK", d, nil)], valueTemplate: "100%") })
         case .memory:
             let value = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let pressure = memory.usage?.pressure ?? .normal
-            return ("\(value)|\(pressure.rawValue)", memoryTooltip, {
-                MonitorMenuBarRenderer.symbolValue(symbol: "memorychip", value: value, valueTemplate: "100%",
-                                                   color: MonitorMenuBarRenderer.pressureColor(pressure))
-            })
+            return ("\(value)|\(pressure.rawValue)", memoryTooltip,
+                    { R.symbolValue(symbol: "memorychip", value: value, valueTemplate: "100%", color: R.pressureColor(pressure)) },
+                    { R.columns([("MEM", value, R.pressureColor(pressure))], valueTemplate: "100%") })
         case .disk:
             let value = diskUsedText
-            return (value, diskTooltip, {
-                MonitorMenuBarRenderer.symbolValue(symbol: "internaldrive", value: value, valueTemplate: "100%")
-            })
+            return (value, diskTooltip,
+                    { R.symbolValue(symbol: "internaldrive", value: value, valueTemplate: "100%") },
+                    { R.columns([("DISK", value, nil)], valueTemplate: "100%") })
         case .network:
             let up = ByteFormat.compactRate(network.uploadRate)
             let down = ByteFormat.compactRate(network.downloadRate)
             let tooltip = "上傳 \(ByteFormat.rate(network.uploadRate))・下載 \(ByteFormat.rate(network.downloadRate))"
-            return ("\(up)|\(down)", tooltip, {
-                MonitorMenuBarRenderer.twoLines([("↑", up, MonitorMenuBarRenderer.orange), ("↓", down, MonitorMenuBarRenderer.green)], valueTemplate: "999K")
-            })
+            let lines = [("↑", up, R.orange), ("↓", down, R.green)]
+            return ("\(up)|\(down)", tooltip,
+                    { R.twoLines(lines, valueTemplate: "999K") },
+                    { R.twoLines(lines, valueTemplate: "999K", plain: true) })
         }
     }
 
@@ -408,6 +429,8 @@ enum MonitorMenuBarRenderer {
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)
     private static let lineFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
+    private static let columnLabelFont = NSFont.systemFont(ofSize: 7.5, weight: .semibold)
+    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
 
     private static var height: CGFloat { max(18, NSStatusBar.system.thickness - 2) }
 
@@ -428,10 +451,11 @@ enum MonitorMenuBarRenderer {
     /// 兩行，每行「彩色底塊的標籤＋靠右的數值」；寬度依 valueTemplate 固定，數字變動時圖示不會左右晃。
     /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚。
     /// valueColors 依行指定數值的顏色（例如記憶體壓力），沒有指定的行用一般文字顏色
+    /// plain：標籤不加底塊，直接用該行的顏色寫字（像 Stats 的網路圖示）
     static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String,
-                         valueColors: [NSColor?] = []) -> NSImage {
+                         valueColors: [NSColor?] = [], plain: Bool = false) -> NSImage {
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: labelFont]).width }.max() ?? 0
-        let badgeWidth = ceil(labelWidth + 5)
+        let badgeWidth = ceil(labelWidth + (plain ? 1 : 5))
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: lineFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: true) { rect in
@@ -440,9 +464,12 @@ enum MonitorMenuBarRenderer {
             for (index, line) in lines.prefix(2).enumerated() {
                 let y = CGFloat(index) * lineHeight
                 let badge = snap(NSRect(x: 0, y: y + 0.75, width: badgeWidth, height: lineHeight - 1.5), scale: scale)
-                line.color.setFill()
-                NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
-                let label = NSAttributedString(string: line.label, attributes: [.font: labelFont, .foregroundColor: NSColor.white])
+                if !plain {
+                    line.color.setFill()
+                    NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
+                }
+                let label = NSAttributedString(string: line.label, attributes: [.font: labelFont,
+                                                                                .foregroundColor: plain ? line.color : NSColor.white])
                 let labelSize = label.size()
                 label.draw(at: NSPoint(x: snap(badge.midX - labelSize.width / 2, scale: scale),
                                        y: snap(badge.midY - labelSize.height / 2, scale: scale)))
@@ -451,6 +478,33 @@ enum MonitorMenuBarRenderer {
                 let valueSize = value.size()
                 value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
                                        y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))
+            }
+            return true
+        }
+    }
+
+    /// 不加底色的欄位（像 Stats）：每欄上面是小字標籤、下面是數值，多欄並排；寬度依 valueTemplate 固定，數字變動時不會左右晃。
+    /// valueColor 沒有指定時用一般文字顏色（記憶體壓力升高時變橘、變紅）
+    static func columns(_ items: [(label: String, value: String, valueColor: NSColor?)], valueTemplate: String) -> NSImage {
+        let templateWidth = (valueTemplate as NSString).size(withAttributes: [.font: columnValueFont]).width
+        let widths = items.map { max(templateWidth, ($0.label as NSString).size(withAttributes: [.font: columnLabelFont]).width) }
+        let spacing: CGFloat = 6
+        let size = NSSize(width: ceil(widths.reduce(0, +) + spacing * CGFloat(max(0, items.count - 1))), height: height)
+        return NSImage(size: size, flipped: true) { rect in
+            let scale = pixelsPerPoint
+            var x: CGFloat = 0
+            for (index, item) in items.enumerated() {
+                let width = widths[index]
+                let label = NSAttributedString(string: item.label, attributes: [.font: columnLabelFont,
+                                                                                .foregroundColor: NSColor.secondaryLabelColor])
+                let labelSize = label.size()
+                label.draw(at: NSPoint(x: snap(x + (width - labelSize.width) / 2, scale: scale), y: snap(rect.height * 0.04, scale: scale)))
+                let value = NSAttributedString(string: item.value, attributes: [.font: columnValueFont,
+                                                                                .foregroundColor: item.valueColor ?? NSColor.labelColor])
+                let valueSize = value.size()
+                value.draw(at: NSPoint(x: snap(x + (width - valueSize.width) / 2, scale: scale),
+                                       y: snap(rect.height - valueSize.height + 1, scale: scale)))
+                x += width + spacing
             }
             return true
         }
