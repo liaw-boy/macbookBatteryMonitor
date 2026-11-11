@@ -27,6 +27,17 @@ struct AppVolumeTests {
         XCTAssertNil(AppVolume.owner(ofProcessBundleID: "com.apple.WebKit.GPU", apps: apps))
     }
 
+    /// 背景 App 的 Helper 歸到它所屬的一般 App；本身就是一般 App 的不變；沒有上層的背景 App 照用自己
+    func testResolveOwner() {
+        let regular: Set<String> = ["com.brave.Browser", "com.apple.Music"]
+        let apps = regular.union(["com.brave.Browser.helper", "com.example.MenuPlayer"])
+        XCTAssertEqual(AppVolume.resolveOwner(pidOwner: "com.brave.Browser.helper", processBundleID: "com.brave.Browser.helper", apps: apps, regularApps: regular), "com.brave.Browser")
+        XCTAssertEqual(AppVolume.resolveOwner(pidOwner: nil, processBundleID: "com.brave.Browser.helper", apps: apps, regularApps: regular), "com.brave.Browser")
+        XCTAssertEqual(AppVolume.resolveOwner(pidOwner: "com.apple.Music", processBundleID: "com.apple.Music", apps: apps, regularApps: regular), "com.apple.Music")
+        XCTAssertEqual(AppVolume.resolveOwner(pidOwner: "com.example.MenuPlayer", processBundleID: "com.example.MenuPlayer", apps: apps, regularApps: regular), "com.example.MenuPlayer")
+        XCTAssertNil(AppVolume.resolveOwner(pidOwner: nil, processBundleID: "LINE.MediaService", apps: apps, regularApps: regular))
+    }
+
     /// 讀回時最多 256 筆
     func testStoredLimit() {
         let many = Dictionary(uniqueKeysWithValues: (0..<400).map { ("app.\($0)", ["volume": 0.5] as [String: Any]) })

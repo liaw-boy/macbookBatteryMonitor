@@ -153,9 +153,10 @@ final class AppVolumeController {
         let apps = NSWorkspace.shared.runningApplications.filter { $0.activationPolicy != .prohibited }
         let names = Dictionary(apps.compactMap { app in app.bundleIdentifier.map { ($0, app.localizedName ?? $0) } }, uniquingKeysWith: { first, _ in first })
         let pidOwners = Dictionary(apps.compactMap { app in app.bundleIdentifier.map { (app.processIdentifier, $0) } }, uniquingKeysWith: { first, _ in first })
+        let regularApps = Set(apps.filter { $0.activationPolicy == .regular }.compactMap(\.bundleIdentifier))
         let targets = settings.filter { $0.value.needsTap }.mapValues(\.gain)
         engine.queue.async { [engine] in
-            let result = engine.sync(targets: targets, pidOwners: pidOwners, appIDs: Set(names.keys))
+            let result = engine.sync(targets: targets, pidOwners: pidOwners, appIDs: Set(names.keys), regularApps: regularApps)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     let controller = AppVolumeController.shared
@@ -221,12 +222,13 @@ final class AppVolumeEngine: @unchecked Sendable {
     }
 
     /// 依目前的程序清單建立、重建或拆掉擷取，回傳正在發出聲音的 App
-    func sync(targets: [String: Float], pidOwners: [pid_t: String], appIDs: Set<String>) -> Result {
+    func sync(targets: [String: Float], pidOwners: [pid_t: String], appIDs: Set<String>, regularApps: Set<String>) -> Result {
         let processes = AudioProcess.all()
         var objects: [String: Set<AudioObjectID>] = [:]
         var playing = Set<String>()
         for process in processes where process.pid != getpid() {
-            guard let owner = pidOwners[process.pid] ?? AppVolume.owner(ofProcessBundleID: process.bundleID, apps: appIDs) else { continue }
+            guard let owner = AppVolume.resolveOwner(pidOwner: pidOwners[process.pid], processBundleID: process.bundleID,
+                                                     apps: appIDs, regularApps: regularApps) else { continue }
             objects[owner, default: []].insert(process.objectID)
             if process.isRunningOutput { playing.insert(owner) }
         }
