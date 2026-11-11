@@ -32,6 +32,7 @@ final class AppVolumeController {
     @ObservationIgnored private var panelVisible = false
     @ObservationIgnored private var wakeObserver: NSObjectProtocol?
     @ObservationIgnored private var signalSources: [DispatchSourceSignal] = []
+    @ObservationIgnored private var saveWork: DispatchWorkItem?
     @ObservationIgnored var onSettingsChange: (([String: AppVolume.Setting]) -> Void)?
 
     static var supported: Bool {
@@ -47,7 +48,11 @@ final class AppVolumeController {
             timer?.invalidate()
             timer = nil
             playing = []
-            engine.queue.async { [engine] in engine.removeAll() }
+            problem = false
+            engine.queue.async { [engine] in
+                engine.removeAll()
+                engine.resetProblem()
+            }
             return
         }
         if wakeObserver == nil {
@@ -94,19 +99,40 @@ final class AppVolumeController {
     }
 
     /// App 結束前拆掉所有擷取，被擷取的 App 立刻恢復原本的聲音
+    /// 最多等 1 秒：Core Audio 卡住時不讓 App 卡在結束（本程序結束時系統也會收回私有的擷取）
     func stopAll() {
-        engine.queue.sync { engine.removeAll() }
+        let done = DispatchSemaphore(value: 0)
+        engine.queue.async { [engine] in
+            engine.removeAll()
+            done.signal()
+        }
+        _ = done.wait(timeout: .now() + 1)
     }
 
     private func update(_ setting: AppVolume.Setting, for bundleID: String) {
+        let wasTapped = settings[bundleID]?.needsTap ?? false
         if setting.needsTap { settings[bundleID] = setting } else { settings[bundleID] = nil }
-        onSettingsChange?(settings)
-        // 拖動滑桿時只改音量，不用重建擷取
-        if let gain = settings[bundleID]?.gain {
-            engine.queue.async { [engine] in engine.setGain(gain, for: bundleID) }
+        // 拖動滑桿時每一格都會進來：只改音量；要開始或停止擷取時才重新同步
+        let gain = setting.gain
+        engine.queue.async { [engine] in engine.setGain(gain, for: bundleID) }
+        if wasTapped != setting.needsTap {
+            sync()
+            updateTimer()
         }
-        sync()
-        updateTimer()
+        saveSoon()
+    }
+
+    /// 拖動停下來 0.5 秒後才存
+    private func saveSoon() {
+        saveWork?.cancel()
+        let work = DispatchWorkItem {
+            MainActor.assumeIsolated {
+                let controller = AppVolumeController.shared
+                controller.onSettingsChange?(controller.settings)
+            }
+        }
+        saveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     private func updateTimer() {
@@ -133,6 +159,8 @@ final class AppVolumeController {
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     let controller = AppVolumeController.shared
+                    // 排隊中的結果晚到：功能已經關掉就不顯示
+                    guard controller.enabled else { return }
                     let list = result.playing.sorted().map { PlayingApp(bundleID: $0, name: names[$0] ?? $0) }
                     if controller.playing != list { controller.playing = list }
                     if controller.problem != result.problem { controller.problem = result.problem }
@@ -148,6 +176,8 @@ final class AppVolumeController {
             signal(number, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
             source.setEventHandler {
+                // 主執行緒卡住時，第二次的結束訊號照預設直接結束
+                signal(number, SIG_DFL)
                 MainActor.assumeIsolated {
                     AppVolumeController.shared.stopAll()
                     NSApp.terminate(nil)
@@ -165,13 +195,23 @@ final class AppVolumeEngine: @unchecked Sendable {
     private var taps: [String: AppTap] = [:]
     private var problem = false
     private var listening = false
+    /// 收到過真正的聲音：權限沒問題，之後擷取到無聲只代表那個 App 正好沒聲音
+    private var verified = false
+    /// 還沒確認權限前，擷取一直無聲而先放掉的次數；連續幾次都這樣多半是沒有權限
+    private var silentStrikes = 0
+    /// 建立失敗（例如輸出格式不支援）或無聲而放掉的 App：程序或輸出裝置沒變之前不再試，免得每 2 秒被靜音一下
+    private var skipped: [String: (objects: Set<AudioObjectID>, output: String, until: Date)] = [:]
 
     struct Result {
         var playing: Set<String>
         var problem: Bool
     }
 
-    func resetProblem() { problem = false }
+    func resetProblem() {
+        problem = false
+        silentStrikes = 0
+        skipped = [:]
+    }
 
     func setGain(_ gain: Float, for bundleID: String) { taps[bundleID]?.setGain(gain) }
 
@@ -195,27 +235,41 @@ final class AppVolumeEngine: @unchecked Sendable {
             tap.invalidate()
             taps[bundleID] = nil
         }
-        // 擷取一直收到無聲資料（多半是沒有系統錄音權限）：全部拆掉，不讓 App 被靜音卻只播出無聲
-        if taps.values.contains(where: \.receivesOnlySilence) {
-            AppVolumeController.log.error("擷取一直收到無聲資料，停止各 App 音量")
-            problem = true
+        if taps.values.contains(where: \.heardSound) {
+            verified = true
+            silentStrikes = 0
+        }
+        // 還沒確認有權限：擷取一直收到無聲資料的先放掉（App 恢復原本的聲音），連續三次就當成沒有權限
+        if !verified {
+            for (bundleID, tap) in taps where tap.receivesOnlySilence {
+                tap.invalidate()
+                taps[bundleID] = nil
+                skipped[bundleID] = (tap.processObjects, tap.outputUID, Date().addingTimeInterval(30))
+                silentStrikes += 1
+                AppVolumeController.log.error("擷取一直收到無聲資料，先放掉這個 App（第 \(self.silentStrikes, privacy: .public) 次）")
+            }
+            if silentStrikes >= 3 { problem = true }
         }
         if problem {
             removeAll()
             return Result(playing: playing, problem: true)
         }
-        let output = AudioProcess.defaultOutputUID()
+        guard let output = AudioProcess.defaultOutputUID() else { return Result(playing: playing, problem: false) }
         for (bundleID, gain) in targets {
-            guard let ids = objects[bundleID], let output else { continue }
-            if let tap = taps[bundleID], tap.processObjects == ids, tap.outputUID == output, tap.isAlive {
-                tap.setGain(gain)
+            guard let ids = objects[bundleID] else { continue }
+            let old = taps[bundleID]
+            if let old, old.processObjects == ids, old.outputUID == output, old.isAlive {
+                old.setGain(gain)
                 continue
             }
-            // 程序清單（例如瀏覽器新開了 Helper）或輸出裝置變了：重建
-            taps[bundleID]?.invalidate()
+            if let skip = skipped[bundleID], skip.objects == ids, skip.output == output, skip.until > Date() { continue }
+            skipped[bundleID] = nil
+            // 程序清單（例如瀏覽器新開了 Helper）或輸出裝置變了：先建好新的再拆舊的，中間不會冒出原本音量的聲音
             let tap = AppTap(processObjects: ids, outputUID: output, gain: gain)
             switch tap.activate() {
-            case .ok: taps[bundleID] = tap
+            case .ok:
+                taps[bundleID] = tap
+                if let old { retire(old) }
             case .permissionDenied:
                 AppVolumeController.log.error("沒有系統錄音權限，停止各 App 音量")
                 tap.invalidate()
@@ -224,19 +278,28 @@ final class AppVolumeEngine: @unchecked Sendable {
                 return Result(playing: playing, problem: true)
             case .failed:
                 tap.invalidate()
+                // 舊的還能用就留著；不再每 2 秒重試同一個組合
+                skipped[bundleID] = (ids, output, .distantFuture)
             }
         }
         return Result(playing: playing, problem: false)
     }
 
-    /// 預設輸出裝置換了、或 Core Audio 重新啟動：全部重建
+    /// 新的擷取已經在播：舊的先轉成無聲，0.15 秒後拆掉，兩個重疊時不會變大聲
+    private func retire(_ tap: AppTap) {
+        tap.setGain(0)
+        queue.asyncAfter(deadline: .now() + 0.15) { tap.invalidate() }
+    }
+
+    /// 預設輸出裝置換了：下一次同步依新的裝置重建；Core Audio 重新啟動：所有編號都失效，全部拆掉重來
     func listenForDeviceChanges() {
         guard !listening else { return }
         listening = true
         for selector in [kAudioHardwarePropertyDefaultOutputDevice, kAudioHardwarePropertyServiceRestarted] {
             var address = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
             AudioObjectAddPropertyListenerBlock(AudioObjectID(kAudioObjectSystemObject), &address, queue) { [weak self] _, _ in
-                self?.removeAll()
+                if selector == kAudioHardwarePropertyServiceRestarted { self?.removeAll() }
+                self?.skipped = [:]
                 DispatchQueue.main.async { MainActor.assumeIsolated { AppVolumeController.shared.retryAfterDeviceChange() } }
             }
         }
@@ -262,7 +325,7 @@ final class AppTap: @unchecked Sendable {
     private var targetGain: Float
     private var currentGain: Float
     private var ramp: Float = 1
-    private var heardSound = false
+    private(set) var heardSound = false
 
     init(processObjects: Set<AudioObjectID>, outputUID: String, gain: Float) {
         self.processObjects = processObjects
@@ -337,6 +400,8 @@ final class AppTap: @unchecked Sendable {
             if let procID {
                 AudioDeviceStop(aggregateID, procID)
                 AudioDeviceDestroyIOProcID(aggregateID, procID)
+                // 已經排進 ioQueue 的回呼跑完才放掉這個物件
+                ioQueue.sync {}
             }
             AudioHardwareDestroyAggregateDevice(aggregateID)
         }
@@ -348,21 +413,24 @@ final class AppTap: @unchecked Sendable {
 
     deinit { invalidate() }
 
-    // 音訊執行緒：不配置記憶體、不上鎖、不寫記錄
+    // 音訊執行緒：不配置記憶體、不上鎖、不寫記錄。
+    // 聚合裝置的輸入是「輸出裝置自己的輸入（例如耳機麥克風）＋擷取」，擷取排在最後：只用最後一個輸入，不會把麥克風播出來
     private func render(_ input: UnsafePointer<AudioBufferList>, _ output: UnsafeMutablePointer<AudioBufferList>) {
         let inputs = UnsafeMutableAudioBufferListPointer(UnsafeMutablePointer(mutating: input))
-        var gain = currentGain
-        for (index, buffer) in UnsafeMutableAudioBufferListPointer(output).enumerated() {
+        let source: AudioBuffer? = inputs.count > 0 ? inputs[inputs.count - 1] : nil
+        let start = currentGain
+        var gain = start
+        for buffer in UnsafeMutableAudioBufferListPointer(output) {
             guard let out = buffer.mData else { continue }
-            let outSamples = Int(buffer.mDataByteSize) / MemoryLayout<Float>.size
-            guard index < inputs.count, let data = inputs[index].mData else {
+            guard let source, let data = source.mData else {
                 memset(out, 0, Int(buffer.mDataByteSize))
                 continue
             }
-            let result = AppVolume.mix(input: data.assumingMemoryBound(to: Float.self), inputChannels: Int(inputs[index].mNumberChannels),
-                                       inputSamples: Int(inputs[index].mDataByteSize) / MemoryLayout<Float>.size,
+            let result = AppVolume.mix(input: data.assumingMemoryBound(to: Float.self), inputChannels: Int(source.mNumberChannels),
+                                       inputSamples: Int(source.mDataByteSize) / MemoryLayout<Float>.size,
                                        output: out.assumingMemoryBound(to: Float.self), outputChannels: Int(buffer.mNumberChannels),
-                                       outputSamples: outSamples, gain: gain, target: targetGain, ramp: ramp)
+                                       outputSamples: Int(buffer.mDataByteSize) / MemoryLayout<Float>.size,
+                                       gain: start, target: targetGain, ramp: ramp)
             gain = result.gain
             if result.peak > 0 { heardSound = true }
         }
