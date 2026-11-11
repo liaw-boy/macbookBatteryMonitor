@@ -5,7 +5,8 @@ import OSLog
 
 /// 各 App 分開調音量（判斷與混音在 AppVolume）。
 /// 用 macOS 14.2 起的程序音訊擷取（Core Audio process tap），不裝驅動程式：
-/// 只有調低或靜音的 App 才擷取，把它原本的聲音靜音，乘上音量後從目前的輸出裝置播出；回到 100% 就整個拆掉。
+/// 只有調低或靜音的 App 才擷取：先接上我們這一路（0 音量），收到聲音後才靜音它原本的聲音、改由我們乘上音量後從目前的輸出裝置播出；
+/// 回到 100% 時先讓原本的聲音回來，我們這一路淡出後拆掉。
 /// 做法參考 fader（MIT，https://github.com/pantafive/fader）的說明與流程，程式自己寫。
 /// 讀寫 Core Audio 都是同步的程序間呼叫，全部放在 queue 上，不卡主執行緒
 @MainActor
@@ -23,7 +24,7 @@ final class AppVolumeController {
     /// 正在發出聲音的 App（面板打開時更新）
     private(set) var playing: [PlayingApp] = []
     private(set) var settings: [String: AppVolume.Setting] = [:]
-    /// 沒有「系統錄音」權限，或擷取一直收到無聲資料：已經全部停掉，App 恢復原本的音量
+    /// 建立擷取時被拒絕（沒有「系統錄音」權限），或還沒收到過任何聲音前連續三個 App 的擷取都只收到無聲資料：已經全部停掉，App 恢復原本的音量
     private(set) var problem = false
 
     @ObservationIgnored private let engine = AppVolumeEngine()
@@ -301,10 +302,19 @@ final class AppVolumeEngine: @unchecked Sendable {
             return
         }
         let waited = Date().timeIntervalSince(started)
-        // 重建時 App 已經被舊的擷取靜音，等不到聲音就直接接手（反正是無聲）；第一次建立時一直等到 App 出聲
-        if tap.heardSound || (old != nil && waited > 0.5) {
-            tap.arm(fromFullVolume: old == nil)
-            if let old { retire(old) }
+        // 只有舊的已經接手時 App 才是被靜音的；舊的還在等聲音時，App 其實是 100%
+        switch AppVolume.armDecision(heardSound: tap.heardSound, oldArmed: old?.armed == true, waited: waited) {
+        case .wait: break
+        case let .arm(fromFullVolume):
+            if tap.arm(fromFullVolume: fromFullVolume) {
+                if let old { retire(old) }
+            } else {
+                // 切換靜音失敗：不接手（否則會聽到兩路重疊、音量沒作用），舊的還能用就留著，這個組合不再重試
+                AppVolumeController.log.error("無法靜音 App 原本的聲音，不調整這個 App")
+                tap.invalidate()
+                taps[bundleID] = old
+                skipped[bundleID] = (tap.processObjects, tap.outputUID, .distantFuture)
+            }
             return
         }
         queue.asyncAfter(deadline: .now() + (waited < 1 ? 0.02 : 0.1)) { [weak self] in
@@ -337,7 +347,7 @@ extension AppVolumeController {
     fileprivate func retryAfterDeviceChange() { sync() }
 }
 
-/// 一個 App 的擷取：擷取（靜音原本的聲音）→ 私有聚合裝置（擷取＋實際的輸出裝置）→ 音訊回呼
+/// 一個 App 的擷取：擷取（接手後才靜音原本的聲音）→ 私有聚合裝置（擷取＋實際的輸出裝置）→ 音訊回呼
 final class AppTap: @unchecked Sendable {
     enum Activation { case ok, permissionDenied, failed }
 
@@ -370,23 +380,29 @@ final class AppTap: @unchecked Sendable {
     }
 
     /// 接手：靜音 App 原本的聲音，同一刻把我們這一路調到原本聽到的音量（第一次是 100%，重建時是目前的設定），再滑到設定值
-    func arm(fromFullVolume: Bool) {
-        guard !armed else { return }
+    /// 回傳 false：靜音切換失敗，維持 0 音量、沒有接手
+    func arm(fromFullVolume: Bool) -> Bool {
+        guard !armed else { return true }
         currentGain = fromFullVolume ? 1 : wanted
         targetGain = wanted
+        guard setMuted(true) else {
+            currentGain = 0
+            targetGain = 0
+            return false
+        }
         armed = true
-        setMuted(true)
+        return true
     }
 
-    /// 回到 100%：先讓 App 原本的聲音回來，我們這一路淡出
+    /// 回到 100%：先讓 App 原本的聲音回來，我們這一路淡出（切換失敗也沒關係：0.1 秒後拆掉擷取，App 一樣會恢復）
     func release() {
         guard armed else { return }
-        setMuted(false)
+        _ = setMuted(false)
         targetGain = 0
     }
 
-    private func setMuted(_ muted: Bool) {
-        guard #available(macOS 14.2, *), let description = description as? CATapDescription, tapID != kAudioObjectUnknown else { return }
+    private func setMuted(_ muted: Bool) -> Bool {
+        guard #available(macOS 14.2, *), let description = description as? CATapDescription, tapID != kAudioObjectUnknown else { return false }
         description.muteBehavior = muted ? .mutedWhenTapped : .unmuted
         var address = AudioObjectPropertyAddress(mSelector: kAudioTapPropertyDescription, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
         var reference = Unmanaged.passUnretained(description).toOpaque()
@@ -394,6 +410,7 @@ final class AppTap: @unchecked Sendable {
             AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<UnsafeMutableRawPointer>.size), $0)
         }
         if status != noErr { AppVolumeController.log.error("無法切換擷取的靜音：\(status, privacy: .public)") }
+        return status == noErr
     }
 
     /// 開始超過 5 秒，App 說它正在輸出，卻從來沒收到任何聲音
