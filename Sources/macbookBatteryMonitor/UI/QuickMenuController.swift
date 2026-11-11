@@ -65,6 +65,7 @@ final class QuickMenuController: NSObject, NSPopoverDelegate {
         guard let settings else { return }
         AudioSwitchController.shared.refresh()
         state.page = .main
+        AppVolumeController.shared.setPanelVisible(true)
         let root = QuickMenuPanel(settings: settings, state: state, awake: .shared, audio: .shared,
                                   close: { [weak self] in self?.popover?.closeNow() },
                                   openSettings: { [weak self] section in
@@ -113,6 +114,7 @@ final class QuickMenuController: NSObject, NSPopoverDelegate {
 
     func popoverDidClose(_ notification: Notification) {
         guard let closed = notification.object as? NSPopover else { return }
+        AppVolumeController.shared.setPanelVisible(false)
         if closed === popover { stopOutsideClickMonitoring() }
         DispatchQueue.main.async { [weak self] in
             closed.contentViewController = nil
