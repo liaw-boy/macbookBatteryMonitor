@@ -22,6 +22,15 @@ struct AppVolumeTests {
         XCTAssertEqual(AppVolume.owner(ofProcessBundleID: "com.example.Chat.Pro.helper", apps: apps), "com.example.Chat.Pro")
         XCTAssertNil(AppVolume.owner(ofProcessBundleID: "com.brave.BrowserBeta", apps: apps))
         XCTAssertNil(AppVolume.owner(ofProcessBundleID: "", apps: apps))
+        // Safari 的聲音來自 WebKit 程序：Safari 開著才對應過去
+        XCTAssertEqual(AppVolume.owner(ofProcessBundleID: "com.apple.WebKit.GPU", apps: apps.union(["com.apple.Safari"])), "com.apple.Safari")
+        XCTAssertNil(AppVolume.owner(ofProcessBundleID: "com.apple.WebKit.GPU", apps: apps))
+    }
+
+    /// 讀回時最多 256 筆
+    func testStoredLimit() {
+        let many = Dictionary(uniqueKeysWithValues: (0..<400).map { ("app.\($0)", ["volume": 0.5] as [String: Any]) })
+        XCTAssertEqual(AppVolume.settings(stored: many).count, AppVolume.maxStored)
     }
 
     /// 只存非預設值；讀回時略過壞掉的項目
