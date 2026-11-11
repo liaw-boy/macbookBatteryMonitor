@@ -21,6 +21,8 @@ final class CapsLockSwitchController {
     /// 最近用的中文輸入法：從英文切回去時用它
     private var lastChinese: TISInputSource?
     private var sourceObserver: NSObjectProtocol?
+    /// 被 kill、登出時送來的結束訊號：預設會直接結束、不跑 applicationWillTerminate，Caps Lock 會一直是 F18
+    private var signalSources: [DispatchSourceSignal] = []
 
     var isRunning: Bool { mapped && tap.health() == .ok }
 
@@ -44,7 +46,10 @@ final class CapsLockSwitchController {
                 return false
             }
         }
-        if !mapped { mapped = Self.map() }
+        if !mapped {
+            mapped = Self.map()
+            if mapped { restoreOnSignals() }
+        }
         if sourceObserver == nil {
             sourceObserver = DistributedNotificationCenter.default().addObserver(
                 forName: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main
@@ -64,6 +69,23 @@ final class CapsLockSwitchController {
         held = false
         if let sourceObserver { DistributedNotificationCenter.default().removeObserver(sourceObserver) }
         sourceObserver = nil
+    }
+
+    /// 收到結束訊號時先還原 Caps Lock 再正常結束。shortcut: 強制結束（kill -9）和當機攔不到，靠下次啟動時的 clearStaleMapping
+    private func restoreOnSignals() {
+        guard signalSources.isEmpty else { return }
+        for number in [SIGTERM, SIGINT, SIGHUP] {
+            signal(number, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: number, queue: .main)
+            source.setEventHandler {
+                MainActor.assumeIsolated {
+                    CapsLockSwitchController.shared.stop()
+                    NSApp.terminate(nil)
+                }
+            }
+            source.resume()
+            signalSources.append(source)
+        }
     }
 
     /// hidutil 的設定在睡眠喚醒、鍵盤重新連接後可能被重設
