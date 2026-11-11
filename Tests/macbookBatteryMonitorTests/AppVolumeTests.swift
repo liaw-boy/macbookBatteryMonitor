@@ -97,4 +97,13 @@ struct AppVolumeTests {
         XCTAssertTrue(AppVolume.rampCoefficient(sampleRate: 48_000) > 0 && AppVolume.rampCoefficient(sampleRate: 48_000) < 0.01)
         XCTAssertEqual(AppVolume.rampCoefficient(sampleRate: 0), 1)
     }
+
+    /// 第一次建立：等到收到聲音才接手、從 100% 開始；重建且舊的已接手：收到聲音或等 0.5 秒後接手、從目前設定開始；舊的還沒接手時當成第一次
+    func testArmDecision() {
+        XCTAssertEqual(AppVolume.armDecision(heardSound: false, oldArmed: false, waited: 10), .wait)
+        XCTAssertEqual(AppVolume.armDecision(heardSound: true, oldArmed: false, waited: 0), .arm(fromFullVolume: true))
+        XCTAssertEqual(AppVolume.armDecision(heardSound: true, oldArmed: true, waited: 0), .arm(fromFullVolume: false))
+        XCTAssertEqual(AppVolume.armDecision(heardSound: false, oldArmed: true, waited: 0.2), .wait)
+        XCTAssertEqual(AppVolume.armDecision(heardSound: false, oldArmed: true, waited: 0.6), .arm(fromFullVolume: false))
+    }
 }
