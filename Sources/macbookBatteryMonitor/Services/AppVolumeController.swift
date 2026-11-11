@@ -234,8 +234,14 @@ final class AppVolumeEngine: @unchecked Sendable {
         }
         // 不再需要、或 App 已經沒有程序的：拆掉，聲音回到原本的樣子
         for (bundleID, tap) in taps where targets[bundleID] == nil || objects[bundleID] == nil {
-            tap.invalidate()
             taps[bundleID] = nil
+            if objects[bundleID] == nil {
+                tap.invalidate()
+            } else {
+                // 回到 100%：先讓 App 原本的聲音回來，我們這一路淡出後再拆，中間不會斷
+                tap.release()
+                queue.asyncAfter(deadline: .now() + 0.1) { tap.invalidate() }
+            }
         }
         if taps.values.contains(where: \.heardSound) {
             verified = true
@@ -271,7 +277,7 @@ final class AppVolumeEngine: @unchecked Sendable {
             switch tap.activate() {
             case .ok:
                 taps[bundleID] = tap
-                if let old { retire(old) }
+                armWhenReady(tap, bundleID: bundleID, replacing: old, started: Date())
             case .permissionDenied:
                 AppVolumeController.log.error("沒有系統錄音權限，停止各 App 音量")
                 tap.invalidate()
@@ -285,6 +291,25 @@ final class AppVolumeEngine: @unchecked Sendable {
             }
         }
         return Result(playing: playing, problem: false)
+    }
+
+    /// 新的擷取一開始不靜音 App、我們這一路是 0 音量：收到聲音（確定接上了）才靜音原本的聲音並接手，離開 100% 時不會斷一下。
+    /// 重建時舊的擷取還在靜音 App：新的接手後才淡出舊的
+    private func armWhenReady(_ tap: AppTap, bundleID: String, replacing old: AppTap?, started: Date) {
+        guard taps[bundleID] === tap else {
+            if let old { retire(old) }
+            return
+        }
+        let waited = Date().timeIntervalSince(started)
+        // 重建時 App 已經被舊的擷取靜音，等不到聲音就直接接手（反正是無聲）；第一次建立時一直等到 App 出聲
+        if tap.heardSound || (old != nil && waited > 0.5) {
+            tap.arm(fromFullVolume: old == nil)
+            if let old { retire(old) }
+            return
+        }
+        queue.asyncAfter(deadline: .now() + (waited < 1 ? 0.02 : 0.1)) { [weak self] in
+            self?.armWhenReady(tap, bundleID: bundleID, replacing: old, started: started)
+        }
     }
 
     /// 新的擷取已經在播：舊的先轉成無聲，0.15 秒後拆掉，兩個重疊時不會變大聲
@@ -324,19 +349,52 @@ final class AppTap: @unchecked Sendable {
     private let ioQueue = DispatchQueue(label: "com.kuan.batterymonitor.appVolume.io", qos: .userInteractive)
     private let started = Date()
     // 音訊執行緒只讀寫這幾個值：32 位元對齊的讀寫不會讀到一半
-    private var targetGain: Float
-    private var currentGain: Float
+    private var targetGain: Float = 0
+    private var currentGain: Float = 0
     private var ramp: Float = 1
     private(set) var heardSound = false
+    /// 使用者設定的音量；接手（arm）前我們這一路維持 0，App 原本的聲音照常
+    private var wanted: Float
+    private(set) var armed = false
+    private var description: AnyObject?
 
     init(processObjects: Set<AudioObjectID>, outputUID: String, gain: Float) {
         self.processObjects = processObjects
         self.outputUID = outputUID
-        targetGain = gain
-        currentGain = gain
+        wanted = gain
     }
 
-    func setGain(_ gain: Float) { targetGain = gain }
+    func setGain(_ gain: Float) {
+        wanted = gain
+        if armed { targetGain = gain }
+    }
+
+    /// 接手：靜音 App 原本的聲音，同一刻把我們這一路調到原本聽到的音量（第一次是 100%，重建時是目前的設定），再滑到設定值
+    func arm(fromFullVolume: Bool) {
+        guard !armed else { return }
+        currentGain = fromFullVolume ? 1 : wanted
+        targetGain = wanted
+        armed = true
+        setMuted(true)
+    }
+
+    /// 回到 100%：先讓 App 原本的聲音回來，我們這一路淡出
+    func release() {
+        guard armed else { return }
+        setMuted(false)
+        targetGain = 0
+    }
+
+    private func setMuted(_ muted: Bool) {
+        guard #available(macOS 14.2, *), let description = description as? CATapDescription, tapID != kAudioObjectUnknown else { return }
+        description.muteBehavior = muted ? .mutedWhenTapped : .unmuted
+        var address = AudioObjectPropertyAddress(mSelector: kAudioTapPropertyDescription, mScope: kAudioObjectPropertyScopeGlobal, mElement: kAudioObjectPropertyElementMain)
+        var reference = Unmanaged.passUnretained(description).toOpaque()
+        let status = withUnsafePointer(to: &reference) {
+            AudioObjectSetPropertyData(tapID, &address, 0, nil, UInt32(MemoryLayout<UnsafeMutableRawPointer>.size), $0)
+        }
+        if status != noErr { AppVolumeController.log.error("無法切換擷取的靜音：\(status, privacy: .public)") }
+    }
 
     /// 開始超過 5 秒，App 說它正在輸出，卻從來沒收到任何聲音
     var receivesOnlySilence: Bool { !heardSound && Date().timeIntervalSince(started) > 5 && AudioProcess.anyRunningOutput(processObjects) }
@@ -350,8 +408,10 @@ final class AppTap: @unchecked Sendable {
         guard #available(macOS 14.2, *) else { return .failed }
         let description = CATapDescription(stereoMixdownOfProcesses: Array(processObjects))
         description.uuid = UUID()
-        description.muteBehavior = .mutedWhenTapped
+        // 先不靜音 App：我們這一路接上、收到聲音後才靜音（arm），離開 100% 時不會斷一下
+        description.muteBehavior = .unmuted
         description.isPrivate = true
+        self.description = description
         var tap = AudioObjectID(kAudioObjectUnknown)
         var status = AudioHardwareCreateProcessTap(description, &tap)
         if status == kAudioDevicePermissionsError { return .permissionDenied }
