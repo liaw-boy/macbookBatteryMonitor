@@ -19,8 +19,16 @@ enum AppVolume {
     /// 取最長的、在「.」邊界上相符的那個 App
     static func owner(ofProcessBundleID processID: String, apps: Set<String>) -> String? {
         guard !processID.isEmpty else { return nil }
-        return apps.filter { processID == $0 || processID.hasPrefix($0 + ".") }.max { $0.count < $1.count }
+        if let owner = apps.filter({ processID == $0 || processID.hasPrefix($0 + ".") }).max(by: { $0.count < $1.count }) { return owner }
+        // Safari 的聲音由 WebKit 的程序發出，識別碼不是 Safari 開頭。
+        // shortcut: 其他用 WebKit 網頁元件的 App 的聲音也會算在 Safari；要分清楚得查程序的負責 App（只有私有函式）
+        if processID.hasPrefix("com.apple.WebKit."), apps.contains(safari) { return safari }
+        return nil
     }
+
+    static let safari = "com.apple.Safari"
+    /// 存起來的 App 數量上限
+    static let maxStored = 256
 
     // MARK: - 儲存
 
@@ -32,7 +40,8 @@ enum AppVolume {
     /// 讀回時檢查型別與範圍；壞掉的項目略過
     static func settings(stored: [String: Any]) -> [String: Setting] {
         var result: [String: Setting] = [:]
-        for (key, value) in stored {
+        for (key, value) in stored.sorted(by: { $0.key < $1.key }) {
+            guard result.count < maxStored else { break }
             guard !key.isEmpty, key.count <= 255, let dict = value as? [String: Any] else { continue }
             let volume = (dict["volume"] as? Double).map(clamp) ?? 1
             let muted = dict["muted"] as? Bool ?? false
