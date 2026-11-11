@@ -144,6 +144,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         applyWindowSwitcher(prompt: false)
         settings.onInputSourceFixChange = { [weak self] in self?.applyInputSourceFix(prompt: true) }
+        if !settings.capsLockInstantSwitch { CapsLockSwitchController.clearStaleMapping() }
         applyInputSourceFix(prompt: false)
         settings.onFeatureInstallChange = { [weak self] feature in self?.applyFeature(feature) }
         settings.onQuitGuardChange = { [weak self] in self?.applyQuitGuard(prompt: true) }
@@ -160,6 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             let shift = delegate.inputAllowed && delegate.settings.shiftHalfWidth && delegate.settings.isInstalled(.inputMethod)
                 && InputSourceFix.shared.isRunning
             if delegate.ui.shiftRunning != shift { delegate.ui.shiftRunning = shift }
+            if delegate.settings.capsLockInstantSwitch || CapsLockSwitchController.shared.isRunning { delegate.applyCapsLockSwitch() }
             let features: [ExtensionFeature] = [.quitGuard, .mouseButtons, .lastWindowQuit, .dockClick, .greenButton, .windowSnap, .finderKeys]
             guard features.contains(where: delegate.settings.isInstalled) else { return }
             delegate.applyQuitGuard(prompt: false)
@@ -432,6 +434,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func applyInputSourceFix(prompt: Bool) {
         InputSourceFix.applyCapsLockDelay(short: settings.capsLockNoDelay && settings.isInstalled(.inputMethod))
         applyShiftHalfWidth(prompt: prompt)
+        applyCapsLockSwitch()
+    }
+
+    /// Caps Lock 按下就切換（實驗）：沒權限時自己停下並還原 Caps Lock，權限回來後每 5 秒的檢查會重新開始
+    private func applyCapsLockSwitch() {
+        CapsLockSwitchController.shared.holdSeconds = settings.capsLockHoldSeconds
+        CapsLockSwitchController.shared.apply(inputAllowed && settings.capsLockInstantSwitch && settings.isInstalled(.inputMethod))
     }
 
     private func applyShiftHalfWidth(prompt: Bool) {
@@ -577,6 +586,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         // 結束或更新重啟前停止攔截；剛好按著 Shift 時，還排在主佇列的按鍵會被丟掉，不會晚到別的 App
         InputSourceFix.shared.applyShift(false)
+        CapsLockSwitchController.shared.stop()
         store.adminCPU.stop()
         store.chargingWake.stop()
         store.history.save()
@@ -738,6 +748,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         store.evaluateChargingPlan(.didWake)
         // hidutil 的設定在睡眠後可能被重設
         InputSourceFix.applyCapsLockDelay(short: settings.capsLockNoDelay && settings.isInstalled(.inputMethod))
+        CapsLockSwitchController.shared.reapplyMapping()
         refresh()
         store.peripherals.refresh()
         store.recordHistory()

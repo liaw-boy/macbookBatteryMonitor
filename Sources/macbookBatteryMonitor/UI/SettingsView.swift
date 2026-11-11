@@ -448,6 +448,20 @@ struct SettingsView: View {
                         CardTitle("中文輸入法", systemImage: "keyboard")
                         SwitchRow("Caps Lock 切換中英不延遲", isOn: binding(\.capsLockNoDelay))
                         SwitchRow("按住 Shift 打半形英文與符號", isOn: binding(\.shiftHalfWidth))
+                        SwitchRow("Caps Lock 按下就切換中英（實驗）", isOn: binding(\.capsLockInstantSwitch))
+                        if settings.capsLockInstantSwitch {
+                            HStack {
+                                Text("長按切換大寫鎖定")
+                                Slider(value: binding(\.capsLockHoldSeconds), in: CapsLockSwitch.holdRange, step: 0.1)
+                                Text(String(format: "%.1f 秒", settings.capsLockHoldSeconds))
+                                    .monospacedDigit()
+                            }
+                            .font(.caption)
+                            Text("系統要放開 Caps Lock 才切換；打開後一按下就切換，按住超過上面的秒數改成切換大寫鎖定。需要「輔助使用」；App 沒在執行時 Caps Lock 恢復系統原本的行為。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         Text("macOS 為了防誤觸，Caps Lock 要按住一下才切換；打開後按一下就切（只對外接鍵盤有效：macOS 27.2 實測，使用系統的「大寫鎖定鍵切換輸入法」時，內建鍵盤由 macOS 自己判斷）。注音等中文輸入法按住 Shift 打字會變全形「Ａ」「！」「，」；打開後按住 Shift 時和英文鍵盤一樣全部打出半形，放開 Shift 就繼續打中文（Shift + 逗號、句號會是 < >，中文標點請改用其他方式打）。關掉「不延遲」時恢復系統預設的延遲。")
                             .font(.caption)
                             .foregroundStyle(.secondary)

@@ -430,6 +430,22 @@ final class AppSettings {
             if capsLockNoDelay != oldValue { onInputSourceFixChange?() }
         }
     }
+    /// Caps Lock 按下就切換中英（實驗）。shortcut: 沒放進設定檔匯出入，實驗結束要留下時再加進 backupSchema 與匯入確認清單
+    var capsLockInstantSwitch: Bool {
+        didSet {
+            defaults.set(capsLockInstantSwitch, forKey: Keys.capsLockInstantSwitch)
+            if capsLockInstantSwitch != oldValue { onInputSourceFixChange?() }
+        }
+    }
+    /// 按住多久算長按（切換大寫鎖定），秒
+    var capsLockHoldSeconds: Double {
+        didSet {
+            let clamped = CapsLockSwitch.clampHold(capsLockHoldSeconds)
+            if clamped != capsLockHoldSeconds { capsLockHoldSeconds = clamped; return }
+            defaults.set(capsLockHoldSeconds, forKey: Keys.capsLockHoldSeconds)
+            if capsLockHoldSeconds != oldValue { onInputSourceFixChange?() }
+        }
+    }
     /// 中文輸入法按住 Shift 打半形英文
     var shiftHalfWidth: Bool {
         didSet {
@@ -590,6 +606,8 @@ final class AppSettings {
         static let switcher = "windowSwitcherSettings"
         static let capsLockNoDelay = "capsLockNoDelay"
         static let shiftHalfWidth = "shiftHalfWidth"
+        static let capsLockInstantSwitch = "capsLockInstantSwitch"
+        static let capsLockHoldSeconds = "capsLockHoldSeconds"
         static let chargingTargetPercent = "chargingTargetPercent"
         static let chargingHoldPercent = "chargingHoldPercent"
         static let chargingSleepStrategy = "chargingSleepStrategy"
@@ -747,6 +765,8 @@ final class AppSettings {
         switcher = SwitcherSettings(stored: defaults.dictionary(forKey: Keys.switcher) ?? [:])
         capsLockNoDelay = defaults.bool(forKey: Keys.capsLockNoDelay)
         shiftHalfWidth = defaults.bool(forKey: Keys.shiftHalfWidth)
+        capsLockInstantSwitch = defaults.bool(forKey: Keys.capsLockInstantSwitch)
+        capsLockHoldSeconds = CapsLockSwitch.clampHold(defaults.object(forKey: Keys.capsLockHoldSeconds) as? Double ?? CapsLockSwitch.defaultHold)
         let storedTarget = defaults.integer(forKey: Keys.chargingTargetPercent)
         let target = storedTarget == Self.originalLimitTarget ? Self.originalLimitTarget : ChargingPlan.clamp(storedTarget)
         chargingTargetPercent = target
