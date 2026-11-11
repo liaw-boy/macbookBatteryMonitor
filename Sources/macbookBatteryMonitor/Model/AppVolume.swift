@@ -26,6 +26,14 @@ enum AppVolume {
         return nil
     }
 
+    /// 發出聲音的程序歸給哪個 App：先用程序本身是哪個 App（pidOwner），再看識別碼前綴；
+    /// 結果若是某個一般 App 的子識別碼（例如 Brave 的 Helper 本身也是背景 App：com.brave.Browser.helper），再往上歸到那個 App
+    static func resolveOwner(pidOwner: String?, processBundleID: String, apps: Set<String>, regularApps: Set<String>) -> String? {
+        guard let owner = pidOwner ?? owner(ofProcessBundleID: processBundleID, apps: apps) else { return nil }
+        if regularApps.contains(owner) { return owner }
+        return regularApps.filter { owner.hasPrefix($0 + ".") }.max { $0.count < $1.count } ?? owner
+    }
+
     static let safari = "com.apple.Safari"
     /// 存起來的 App 數量上限
     static let maxStored = 256
