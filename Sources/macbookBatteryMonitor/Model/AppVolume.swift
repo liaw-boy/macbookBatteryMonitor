@@ -34,6 +34,21 @@ enum AppVolume {
         return regularApps.filter { owner.hasPrefix($0 + ".") }.max { $0.count < $1.count } ?? owner
     }
 
+    /// 新的擷取什麼時候接手（靜音 App 原本的聲音、改由我們播放）
+    enum ArmDecision: Equatable {
+        case wait
+        /// fromFullVolume：App 原本是 100% 播放（第一次建立）；重建時舊的擷取已經接手，接著用目前的設定
+        case arm(fromFullVolume: Bool)
+    }
+
+    /// 收到聲音（確定接上了）就接手；重建時舊的擷取已經接手（App 已經被靜音），等不到聲音 0.5 秒後也接手（反正是無聲）。
+    /// 第一次建立時一直等到 App 出聲，App 原本的聲音照常，不會斷一下
+    static func armDecision(heardSound: Bool, oldArmed: Bool, waited: Double) -> ArmDecision {
+        if heardSound { return .arm(fromFullVolume: !oldArmed) }
+        if oldArmed, waited > 0.5 { return .arm(fromFullVolume: false) }
+        return .wait
+    }
+
     static let safari = "com.apple.Safari"
     /// 存起來的 App 數量上限
     static let maxStored = 256
