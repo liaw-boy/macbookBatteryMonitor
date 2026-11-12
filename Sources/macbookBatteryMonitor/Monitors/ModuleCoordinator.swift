@@ -24,8 +24,11 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     /// 每次打開都建立新的，關閉後整個釋放
     private var popover: NSPopover?
     private var openKind: MonitorKind?
-    /// 不加底色時一個圖示裡有兩欄（CPU／GPU、記憶體／磁碟）：開著的是第二欄的面板
-    private var openSecondColumn = false
+    /// 不加底色時 GPU 是選單列上獨立的一個圖示（點了開 GPU 面板）
+    private var gpuItem: NSStatusItem?
+    private var lastGPUKey: String?
+    /// 開著的是 GPU 圖示的面板
+    private var openGPU = false
     private var topStream: TopStream?
     private var sleeping = false
     private var cpuAlert = SustainedAlert(duration: MonitorAlertRules.cpuDuration)
@@ -90,16 +93,10 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         for kind in MonitorKind.allCases.reversed() {
             let enabled = settings.isMonitorEnabled(kind) && !settings.menuBarCombined
                 && !(kind == .disk && settings.memoryDiskMerged)
+            // 新建的圖示放在最左邊：GPU 要比 CPU 先建，才會在 CPU 右邊
+            if kind == .cpu { syncGPUItem(cpuEnabled: enabled) }
             if enabled, items[kind] == nil {
-                let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-                item.autosaveName = "monitor.\(kind.rawValue)"
-                if let button = item.button {
-                    button.target = self
-                    button.action = #selector(itemClicked(_:))
-                    button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-                    button.imagePosition = .imageOnly
-                }
-                items[kind] = item
+                items[kind] = makeItem(autosaveName: "monitor.\(kind.rawValue)")
             } else if !enabled, let item = items[kind] {
                 if openKind == kind { popover?.closeNow() }
                 NSStatusBar.system.removeStatusItem(item)
@@ -123,6 +120,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                 item.length = NSStatusItem.variableLength
                 lastKeys[kind] = nil
             }
+            lastGPUKey = nil
         }
         // 關掉測速開關或網路模組後就看不到測速卡片，正在跑的測速也一起停掉
         if !(settings.networkSpeedTest && settings.isMonitorEnabled(.network)) {
@@ -130,6 +128,31 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
         tick()
         updateTimer()
+    }
+
+    private func makeItem(autosaveName: String) -> NSStatusItem {
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.autosaveName = autosaveName
+        if let button = item.button {
+            button.target = self
+            button.action = #selector(itemClicked(_:))
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.imagePosition = .imageOnly
+        }
+        return item
+    }
+
+    /// 不加底色時 CPU 與 GPU 各一個圖示；彩色底塊時兩行畫在 CPU 圖示裡
+    private func syncGPUItem(cpuEnabled: Bool) {
+        let wanted = cpuEnabled && settings.monitorPlainLabels
+        if wanted, gpuItem == nil {
+            gpuItem = makeItem(autosaveName: "monitor.gpu")
+        } else if !wanted, let item = gpuItem {
+            if openGPU { popover?.closeNow() }
+            NSStatusBar.system.removeStatusItem(item)
+            gpuItem = nil
+            lastGPUKey = nil
+        }
     }
 
     /// App 結束時一起結束測速，networkQuality 不會隨 app 結束，否則會繼續用掉流量
@@ -187,6 +210,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         if active(.network) { network.sample(at: now) }
         checkAlerts(cpu: active(.cpu), memory: active(.memory), disk: active(.disk), at: now)
         for (kind, item) in items { render(kind, item) }
+        if let gpuItem { renderGPU(gpuItem) }
         // top 意外結束時（例如被強制結束），面板還開著就重新啟動
         if let topStream, !topStream.isRunning, !sleeping { topStream.start() }
     }
@@ -212,19 +236,43 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
 
     private func render(_ kind: MonitorKind, _ item: NSStatusItem) {
         guard let button = item.button else { return }
-        let content = menuBarContent(kind)
+        // GPU 有自己的圖示時，CPU 圖示只畫 CPU
+        let content = kind == .cpu && gpuItem != nil ? plainCPUOnly : menuBarContent(kind)
         guard content.key != lastKeys[kind] else { return }
         lastKeys[kind] = content.key
-        button.image = content.image()
-        button.toolTip = content.tooltip
+        apply(content.image(), tooltip: content.tooltip, to: item)
+    }
+
+    private func renderGPU(_ item: NSStatusItem) {
+        let g = cpu.gpu.map(ByteFormat.percent) ?? "—"
+        guard g != lastGPUKey else { return }
+        lastGPUKey = g
+        apply(MonitorMenuBarRenderer.columns([("GPU", g, nil)], valueTemplate: "100%"), tooltip: "GPU \(g)", to: item)
+    }
+
+    private var plainCPUOnly: (key: String, tooltip: String, image: () -> NSImage) {
+        let c = cpu.usage.map { ByteFormat.percent($0.total) } ?? "—"
+        return ("cpuOnly|\(c)", "CPU \(c)", { MonitorMenuBarRenderer.columns([("CPU", c, nil)], valueTemplate: "100%") })
+    }
+
+    private func apply(_ image: NSImage, tooltip: String, to item: NSStatusItem) {
+        guard let button = item.button else { return }
+        button.image = image
+        // 滑鼠停在圖示上時不換提示文字：換了 macOS 會在游標目前的位置重新顯示提示框，看起來像跟著滑鼠跑
+        if button.toolTip != tooltip, !isMouseOver(button) { button.toolTip = tooltip }
         // 圖示寬度固定（依範本計算），第一次畫好後鎖住長度；
         // 否則每秒換圖都會觸發 _adjustLength，讓整條選單列重新排版
         if item.length == NSStatusItem.variableLength {
-            // 不加底色時左右只留和欄位之間相同的間距，圖示之間不會因為系統的邊距比欄位之間寬
-            let width = settings.monitorPlainLabels ? (button.image?.size.width ?? 0) + MonitorMenuBarRenderer.plainSpacing
+            // 不加底色時每個圖示左右各留一半的間距，圖示之間的距離都一樣
+            let width = settings.monitorPlainLabels ? image.size.width + MonitorMenuBarRenderer.plainItemPadding
                                                     : button.fittingSize.width
             if width > 0 { item.length = ceil(width) }
         }
+    }
+
+    private func isMouseOver(_ button: NSStatusBarButton) -> Bool {
+        guard let window = button.window else { return false }
+        return window.frame.contains(NSEvent.mouseLocation)
     }
 
     private func menuBarContent(_ kind: MonitorKind) -> (key: String, tooltip: String, image: () -> NSImage) {
@@ -314,49 +362,29 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     // MARK: - 面板
 
     @objc private func itemClicked(_ sender: NSStatusBarButton) {
-        guard let kind = items.first(where: { $0.value.button === sender })?.key else { return }
+        let isGPU = gpuItem?.button === sender
+        guard let kind = isGPU ? .cpu : items.first(where: { $0.value.button === sender })?.key else { return }
         if NSApp.currentEvent?.type == .rightMouseUp {
             showMenu(for: kind)
             return
         }
-        let column = clickedColumn(kind, in: sender)
         if let popover, popover.isShown {
-            let sameModule = openKind == kind && openSecondColumn == (column?.second ?? false)
+            let sameModule = openKind == kind && openGPU == isGPU
             popover.closeNow()
             if sameModule { return }
         }
-        showPopover(kind, from: sender, column: column)
-    }
-
-    /// 不加底色、圖示裡有兩欄時，點的是哪一欄（以及那一欄在按鈕裡的範圍，面板指向它）
-    private func clickedColumn(_ kind: MonitorKind, in button: NSStatusBarButton) -> (second: Bool, rect: NSRect)? {
-        guard settings.monitorPlainLabels, let event = NSApp.currentEvent, let image = button.image else { return nil }
-        let labels: [String]
-        switch kind {
-        case .cpu: labels = ["CPU", "GPU"]
-        case .memory where settings.memoryDiskMerged: labels = ["MEM", "DISK"]
-        default: return nil
-        }
-        let widths = MonitorMenuBarRenderer.columnWidths(labels, valueTemplate: "100%")
-        let left = (button.bounds.width - image.size.width) / 2
-        let x = button.convert(event.locationInWindow, from: nil).x - left
-        let second = x > widths[0] + MonitorMenuBarRenderer.plainSpacing / 2
-        let start = left + (second ? widths[0] + MonitorMenuBarRenderer.plainSpacing : 0)
-        return (second, NSRect(x: start, y: 0, width: widths[second ? 1 : 0], height: button.bounds.height))
+        showPopover(kind, from: sender, gpu: isGPU)
     }
 
     private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient,
-                             column: (second: Bool, rect: NSRect)? = nil) {
+                             gpu: Bool = false) {
         openKind = kind
-        openSecondColumn = column?.second ?? false
-        // 點了記憶體／磁碟其中一欄：只開那一欄的面板
-        let panelKind: MonitorKind = kind == .memory && column?.second == true ? .disk : kind
-        let merged = settings.memoryDiskMerged && column == nil
+        openGPU = gpu
         cpu.setThermalActive(kind == .cpu)
-        disk.setHealthActive(panelKind == .disk || (kind == .memory && merged))
+        disk.setHealthActive(kind == .disk || (kind == .memory && settings.memoryDiskMerged))
         tick()
-        let root = MonitorPanel(kind: panelKind, cpu: cpu, memory: memory, disk: disk, network: network,
-                                memoryDiskMerged: merged, gpuOnly: kind == .cpu && column?.second == true,
+        let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
+                                memoryDiskMerged: settings.memoryDiskMerged, gpuOnly: gpu,
                                 showsSpeedTest: settings.networkSpeedTest,
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
@@ -370,7 +398,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         popover.contentViewController = hosting
         popover.contentSize = hosting.view.fittingSize
         self.popover = popover
-        popover.show(relativeTo: column?.rect ?? button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.allowInFullScreen()
         NSApp.activate()
         popover.contentViewController?.view.window?.makeKey()
@@ -382,7 +410,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         topStream?.stop()
         topStream = nil
         // GPU、磁碟那一欄的面板沒有程序排行
-        guard !sleeping, let openKind, !openSecondColumn else { return }
+        guard !sleeping, let openKind, !openGPU else { return }
         let column: String
         switch openKind {
         case .cpu:
@@ -458,8 +486,10 @@ enum MonitorMenuBarRenderer {
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)
     private static let lineFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
-    /// 不加底色時欄位之間、圖示之間的間距
-    static let plainSpacing: CGFloat = 5
+    /// 不加底色時同一個圖示裡欄位之間的間距（第二條狀態列的 CPU／GPU、記憶體／磁碟）
+    static let plainSpacing: CGFloat = 8
+    /// 不加底色時每個圖示左右合計的留白：圖示之間的距離都一樣
+    static let plainItemPadding: CGFloat = 12
     // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
     private static let columnLabelFont = NSFont.systemFont(ofSize: 9, weight: .regular)
     /// 不加底色時網路上下行的圓點直徑
@@ -530,7 +560,7 @@ enum MonitorMenuBarRenderer {
 
     /// 不加底色的欄位（像 Stats）：每欄上面是小字標籤、下面是數值，多欄並排；寬度依 valueTemplate 固定，數字變動時不會左右晃。
     /// valueColor 沒有指定時用一般文字顏色（記憶體壓力升高時變橘、變紅）
-    /// 每一欄的寬度（點擊時判斷點到哪一欄也用這個）
+    /// 每一欄的寬度
     static func columnWidths(_ labels: [String], valueTemplate: String) -> [CGFloat] {
         let templateWidth = (valueTemplate as NSString).size(withAttributes: [.font: columnValueFont]).width
         return labels.map { max(templateWidth, ($0 as NSString).size(withAttributes: [.font: columnLabelFont]).width) }
