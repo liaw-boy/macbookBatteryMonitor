@@ -384,7 +384,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         disk.setHealthActive(kind == .disk || (kind == .memory && settings.memoryDiskMerged))
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
-                                memoryDiskMerged: settings.memoryDiskMerged, gpuOnly: gpu,
+                                memoryDiskMerged: settings.memoryDiskMerged, gpuOnly: gpu, separateGPU: gpuItem != nil,
                                 showsSpeedTest: settings.networkSpeedTest,
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
@@ -489,7 +489,7 @@ enum MonitorMenuBarRenderer {
     /// 不加底色時同一個圖示裡欄位之間的間距（第二條狀態列的 CPU／GPU、記憶體／磁碟）
     static let plainSpacing: CGFloat = 8
     /// 不加底色時每個圖示左右合計的留白：圖示之間的距離都一樣
-    static let plainItemPadding: CGFloat = 12
+    static let plainItemPadding: CGFloat = 4
     // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
     private static let columnLabelFont = NSFont.systemFont(ofSize: 9, weight: .regular)
     /// 不加底色時網路上下行的圓點直徑
