@@ -305,8 +305,10 @@ final class AppSettings {
         didSet { defaults.set(monitorPlainLabels, forKey: Keys.monitorPlainLabels); onMonitorsChange?() }
     }
     /// 合併現在是否生效：開關打開，且記憶體與磁碟都有開
+    /// 不加底色時每個數值各自一個圖示，不合併
     var memoryDiskMerged: Bool {
-        MonitorKind.mergesMemoryDisk(merge: mergeMemoryDisk, memory: isMonitorEnabled(.memory), disk: isMonitorEnabled(.disk))
+        !monitorPlainLabels
+            && MonitorKind.mergesMemoryDisk(merge: mergeMemoryDisk, memory: isMonitorEnabled(.memory), disk: isMonitorEnabled(.disk))
     }
     /// 網路面板顯示測速卡片。預設關閉：測一次要用掉數百 MB 流量，避免誤按
     var networkSpeedTest: Bool {
