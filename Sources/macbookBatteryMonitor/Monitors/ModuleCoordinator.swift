@@ -268,10 +268,11 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             let up = ByteFormat.compactRate(network.uploadRate)
             let down = ByteFormat.compactRate(network.downloadRate)
             let tooltip = "上傳 \(ByteFormat.rate(network.uploadRate))・下載 \(ByteFormat.rate(network.downloadRate))"
-            let lines = [("↑", up, R.orange), ("↓", down, R.green)]
+            // 不加底色時帶單位（「4 KB/s」），上下用彩色圓點區分
+            let withUnit = { (rate: String) in rate.replacingOccurrences(of: #"([KMG])$"#, with: " $1B/s", options: .regularExpression) }
             return ("\(up)|\(down)", tooltip,
-                    { R.twoLines(lines, valueTemplate: "999K") },
-                    { R.twoLines(lines, valueTemplate: "999K", plain: true) })
+                    { R.twoLines([("↑", up, R.orange), ("↓", down, R.green)], valueTemplate: "999K") },
+                    { R.twoLines([("", withUnit(up), R.orange), ("", withUnit(down), R.green)], valueTemplate: "999 KB/s", plain: true) })
         }
     }
 
@@ -460,10 +461,11 @@ enum MonitorMenuBarRenderer {
     /// 不加底色時欄位之間、圖示之間的間距
     static let plainSpacing: CGFloat = 5
     // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
-    private static let columnLabelFont = NSFont.systemFont(ofSize: 8.5, weight: .medium)
-    private static let plainArrowFont = NSFont.systemFont(ofSize: 9.5, weight: .bold)
+    private static let columnLabelFont = NSFont.systemFont(ofSize: 9, weight: .regular)
+    /// 不加底色時網路上下行的圓點直徑
+    private static let plainDot: CGFloat = 6
     private static let plainLineFont = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
-    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
+    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium)
 
     private static var height: CGFloat { max(18, NSStatusBar.system.thickness - 2) }
 
@@ -484,12 +486,12 @@ enum MonitorMenuBarRenderer {
     /// 兩行，每行「彩色底塊的標籤＋靠右的數值」；寬度依 valueTemplate 固定，數字變動時圖示不會左右晃。
     /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚。
     /// valueColors 依行指定數值的顏色（例如記憶體壓力），沒有指定的行用一般文字顏色
-    /// plain：標籤不加底塊，改用較大的一般文字色（彩色小字壓在桌布上的半透明選單列會看不清楚）
+    /// plain：標籤位置改畫實心彩色圓點（細的彩色箭頭壓在桌布上的半透明選單列會看不清楚）
     static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String,
                          valueColors: [NSColor?] = [], plain: Bool = false) -> NSImage {
-        let font = plain ? plainArrowFont : labelFont
+        let font = labelFont
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
-        let badgeWidth = ceil(labelWidth + (plain ? 1 : 5))
+        let badgeWidth = plain ? plainDot + 2 : ceil(labelWidth + 5)
         let valueFont = plain ? plainLineFont : lineFont
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
@@ -499,10 +501,18 @@ enum MonitorMenuBarRenderer {
             for (index, line) in lines.prefix(2).enumerated() {
                 let y = CGFloat(index) * lineHeight
                 let badge = snap(NSRect(x: 0, y: y + 0.75, width: badgeWidth, height: lineHeight - 1.5), scale: scale)
-                if !plain {
+                if plain {
                     line.color.setFill()
-                    NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
+                    NSBezierPath(ovalIn: snap(NSRect(x: 0, y: y + (lineHeight - plainDot) / 2, width: plainDot, height: plainDot), scale: scale)).fill()
+                    let valueColor = (index < valueColors.count ? valueColors[index] : nil) ?? NSColor.labelColor
+                    let value = NSAttributedString(string: line.value, attributes: [.font: valueFont, .foregroundColor: valueColor])
+                    let valueSize = value.size()
+                    value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
+                                           y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))
+                    continue
                 }
+                line.color.setFill()
+                NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
                 let label = NSAttributedString(string: line.label, attributes: [.font: font,
                                                                                 .foregroundColor: plain ? NSColor.labelColor : NSColor.white])
                 let labelSize = label.size()
