@@ -10,6 +10,8 @@ struct MonitorPanel: View {
     let disk: DiskMonitor
     let network: NetworkMonitor
     var memoryDiskMerged = false
+    /// 只看 GPU（不加底色的選單列點了 GPU 那一欄）
+    var gpuOnly = false
     /// 設定裡打開了網路測速才顯示測速卡片
     var showsSpeedTest = false
     var onSettings: () -> Void
@@ -21,6 +23,7 @@ struct MonitorPanel: View {
                 ScrollView(.vertical) {
                     VStack(spacing: 10) {
                         switch kind {
+                        case .cpu where gpuOnly: GPUPanel(cpu: cpu)
                         case .cpu: CPUPanel(cpu: cpu)
                         case .memory:
                             MemoryPanel(memory: memory)
@@ -337,6 +340,25 @@ private struct CPUPanel: View {
             }
             TopList(title: "CPU 使用率最高的 App", processes: cpu.topProcesses, loaded: cpu.topLoaded) {
                 String(format: "%.1f%%", $0)
+            }
+        }
+    }
+}
+
+/// 只看 GPU：使用率、GPU 記憶體、和 CPU 一起的歷史圖表、溫度
+private struct GPUPanel: View {
+    let cpu: CPUMonitor
+
+    var body: some View {
+        VStack(spacing: 10) {
+            PanelHeader(symbol: "cpu.fill", title: "GPU",
+                        value: cpu.gpu.map(ByteFormat.percent) ?? "—",
+                        detail: cpu.gpuMemory.map { "GPU 記憶體 \(ByteFormat.memory($0))" } ?? "計算中…")
+            Card {
+                MonitorChart(points: cpu.history.points, a: ("CPU", .green), b: ("GPU", .orange), percent: true)
+            }
+            if !cpu.fans.isEmpty || !cpu.temperatures.isEmpty {
+                ThermalCard(fans: cpu.fans, temperatures: cpu.temperatures)
             }
         }
     }
