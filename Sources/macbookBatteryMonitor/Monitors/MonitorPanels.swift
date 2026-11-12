@@ -345,7 +345,7 @@ private struct CPUPanel: View {
     }
 }
 
-/// 只看 GPU：使用率、GPU 記憶體、和 CPU 一起的歷史圖表、溫度
+/// 只看 GPU（不加底色的選單列點了 GPU 那一欄）：三個圓環（整體、Renderer、Tiler）、GPU 的歷史、詳細資料、溫度
 private struct GPUPanel: View {
     let cpu: CPUMonitor
 
@@ -353,14 +353,62 @@ private struct GPUPanel: View {
         VStack(spacing: 10) {
             PanelHeader(symbol: "cpu.fill", title: "GPU",
                         value: cpu.gpu.map(ByteFormat.percent) ?? "—",
-                        detail: cpu.gpuMemory.map { "GPU 記憶體 \(ByteFormat.memory($0))" } ?? "計算中…")
+                        detail: ChipInfo.shortName)
             Card {
-                MonitorChart(points: cpu.history.points, a: ("CPU", .green), b: ("GPU", .orange), percent: true)
+                HStack(spacing: 0) {
+                    UsageRing(title: "Renderer", value: cpu.gpuRenderer, size: 58)
+                    UsageRing(title: "使用率", value: cpu.gpu, size: 76)
+                    UsageRing(title: "Tiler", value: cpu.gpuTiler, size: 58)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            Card {
+                // 歷史紀錄裡第二條是 GPU：只畫 GPU 這條
+                MonitorChart(points: cpu.history.points.map { MonitorPoint(id: $0.id, t: $0.t, a: $0.b, b: 0) },
+                             a: ("GPU", .orange), b: nil, percent: true)
+            }
+            Card {
+                VStack(alignment: .leading, spacing: 6) {
+                    InfoRow("晶片", ChipInfo.shortName)
+                    if let cores = GPUReader.coreCount { InfoRow("GPU 核心", "\(cores)") }
+                    InfoRow("使用率", cpu.gpu.map(ByteFormat.percent) ?? "—")
+                    if cpu.gpuRenderer != nil { InfoRow("Renderer 使用率", cpu.gpuRenderer.map(ByteFormat.percent) ?? "—") }
+                    if cpu.gpuTiler != nil { InfoRow("Tiler 使用率", cpu.gpuTiler.map(ByteFormat.percent) ?? "—") }
+                    InfoRow("GPU 記憶體", cpu.gpuMemory.map(ByteFormat.memory) ?? "—")
+                }
             }
             if !cpu.fans.isEmpty || !cpu.temperatures.isEmpty {
                 ThermalCard(fans: cpu.fans, temperatures: cpu.temperatures)
             }
         }
+    }
+}
+
+/// 圓環：使用率 0～100%，中間寫百分比，下面是名稱；讀不到時是空的灰環
+private struct UsageRing: View {
+    let title: String
+    let value: Double?
+    let size: CGFloat
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ZStack {
+                Circle().stroke(Color.primary.opacity(0.1), lineWidth: size * 0.11)
+                Circle()
+                    .trim(from: 0, to: value ?? 0)
+                    .stroke(Color.orange, style: StrokeStyle(lineWidth: size * 0.11, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Text(value.map(ByteFormat.percent) ?? "—")
+                    .font(.system(size: size * 0.24, weight: .semibold))
+                    .monospacedDigit()
+            }
+            .frame(width: size, height: size)
+            Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityValue(value.map(ByteFormat.percent) ?? "讀不到")
     }
 }
 
