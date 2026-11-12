@@ -429,8 +429,9 @@ enum MonitorMenuBarRenderer {
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)
     private static let lineFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
-    private static let columnLabelFont = NSFont.systemFont(ofSize: 7.5, weight: .semibold)
-    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+    private static let columnLabelFont = NSFont.systemFont(ofSize: 8, weight: .bold)
+    private static let plainArrowFont = NSFont.systemFont(ofSize: 10, weight: .bold)
+    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
 
     private static var height: CGFloat { max(18, NSStatusBar.system.thickness - 2) }
 
@@ -451,10 +452,11 @@ enum MonitorMenuBarRenderer {
     /// 兩行，每行「彩色底塊的標籤＋靠右的數值」；寬度依 valueTemplate 固定，數字變動時圖示不會左右晃。
     /// 標籤是白字配實心色塊（CPU 與下載用綠、GPU 與上傳用橘，與面板圖表一致），在任何桌布與深淺色選單列上都清楚。
     /// valueColors 依行指定數值的顏色（例如記憶體壓力），沒有指定的行用一般文字顏色
-    /// plain：標籤不加底塊，直接用該行的顏色寫字（像 Stats 的網路圖示）
+    /// plain：標籤不加底塊，改用較大的一般文字色（彩色小字壓在桌布上的半透明選單列會看不清楚）
     static func twoLines(_ lines: [(label: String, value: String, color: NSColor)], valueTemplate: String,
                          valueColors: [NSColor?] = [], plain: Bool = false) -> NSImage {
-        let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: labelFont]).width }.max() ?? 0
+        let font = plain ? plainArrowFont : labelFont
+        let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let badgeWidth = ceil(labelWidth + (plain ? 1 : 5))
         let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: lineFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
@@ -468,8 +470,8 @@ enum MonitorMenuBarRenderer {
                     line.color.setFill()
                     NSBezierPath(roundedRect: badge, xRadius: 2.5, yRadius: 2.5).fill()
                 }
-                let label = NSAttributedString(string: line.label, attributes: [.font: labelFont,
-                                                                                .foregroundColor: plain ? line.color : NSColor.white])
+                let label = NSAttributedString(string: line.label, attributes: [.font: font,
+                                                                                .foregroundColor: plain ? NSColor.labelColor : NSColor.white])
                 let labelSize = label.size()
                 label.draw(at: NSPoint(x: snap(badge.midX - labelSize.width / 2, scale: scale),
                                        y: snap(badge.midY - labelSize.height / 2, scale: scale)))
@@ -495,8 +497,9 @@ enum MonitorMenuBarRenderer {
             var x: CGFloat = 0
             for (index, item) in items.enumerated() {
                 let width = widths[index]
+                // 標籤用一般文字色：次要色在桌布上的半透明選單列太淡
                 let label = NSAttributedString(string: item.label, attributes: [.font: columnLabelFont,
-                                                                                .foregroundColor: NSColor.secondaryLabelColor])
+                                                                                .foregroundColor: NSColor.labelColor])
                 let labelSize = label.size()
                 label.draw(at: NSPoint(x: snap(x + (width - labelSize.width) / 2, scale: scale), y: snap(rect.height * 0.04, scale: scale)))
                 let value = NSAttributedString(string: item.value, attributes: [.font: columnValueFont,
