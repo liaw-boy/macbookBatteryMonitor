@@ -24,6 +24,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     /// 每次打開都建立新的，關閉後整個釋放
     private var popover: NSPopover?
     private var openKind: MonitorKind?
+    /// 不加底色時一個圖示裡有兩欄（CPU／GPU、記憶體／磁碟）：開著的是第二欄的面板
+    private var openSecondColumn = false
     private var topStream: TopStream?
     private var sleeping = false
     private var cpuAlert = SustainedAlert(duration: MonitorAlertRules.cpuDuration)
@@ -218,7 +220,9 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         // 圖示寬度固定（依範本計算），第一次畫好後鎖住長度；
         // 否則每秒換圖都會觸發 _adjustLength，讓整條選單列重新排版
         if item.length == NSStatusItem.variableLength {
-            let width = button.fittingSize.width
+            // 不加底色時左右只留和欄位之間相同的間距，圖示之間不會因為系統的邊距比欄位之間寬
+            let width = settings.monitorPlainLabels ? (button.image?.size.width ?? 0) + MonitorMenuBarRenderer.plainSpacing
+                                                    : button.fittingSize.width
             if width > 0 { item.length = ceil(width) }
         }
     }
@@ -314,21 +318,44 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             showMenu(for: kind)
             return
         }
+        let column = clickedColumn(kind, in: sender)
         if let popover, popover.isShown {
-            let sameModule = openKind == kind
+            let sameModule = openKind == kind && openSecondColumn == (column?.second ?? false)
             popover.closeNow()
             if sameModule { return }
         }
-        showPopover(kind, from: sender)
+        showPopover(kind, from: sender, column: column)
     }
 
-    private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient) {
+    /// 不加底色、圖示裡有兩欄時，點的是哪一欄（以及那一欄在按鈕裡的範圍，面板指向它）
+    private func clickedColumn(_ kind: MonitorKind, in button: NSStatusBarButton) -> (second: Bool, rect: NSRect)? {
+        guard settings.monitorPlainLabels, let event = NSApp.currentEvent, let image = button.image else { return nil }
+        let labels: [String]
+        switch kind {
+        case .cpu: labels = ["CPU", "GPU"]
+        case .memory where settings.memoryDiskMerged: labels = ["MEM", "DISK"]
+        default: return nil
+        }
+        let widths = MonitorMenuBarRenderer.columnWidths(labels, valueTemplate: "100%")
+        let left = (button.bounds.width - image.size.width) / 2
+        let x = button.convert(event.locationInWindow, from: nil).x - left
+        let second = x > widths[0] + MonitorMenuBarRenderer.plainSpacing / 2
+        let start = left + (second ? widths[0] + MonitorMenuBarRenderer.plainSpacing : 0)
+        return (second, NSRect(x: start, y: 0, width: widths[second ? 1 : 0], height: button.bounds.height))
+    }
+
+    private func showPopover(_ kind: MonitorKind, from button: NSView, behavior: NSPopover.Behavior = .transient,
+                             column: (second: Bool, rect: NSRect)? = nil) {
         openKind = kind
+        openSecondColumn = column?.second ?? false
+        // 點了記憶體／磁碟其中一欄：只開那一欄的面板
+        let panelKind: MonitorKind = kind == .memory && column?.second == true ? .disk : kind
+        let merged = settings.memoryDiskMerged && column == nil
         cpu.setThermalActive(kind == .cpu)
-        disk.setHealthActive(kind == .disk || (kind == .memory && settings.memoryDiskMerged))
+        disk.setHealthActive(panelKind == .disk || (kind == .memory && merged))
         tick()
-        let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
-                                memoryDiskMerged: settings.memoryDiskMerged,
+        let root = MonitorPanel(kind: panelKind, cpu: cpu, memory: memory, disk: disk, network: network,
+                                memoryDiskMerged: merged, gpuOnly: kind == .cpu && column?.second == true,
                                 showsSpeedTest: settings.networkSpeedTest,
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
@@ -342,7 +369,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         popover.contentViewController = hosting
         popover.contentSize = hosting.view.fittingSize
         self.popover = popover
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: column?.rect ?? button.bounds, of: button, preferredEdge: .minY)
         popover.allowInFullScreen()
         NSApp.activate()
         popover.contentViewController?.view.window?.makeKey()
@@ -353,7 +380,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private func startTop() {
         topStream?.stop()
         topStream = nil
-        guard !sleeping, let openKind else { return }
+        // GPU、磁碟那一欄的面板沒有程序排行
+        guard !sleeping, let openKind, !openSecondColumn else { return }
         let column: String
         switch openKind {
         case .cpu:
@@ -429,9 +457,13 @@ enum MonitorMenuBarRenderer {
     private static let labelFont = NSFont.systemFont(ofSize: 8, weight: .heavy)
     private static let lineFont = NSFont.monospacedDigitSystemFont(ofSize: 9.5, weight: .medium)
     private static let valueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .regular)
-    private static let columnLabelFont = NSFont.systemFont(ofSize: 8, weight: .bold)
-    private static let plainArrowFont = NSFont.systemFont(ofSize: 10, weight: .bold)
-    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+    /// 不加底色時欄位之間、圖示之間的間距
+    static let plainSpacing: CGFloat = 5
+    // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
+    private static let columnLabelFont = NSFont.systemFont(ofSize: 8.5, weight: .medium)
+    private static let plainArrowFont = NSFont.systemFont(ofSize: 9.5, weight: .bold)
+    private static let plainLineFont = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+    private static let columnValueFont = NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium)
 
     private static var height: CGFloat { max(18, NSStatusBar.system.thickness - 2) }
 
@@ -458,7 +490,8 @@ enum MonitorMenuBarRenderer {
         let font = plain ? plainArrowFont : labelFont
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let badgeWidth = ceil(labelWidth + (plain ? 1 : 5))
-        let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: lineFont]).width
+        let valueFont = plain ? plainLineFont : lineFont
+        let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: true) { rect in
             let scale = pixelsPerPoint
@@ -476,7 +509,7 @@ enum MonitorMenuBarRenderer {
                 label.draw(at: NSPoint(x: snap(badge.midX - labelSize.width / 2, scale: scale),
                                        y: snap(badge.midY - labelSize.height / 2, scale: scale)))
                 let valueColor = (index < valueColors.count ? valueColors[index] : nil) ?? NSColor.labelColor
-                let value = NSAttributedString(string: line.value, attributes: [.font: lineFont, .foregroundColor: valueColor])
+                let value = NSAttributedString(string: line.value, attributes: [.font: valueFont, .foregroundColor: valueColor])
                 let valueSize = value.size()
                 value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
                                        y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))
@@ -487,11 +520,19 @@ enum MonitorMenuBarRenderer {
 
     /// 不加底色的欄位（像 Stats）：每欄上面是小字標籤、下面是數值，多欄並排；寬度依 valueTemplate 固定，數字變動時不會左右晃。
     /// valueColor 沒有指定時用一般文字顏色（記憶體壓力升高時變橘、變紅）
-    static func columns(_ items: [(label: String, value: String, valueColor: NSColor?)], valueTemplate: String) -> NSImage {
+    /// 每一欄的寬度（點擊時判斷點到哪一欄也用這個）
+    static func columnWidths(_ labels: [String], valueTemplate: String) -> [CGFloat] {
         let templateWidth = (valueTemplate as NSString).size(withAttributes: [.font: columnValueFont]).width
-        let widths = items.map { max(templateWidth, ($0.label as NSString).size(withAttributes: [.font: columnLabelFont]).width) }
-        let spacing: CGFloat = 6
+        return labels.map { max(templateWidth, ($0 as NSString).size(withAttributes: [.font: columnLabelFont]).width) }
+    }
+
+    static func columns(_ items: [(label: String, value: String, valueColor: NSColor?)], valueTemplate: String) -> NSImage {
+        let widths = columnWidths(items.map(\.label), valueTemplate: valueTemplate)
+        let spacing = plainSpacing
         let size = NSSize(width: ceil(widths.reduce(0, +) + spacing * CGFloat(max(0, items.count - 1))), height: height)
+        // 上下撐滿：標籤的字頂貼齊上緣、數值的底線貼齊下緣，中間留下的就是兩行的間距
+        let labelTop = 0.5 - (columnLabelFont.ascender - columnLabelFont.capHeight)
+        let valueTop = size.height - 0.5 - columnValueFont.ascender
         return NSImage(size: size, flipped: true) { rect in
             let scale = pixelsPerPoint
             var x: CGFloat = 0
@@ -501,12 +542,11 @@ enum MonitorMenuBarRenderer {
                 let label = NSAttributedString(string: item.label, attributes: [.font: columnLabelFont,
                                                                                 .foregroundColor: NSColor.labelColor])
                 let labelSize = label.size()
-                label.draw(at: NSPoint(x: snap(x + (width - labelSize.width) / 2, scale: scale), y: snap(rect.height * 0.04, scale: scale)))
+                label.draw(at: NSPoint(x: snap(x + (width - labelSize.width) / 2, scale: scale), y: snap(labelTop, scale: scale)))
                 let value = NSAttributedString(string: item.value, attributes: [.font: columnValueFont,
                                                                                 .foregroundColor: item.valueColor ?? NSColor.labelColor])
                 let valueSize = value.size()
-                value.draw(at: NSPoint(x: snap(x + (width - valueSize.width) / 2, scale: scale),
-                                       y: snap(rect.height - valueSize.height + 1, scale: scale)))
+                value.draw(at: NSPoint(x: snap(x + (width - valueSize.width) / 2, scale: scale), y: snap(valueTop, scale: scale)))
                 x += width + spacing
             }
             return true
