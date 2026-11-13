@@ -247,12 +247,12 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         let g = cpu.gpu.map(ByteFormat.percent) ?? "—"
         guard g != lastGPUKey else { return }
         lastGPUKey = g
-        apply(MonitorMenuBarRenderer.columns([("GPU", g, nil)], valueTemplate: "100%"), tooltip: "GPU \(g)", to: item)
+        apply(MonitorMenuBarRenderer.columns([("GPU", g, nil)], valueTemplate: MonitorMenuBarRenderer.plainTemplate), tooltip: "GPU \(g)", to: item)
     }
 
     private var plainCPUOnly: (key: String, tooltip: String, image: () -> NSImage) {
         let c = cpu.usage.map { ByteFormat.percent($0.total) } ?? "—"
-        return ("cpuOnly|\(c)", "CPU \(c)", { MonitorMenuBarRenderer.columns([("CPU", c, nil)], valueTemplate: "100%") })
+        return ("cpuOnly|\(c)", "CPU \(c)", { MonitorMenuBarRenderer.columns([("CPU", c, nil)], valueTemplate: MonitorMenuBarRenderer.plainTemplate) })
     }
 
     private func apply(_ image: NSImage, tooltip: String, to item: NSStatusItem) {
@@ -262,10 +262,12 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         if button.toolTip != tooltip, !isMouseOver(button) { button.toolTip = tooltip }
         // 圖示寬度固定（依範本計算），第一次畫好後鎖住長度；
         // 否則每秒換圖都會觸發 _adjustLength，讓整條選單列重新排版
-        if item.length == NSStatusItem.variableLength {
-            // 不加底色時每個圖示左右各留一半的間距，圖示之間的距離都一樣
-            let width = settings.monitorPlainLabels ? image.size.width + MonitorMenuBarRenderer.plainItemPadding
-                                                    : button.fittingSize.width
+        if settings.monitorPlainLabels {
+            // 只放寬、不縮回：數值變寬（例如到 100%）時放寬一次，之後維持，圖示不會每秒左右晃
+            let width = ceil(image.size.width + MonitorMenuBarRenderer.plainItemPadding)
+            if item.length == NSStatusItem.variableLength || item.length < width { item.length = width }
+        } else if item.length == NSStatusItem.variableLength {
+            let width = button.fittingSize.width
             if width > 0 { item.length = ceil(width) }
         }
     }
@@ -293,25 +295,25 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             let g = cpu.gpu.map(ByteFormat.percent) ?? "—"
             return ("\(c)|\(g)", "CPU \(c)・GPU \(g)",
                     { R.twoLines([("CPU", c, R.green), ("GPU", g, R.orange)], valueTemplate: "100%") },
-                    { R.columns([("CPU", c, nil), ("GPU", g, nil)], valueTemplate: "100%") })
+                    { R.columns([("CPU", c, nil), ("GPU", g, nil)], valueTemplate: MonitorMenuBarRenderer.plainTemplate) })
         case .memory where settings.memoryDiskMerged:
             let m = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let d = diskUsedText
             let pressure = memory.usage?.pressure ?? .normal
             return ("merged|\(m)|\(d)|\(pressure.rawValue)", "\(memoryTooltip)\n\(diskTooltip)",
                     { R.memoryDisk(memory: m, disk: d, pressure: pressure) },
-                    { R.columns([("MEM", m, R.pressureColor(pressure)), ("DISK", d, nil)], valueTemplate: "100%") })
+                    { R.columns([("MEM", m, R.pressureColor(pressure)), ("DISK", d, nil)], valueTemplate: MonitorMenuBarRenderer.plainTemplate) })
         case .memory:
             let value = memory.usage.map { ByteFormat.percent($0.usedFraction) } ?? "—"
             let pressure = memory.usage?.pressure ?? .normal
             return ("\(value)|\(pressure.rawValue)", memoryTooltip,
                     { R.symbolValue(symbol: "memorychip", value: value, valueTemplate: "100%", color: R.pressureColor(pressure)) },
-                    { R.columns([("MEM", value, R.pressureColor(pressure))], valueTemplate: "100%") })
+                    { R.columns([("MEM", value, R.pressureColor(pressure))], valueTemplate: MonitorMenuBarRenderer.plainTemplate) })
         case .disk:
             let value = diskUsedText
             return (value, diskTooltip,
                     { R.symbolValue(symbol: "internaldrive", value: value, valueTemplate: "100%") },
-                    { R.columns([("DISK", value, nil)], valueTemplate: "100%") })
+                    { R.columns([("DISK", value, nil)], valueTemplate: MonitorMenuBarRenderer.plainTemplate) })
         case .network:
             let up = ByteFormat.compactRate(network.uploadRate)
             let down = ByteFormat.compactRate(network.downloadRate)
@@ -320,7 +322,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             let withUnit = { (rate: String) in rate.replacingOccurrences(of: #"([KMG])$"#, with: " $1B/s", options: .regularExpression) }
             return ("\(up)|\(down)", tooltip,
                     { R.twoLines([("↑", up, R.orange), ("↓", down, R.green)], valueTemplate: "999K") },
-                    { R.twoLines([("", withUnit(up), R.orange), ("", withUnit(down), R.green)], valueTemplate: "999 KB/s", plain: true) })
+                    { R.twoLines([("", withUnit(up), R.orange), ("", withUnit(down), R.green)], valueTemplate: "99 KB/s", plain: true) })
         }
     }
 
@@ -489,7 +491,9 @@ enum MonitorMenuBarRenderer {
     /// 不加底色時同一個圖示裡欄位之間的間距（第二條狀態列的 CPU／GPU、記憶體／磁碟）
     static let plainSpacing: CGFloat = 8
     /// 不加底色時每個圖示左右合計的留白：圖示之間的距離都一樣
-    static let plainItemPadding: CGFloat = 4
+    static let plainItemPadding: CGFloat = 0
+    /// 不加底色時欄位寬度以兩位數預留（多數時間的寬度），到 100% 時圖示才放寬一次，平常不會多出空白
+    static let plainTemplate = "88%"
     // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
     private static let columnLabelFont = NSFont.systemFont(ofSize: 9, weight: .regular)
     /// 不加底色時網路上下行的圓點直徑
@@ -523,7 +527,7 @@ enum MonitorMenuBarRenderer {
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let badgeWidth = plain ? plainDot + 2 : ceil(labelWidth + 5)
         let valueFont = plain ? plainLineFont : lineFont
-        let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
+        let valueWidth = ([valueTemplate] + lines.map(\.value)).map { ($0 as NSString).size(withAttributes: [.font: valueFont]).width }.max() ?? 0
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: true) { rect in
             let scale = pixelsPerPoint
@@ -567,7 +571,10 @@ enum MonitorMenuBarRenderer {
     }
 
     static func columns(_ items: [(label: String, value: String, valueColor: NSColor?)], valueTemplate: String) -> NSImage {
-        let widths = columnWidths(items.map(\.label), valueTemplate: valueTemplate)
+        // 數值比範本寬（例如範本兩位數、實際 100%）時以實際寬度為準，不會被切掉
+        let widths = zip(columnWidths(items.map(\.label), valueTemplate: valueTemplate), items).map {
+            max($0.0, ($0.1.value as NSString).size(withAttributes: [.font: columnValueFont]).width)
+        }
         let spacing = plainSpacing
         let size = NSSize(width: ceil(widths.reduce(0, +) + spacing * CGFloat(max(0, items.count - 1))), height: height)
         // 上下撐滿：標籤的字頂貼齊上緣、數值的底線貼齊下緣，中間留下的就是兩行的間距
