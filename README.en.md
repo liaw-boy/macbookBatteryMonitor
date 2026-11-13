@@ -224,11 +224,11 @@ On a MacBook, turn on "在桌面顯示" (show on desktop) in Settings → Chargi
 Battery, charging, system monitors, the charging companion and peripherals are basic features and always there. Everything else is an extension feature that appears only after you turn it on in Settings → 功能管理 (feature management), and can be turned off again:
 
 - **Off means not running**: no keys or mouse are intercepted, no windows are observed and its settings are hidden; turning it off is not uninstalling, it only stops it, and its settings are still there when you turn it on again
-- **Nothing is on after a fresh install**: most extensions need Accessibility, and a permission prompt right after installing would be confusing; the audio switcher, cat quick menu, ports and clipboard history need no permission
+- **Nothing is on after a fresh install**: most extensions need Accessibility, and a permission prompt right after installing would be confusing; the audio switcher, cat quick menu, ports and clipboard history need no permission; per-app volume needs System Audio Recording
 - **Updating from an older version**: scroll direction, which older versions had, and any feature whose own switch was already on (for example the window switcher or the Chinese input method options) stay on
 - **Not extension features, always there**: the keep-awake button in the panel, the connection status (VPN, Low Data Mode) in the network panel, the connected-devices list on the peripherals page, and the permissions page and settings backup in Settings. None needs a permission, and each reads only while its panel or page is open
 - **Fast user switching**: all keyboard and mouse taps stop while you switch to another user and start again when you come back, so a background tap never slows down the foreground user's input
-- Available: scroll direction, window switching, Chinese input methods, hold ⌘Q / ⌘W, quit when the last window closes, click a Dock icon to minimize, keyboard cleaning mode, mouse side buttons, audio switcher, green button maximizes, window snapping, Finder shortcuts, cat quick menu, ports and quitting processes, clipboard history, XDR brightness boost (experimental)
+- Available: scroll direction, window switching, Chinese input methods, hold ⌘Q / ⌘W, quit when the last window closes, click a Dock icon to minimize, keyboard cleaning mode, mouse side buttons, audio switcher, green button maximizes, window snapping, Finder shortcuts, cat quick menu, ports and quitting processes, clipboard history, XDR brightness boost (experimental), per-app volume
 
 ## XDR brightness boost (experimental)
 
@@ -247,7 +247,7 @@ See the [XDR design and local verification notes](docs/design/xdr-brightness.md)
 ## Settings backup and permissions
 
 - **Settings backup**: Settings → 一般 → "設定備份" (settings backup) exports the settings to a file you can import on another Mac or after reinstalling. Only known settings with the right types are read and the file size is limited; admin CPU sampling, precise wake (turn them on again on the new Mac), your own photo and the peripherals' low-battery thresholds are not included. If importing would turn on anything that is off now (extension features, Bluetooth off during sleep, keeping awake for chosen apps), it lists those first and asks you to confirm. Imported settings take effect after the app reopens
-- **Permissions**: Settings → 權限 (permissions) lists Accessibility, Screen Recording, Notifications, Bluetooth and Automation with whether each is granted, which features that are on use it, and a button to the matching System Settings pane. It refreshes every 2.5 seconds while open
+- **Permissions**: Settings → 權限 (permissions) lists Accessibility, Screen Recording, Notifications, Bluetooth, Automation and System Audio Recording with whether each is granted, which features that are on use it, and a button to the matching System Settings pane. It refreshes every 2.5 seconds while open
 
 ## Monitor alerts
 
@@ -297,7 +297,7 @@ The system integration uses private macOS functions, all loaded at run time and 
 
 Turn on "音訊切換" (audio switcher) in Settings → 功能管理 and a speaker button appears at the bottom right of the panel:
 
-- **Output device**: lists every device that can play audio (built-in speakers, headphones, Bluetooth headphones, displays and so on) with a check on the current one; click one to switch
+- **Output device**: lists every device that can play audio (built-in speakers, headphones, Bluetooth headphones, displays and so on) with a check on the current one; click one to switch. Virtual devices that cannot be the default output (for example Background Music's "UI Sounds" device for system alerts) are not listed, as in the system Sound menu
 - **Mute microphone**: uses the device's mute switch, or, if there is no switch, the menu says "輸入音量調到 0" (set input volume to 0) and the volume is restored when unmuted or when the app quits. A meeting app's automatic gain may turn it back up, so use the meeting app's own mute for such devices. The button shows a crossed-out microphone while muted
 - **Permission**: uses the public Core Audio API and needs no permission; devices are read only when the menu opens
 
@@ -324,7 +324,7 @@ Turn on "剪貼簿歷史" (clipboard history), together with the cat quick menu,
 - **Text only, memory only**: no images or files, nothing written to disk, cleared when the app quits, the feature is turned off, the screen locks or the Mac sleeps; nothing is recorded while the cat quick menu is off; up to 10,000 characters each
 - **Skips what password managers mark as concealed**: anything a password manager (Keychain, 1Password and so on) marks as concealed, transient or auto-generated is never recorded. A password copied from a browser, a terminal or any other ordinary app carries no such mark and is recorded
 - **Power**: macOS has no clipboard change notification, so while on it reads the clipboard's change count every 0.75 s and reads the content only when it changed; when off nothing is checked
-- The menu can clear the history; no permission needed
+- The panel can clear the history; it stays open and the list empties; no permission needed
 
 ## Ports and quitting processes
 
@@ -337,14 +337,29 @@ Turn on "Port 管理與結束程式" (ports and quitting processes) in Settings 
 
 ## Cat quick menu
 
-Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a cat icon appears in the menu bar with:
+Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a cat icon appears in the menu bar. Clicking it opens a panel with:
 
-- **Keep awake**: pick a duration, stop, or keep the display on too; the title shows the time left while active
-- **Audio output** and **mute microphone**
-- **Start keyboard cleaning** (when keyboard cleaning mode is on)
-- **Extension features**: turn each one on or off directly
-- **Settings…** and **Quit**
-- The menu reads the current state only when it opens and does nothing otherwise; no permission needed
+- **Three large buttons**: keep awake (with the time left), mute microphone (with the audio switcher on) and start keyboard cleaning (with keyboard cleaning mode on)
+- **Keep-awake duration**: 30 min, 1 h, 2 h or until turned off, with the running one highlighted; the display can stay on too
+- **Audio output**: the same device list as the audio switcher; click one to switch
+- **App volume** (with per-app volume on): a volume slider and mute button for each app that is playing sound, see the next section
+- **Clipboard history** (when on): the last 5 items, click one to put it back on the clipboard; clearing keeps the panel open
+- **功能管理** (manage features): switches the panel to an extension features page where each feature has its own switch; "返回" (back) or Esc returns. A feature that needs Accessibility opens the permissions page if it is not allowed yet. The cat quick menu itself is turned off in Settings, since turning it off here would remove the panel
+- **Settings** and **Quit** at the bottom
+- Clicking outside closes the panel; the battery and system monitor panels also close when you click elsewhere or on another menu bar icon
+- The panel reads the current state only when it opens and does nothing otherwise; no permission needed (except when per-app volume is enabled, see the next section)
+
+## Per-app volume
+
+Turn on "各 App 音量" (per-app volume), together with the cat quick menu, in Settings → 功能管理, and the cat panel gets an "App 音量" card with a volume slider (0–100%) and a mute button for each app that is playing sound:
+
+- **Only apps you change**: apps left at 100% are not touched. When you lower or mute one, macOS 14.2's process audio taps take over that app's sound and play it, scaled, on the current output. Back at 100% the tap is removed. No audio driver is installed
+- **No gap**: when you start adjusting, the replay is connected first and the app's own sound is muted only once the replay has sound; going back to 100% unmutes first and then fades the replay out. Changing the output (for example plugging in headphones) or a browser opening a new tab reconnects automatically
+- **Browsers**: sound often comes from helper processes, which count as the browser itself; Safari's sound comes from WebKit processes and counts as Safari (sound from other apps that use web views counts too). Processes whose bundle ID is unrelated to their app (for example LINE's MediaService for calls) are not listed
+- **Remembered**: each app's volume and mute are saved and applied the next time that app plays sound; when this app quits, adjusted apps go back to their own volume right away
+- **Permission**: needs System Audio Recording (System Settings → Privacy & Security → Screen & System Audio Recording, audio only is enough); macOS asks the first time you lower an app. Sound only passes through memory in real time and is never stored or sent. If access is refused, or no sound ever arrives, every app goes back to its own volume and the card explains it with a "再試一次" (try again) button
+- **Power**: with the panel closed and no app adjusted nothing is checked; with adjusted apps the process list is checked every 2 seconds, and an app that has a capture but is not playing yet is polled more often (about every 0.1 s), so it costs a little CPU even while idle
+- **Limits**: needs macOS 14.2 or later; another per-app volume tool (for example Background Music) adjusting the same app at the same time can interfere
 
 ## Finder shortcuts
 
