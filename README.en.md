@@ -348,7 +348,7 @@ Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a
 - **功能管理** (manage features): switches the panel to an extension features page where each feature has its own switch; "返回" (back) or Esc returns. A feature that needs Accessibility opens the permissions page if it is not allowed yet. The cat quick menu itself is turned off in Settings, since turning it off here would remove the panel
 - **Settings** and **Quit** at the bottom
 - Clicking outside closes the panel; the battery and system monitor panels also close when you click elsewhere or on another menu bar icon
-- The panel reads the current state only when it opens and does nothing otherwise; no permission needed
+- The panel reads the current state only when it opens and does nothing otherwise; no permission needed (except when per-app volume is enabled, see the next section)
 
 ## Per-app volume
 
@@ -359,7 +359,7 @@ Turn on "各 App 音量" (per-app volume), together with the cat quick menu, in 
 - **Browsers**: sound often comes from helper processes, which count as the browser itself; Safari's sound comes from WebKit processes and counts as Safari (sound from other apps that use web views counts too). Processes whose bundle ID is unrelated to their app (for example LINE's MediaService for calls) are not listed
 - **Remembered**: each app's volume and mute are saved and applied the next time that app plays sound; when this app quits, adjusted apps go back to their own volume right away
 - **Permission**: needs System Audio Recording (System Settings → Privacy & Security → Screen & System Audio Recording, audio only is enough); macOS asks the first time you lower an app. Sound only passes through memory in real time and is never stored or sent. If access is refused, or no sound ever arrives, every app goes back to its own volume and the card explains it with a "再試一次" (try again) button
-- **Power**: only adjusted apps that are playing use a little more CPU; with the panel closed and no app adjusted nothing is checked
+- **Power**: with the panel closed and no app adjusted nothing is checked; with adjusted apps the process list is checked every 2 seconds, and an app that has a capture but is not playing yet is polled more often (about every 0.1 s), so it costs a little CPU even while idle
 - **Limits**: needs macOS 14.2 or later; another per-app volume tool (for example Background Music) adjusting the same app at the same time can interfere
 
 ## Finder shortcuts
