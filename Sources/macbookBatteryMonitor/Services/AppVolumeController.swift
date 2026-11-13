@@ -43,7 +43,8 @@ final class AppVolumeController {
 
     /// 打開或關掉功能；settings 是存起來的各 App 音量
     func apply(enabled: Bool, settings stored: [String: AppVolume.Setting]) {
-        settings = stored
+        // 剛調的音量還在等 saveSoon 寫回時，存起來的是舊值：不要用它蓋掉控制器裡較新的設定
+        if saveWork == nil { settings = stored }
         self.enabled = enabled && Self.supported
         guard self.enabled else {
             timer?.invalidate()
@@ -129,6 +130,7 @@ final class AppVolumeController {
         let work = DispatchWorkItem {
             MainActor.assumeIsolated {
                 let controller = AppVolumeController.shared
+                controller.saveWork = nil
                 controller.onSettingsChange?(controller.settings)
             }
         }
@@ -287,7 +289,13 @@ final class AppVolumeEngine: @unchecked Sendable {
                 return Result(playing: playing, problem: true)
             case .failed:
                 tap.invalidate()
-                // 舊的還能用就留著；不再每 2 秒重試同一個組合
+                // 舊的還能用才留著；它綁在別的輸出裝置或已失效時，App 會被靜音卻沒聲音，要拆掉讓聲音回到原本的樣子
+                if let old, old.outputUID != output || !old.isAlive {
+                    taps[bundleID] = nil
+                    old.release()
+                    queue.asyncAfter(deadline: .now() + 0.1) { old.invalidate() }
+                }
+                // 不再每 2 秒重試同一個組合
                 skipped[bundleID] = (ids, output, .distantFuture)
             }
         }
