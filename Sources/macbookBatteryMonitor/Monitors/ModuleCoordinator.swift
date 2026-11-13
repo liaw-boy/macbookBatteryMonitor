@@ -262,12 +262,9 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         if button.toolTip != tooltip, !isMouseOver(button) { button.toolTip = tooltip }
         // 圖示寬度固定（依範本計算），第一次畫好後鎖住長度；
         // 否則每秒換圖都會觸發 _adjustLength，讓整條選單列重新排版
-        if settings.monitorPlainLabels {
-            // 只放寬、不縮回：數值變寬（例如到 100%）時放寬一次，之後維持，圖示不會每秒左右晃
-            let width = ceil(image.size.width + MonitorMenuBarRenderer.plainItemPadding)
-            if item.length == NSStatusItem.variableLength || item.length < width { item.length = width }
-        } else if item.length == NSStatusItem.variableLength {
-            let width = button.fittingSize.width
+        if item.length == NSStatusItem.variableLength {
+            let width = settings.monitorPlainLabels ? image.size.width + MonitorMenuBarRenderer.plainItemPadding
+                                                    : button.fittingSize.width
             if width > 0 { item.length = ceil(width) }
         }
     }
@@ -492,7 +489,7 @@ enum MonitorMenuBarRenderer {
     static let plainSpacing: CGFloat = 8
     /// 不加底色時每個圖示左右合計的留白：圖示之間的距離都一樣
     static let plainItemPadding: CGFloat = 0
-    /// 不加底色時欄位寬度以兩位數預留（多數時間的寬度），到 100% 時圖示才放寬一次，平常不會多出空白
+    /// 不加底色時欄位寬度固定以兩位數預留；100% 時字稍微縮小塞進去，選單列不會橫移
     static let plainTemplate = "88%"
     // 選單列只有約 20 點高：標籤約 6 點、數值約 9 點的字高，中間留約 4 點
     private static let columnLabelFont = NSFont.systemFont(ofSize: 9, weight: .regular)
@@ -527,7 +524,7 @@ enum MonitorMenuBarRenderer {
         let labelWidth = lines.map { ($0.label as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
         let badgeWidth = plain ? plainDot + 2 : ceil(labelWidth + 5)
         let valueFont = plain ? plainLineFont : lineFont
-        let valueWidth = ([valueTemplate] + lines.map(\.value)).map { ($0 as NSString).size(withAttributes: [.font: valueFont]).width }.max() ?? 0
+        let valueWidth = (valueTemplate as NSString).size(withAttributes: [.font: valueFont]).width
         let size = NSSize(width: ceil(badgeWidth + 3 + valueWidth), height: height)
         return NSImage(size: size, flipped: true) { rect in
             let scale = pixelsPerPoint
@@ -539,7 +536,8 @@ enum MonitorMenuBarRenderer {
                     line.color.setFill()
                     NSBezierPath(ovalIn: snap(NSRect(x: 0, y: y + (lineHeight - plainDot) / 2, width: plainDot, height: plainDot), scale: scale)).fill()
                     let valueColor = (index < valueColors.count ? valueColors[index] : nil) ?? NSColor.labelColor
-                    let value = NSAttributedString(string: line.value, attributes: [.font: valueFont, .foregroundColor: valueColor])
+                    let value = NSAttributedString(string: line.value, attributes: [.font: fitted(valueFont, line.value, width: valueWidth),
+                                                                                    .foregroundColor: valueColor])
                     let valueSize = value.size()
                     value.draw(at: NSPoint(x: snap(rect.width - valueSize.width, scale: scale),
                                            y: snap(y + (lineHeight - valueSize.height) / 2, scale: scale)))
@@ -564,6 +562,13 @@ enum MonitorMenuBarRenderer {
 
     /// 不加底色的欄位（像 Stats）：每欄上面是小字標籤、下面是數值，多欄並排；寬度依 valueTemplate 固定，數字變動時不會左右晃。
     /// valueColor 沒有指定時用一般文字顏色（記憶體壓力升高時變橘、變紅）
+    /// 文字比給的寬度寬時，等比例縮小字級到剛好放得下（最小 70%）
+    private static func fitted(_ font: NSFont, _ text: String, width: CGFloat) -> NSFont {
+        let natural = (text as NSString).size(withAttributes: [.font: font]).width
+        guard natural > width, natural > 0 else { return font }
+        return font.withSize(font.pointSize * max(0.7, width / natural))
+    }
+
     /// 每一欄的寬度
     static func columnWidths(_ labels: [String], valueTemplate: String) -> [CGFloat] {
         let templateWidth = (valueTemplate as NSString).size(withAttributes: [.font: columnValueFont]).width
@@ -571,10 +576,7 @@ enum MonitorMenuBarRenderer {
     }
 
     static func columns(_ items: [(label: String, value: String, valueColor: NSColor?)], valueTemplate: String) -> NSImage {
-        // 數值比範本寬（例如範本兩位數、實際 100%）時以實際寬度為準，不會被切掉
-        let widths = zip(columnWidths(items.map(\.label), valueTemplate: valueTemplate), items).map {
-            max($0.0, ($0.1.value as NSString).size(withAttributes: [.font: columnValueFont]).width)
-        }
+        let widths = columnWidths(items.map(\.label), valueTemplate: valueTemplate)
         let spacing = plainSpacing
         let size = NSSize(width: ceil(widths.reduce(0, +) + spacing * CGFloat(max(0, items.count - 1))), height: height)
         // 上下撐滿：標籤的字頂貼齊上緣、數值的底線貼齊下緣，中間留下的就是兩行的間距
@@ -590,10 +592,13 @@ enum MonitorMenuBarRenderer {
                                                                                 .foregroundColor: NSColor.labelColor])
                 let labelSize = label.size()
                 label.draw(at: NSPoint(x: snap(x + (width - labelSize.width) / 2, scale: scale), y: snap(labelTop, scale: scale)))
-                let value = NSAttributedString(string: item.value, attributes: [.font: columnValueFont,
+                // 寬度固定：比範本寬的數值（例如 100%）字稍微縮小塞進去，選單列不會跟著橫移；底線仍和其他數字對齊
+                let font = fitted(columnValueFont, item.value, width: width)
+                let value = NSAttributedString(string: item.value, attributes: [.font: font,
                                                                                 .foregroundColor: item.valueColor ?? NSColor.labelColor])
                 let valueSize = value.size()
-                value.draw(at: NSPoint(x: snap(x + (width - valueSize.width) / 2, scale: scale), y: snap(valueTop, scale: scale)))
+                value.draw(at: NSPoint(x: snap(x + (width - valueSize.width) / 2, scale: scale),
+                                       y: snap(valueTop + columnValueFont.ascender - font.ascender, scale: scale)))
                 x += width + spacing
             }
             return true
