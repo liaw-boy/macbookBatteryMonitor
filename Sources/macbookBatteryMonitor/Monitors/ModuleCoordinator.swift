@@ -93,7 +93,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         for kind in MonitorKind.allCases.reversed() {
             let enabled = settings.isMonitorEnabled(kind) && !settings.menuBarCombined
                 && !(kind == .disk && settings.memoryDiskMerged)
-            // 新建的圖示放在最左邊：GPU 要比 CPU 先建，才會在 CPU 右邊
+            // GPU 要比 CPU 先建，執行中切換和重啟後的順序才一致
             if kind == .cpu { syncGPUItem(cpuEnabled: enabled) }
             if enabled, items[kind] == nil {
                 items[kind] = makeItem(autosaveName: "monitor.\(kind.rawValue)")
@@ -146,6 +146,13 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private func syncGPUItem(cpuEnabled: Bool) {
         let wanted = cpuEnabled && settings.monitorPlainLabels
         if wanted, gpuItem == nil {
+            // 順序由建立先後決定：CPU 已經在時先拿掉，讓 syncItems 接著重建，排法才會和重啟後一樣
+            if let cpu = items[.cpu] {
+                if openKind == .cpu { popover?.closeNow() }
+                NSStatusBar.system.removeStatusItem(cpu)
+                items[.cpu] = nil
+                lastKeys[.cpu] = nil
+            }
             gpuItem = makeItem(autosaveName: "monitor.gpu")
         } else if !wanted, let item = gpuItem {
             if openGPU { popover?.closeNow() }
