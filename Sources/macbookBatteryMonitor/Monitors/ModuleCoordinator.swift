@@ -125,7 +125,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             lastGPUKey = nil
         }
         // 關掉測速開關或網路模組後就看不到測速卡片，正在跑的測速也一起停掉
-        if !(settings.networkSpeedTest && settings.isMonitorEnabled(.network)) {
+        if !(settings.isInstalled(.speedTest) && settings.isMonitorEnabled(.network)) {
             network.speedTest.cancel()
         }
         tick()
@@ -380,7 +380,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         tick()
         let root = MonitorPanel(kind: kind, cpu: cpu, memory: memory, disk: disk, network: network,
                                 memoryDiskMerged: settings.memoryDiskMerged, gpuOnly: gpu, separateGPU: gpuItem != nil,
-                                showsSpeedTest: settings.networkSpeedTest,
+                                showsSpeedTest: settings.isInstalled(.speedTest),
                                 onSettings: { [weak self] in
                                     self?.popover?.closeNow(animated: false)
                                     self?.openSettings?()
