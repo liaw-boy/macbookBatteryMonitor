@@ -19,8 +19,8 @@ struct QuickMenuPanel: View {
     var close: () -> Void
     var openSettings: (SettingsSection?) -> Void
 
-    /// 剪貼簿歷史一次看得到幾列，其餘捲動
-    static let clipboardVisibleRows = 5
+    /// 剪貼簿歷史最高多高（約五列，一列 34、列距 4），再多就捲動
+    static let clipboardMaxHeight: CGFloat = 5 * 34 + 4 * 4
 
     private var showsAudio: Bool { settings.isInstalled(.audioSwitch) }
     private var showsMic: Bool { showsAudio && audio.micSupported }
@@ -230,20 +230,25 @@ struct QuickMenuPanel: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
-                // 全部 30 筆都能選：超過 5 列就捲動（一列 34、列距 4）
-                ScrollView {
-                    VStack(spacing: 4) {
-                        ForEach(Array(clipboard.enumerated()), id: \.offset) { _, text in
-                            QuickRow(symbol: Self.clipboardSymbol(text), tint: .purple,
-                                     title: ClipboardHistory.preview(text), selected: false) {
-                                ClipboardHistoryController.shared.restore(text)
-                                close()
-                            }
-                            .help(String(text.prefix(500)))
-                        }
-                    }
+                // 全部 30 筆都能選：五列放得下就直接列出，放不下才捲動（不用猜一列多高）
+                ViewThatFits(in: .vertical) {
+                    clipboardRows
+                    ScrollView { clipboardRows }
                 }
-                .frame(height: clipboard.isEmpty ? 0 : CGFloat(min(clipboard.count, Self.clipboardVisibleRows)) * 38 - 4)
+                .frame(maxHeight: Self.clipboardMaxHeight)
+            }
+        }
+    }
+
+    private var clipboardRows: some View {
+        VStack(spacing: 4) {
+            ForEach(Array(clipboard.enumerated()), id: \.offset) { _, text in
+                QuickRow(symbol: Self.clipboardSymbol(text), tint: .purple,
+                         title: ClipboardHistory.preview(text), selected: false) {
+                    ClipboardHistoryController.shared.restore(text)
+                    close()
+                }
+                .help(String(text.prefix(500)))
             }
         }
     }
