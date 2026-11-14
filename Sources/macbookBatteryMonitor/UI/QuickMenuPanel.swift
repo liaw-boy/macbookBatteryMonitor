@@ -19,8 +19,8 @@ struct QuickMenuPanel: View {
     var close: () -> Void
     var openSettings: (SettingsSection?) -> Void
 
-    /// 剪貼簿歷史最高多高（約五列，一列 34、列距 4），再多就捲動
-    static let clipboardMaxHeight: CGFloat = 5 * 34 + 4 * 4
+    /// 剪貼簿歷史最高多高（四列，一列 34、列距 4），再多就捲動
+    static let clipboardMaxHeight: CGFloat = 4 * 34 + 3 * 4
 
     private var showsAudio: Bool { settings.isInstalled(.audioSwitch) }
     private var showsMic: Bool { showsAudio && audio.micSupported }
@@ -230,7 +230,7 @@ struct QuickMenuPanel: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
-                // 全部 30 筆都能選：五列放得下就直接列出，放不下才捲動（不用猜一列多高）
+                // 全部 30 筆都能選：四列放得下就直接列出，放不下才捲動（不用猜一列多高）
                 ViewThatFits(in: .vertical) {
                     clipboardRows
                     ScrollView { clipboardRows }
