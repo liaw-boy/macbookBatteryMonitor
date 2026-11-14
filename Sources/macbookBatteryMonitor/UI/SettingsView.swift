@@ -183,8 +183,10 @@ struct SettingsView: View {
                         }
                     }
                     .disabled(!settings.systemMonitors)
+                    SwitchRow("標籤不加底色（標籤在上、數值在下）", isOn: binding(\.monitorPlainLabels))
+                        .disabled(!settings.systemMonitors)
                     SwitchRow("記憶體與磁碟放在同一個圖示", isOn: binding(\.mergeMemoryDisk))
-                        .disabled(!settings.systemMonitors || !settings.monitorMemory || !settings.monitorDisk)
+                        .disabled(!settings.systemMonitors || !settings.monitorMemory || !settings.monitorDisk || settings.monitorPlainLabels)
                     if settings.systemMonitors {
                         Text(settings.monitorMemory && settings.monitorDisk
                              ? "像 CPU／GPU 一樣上下兩行，上面記憶體、下面磁碟；點開的面板也合在一起。"
@@ -192,7 +194,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    SwitchRow("在網路面板顯示測速", isOn: binding(\.networkSpeedTest))
+                    SwitchRow("在網路面板顯示測速", isOn: Binding(get: { settings.isInstalled(.speedTest) }, set: { settings.setInstalled(.speedTest, $0) }))
                         .disabled(!settings.systemMonitors || !settings.monitorNetwork)
                     if settings.systemMonitors {
                         Text(settings.monitorNetwork
