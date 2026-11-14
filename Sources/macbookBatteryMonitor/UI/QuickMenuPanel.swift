@@ -19,7 +19,8 @@ struct QuickMenuPanel: View {
     var close: () -> Void
     var openSettings: (SettingsSection?) -> Void
 
-    static let clipboardLimit = 5
+    /// 剪貼簿歷史一次看得到幾列，其餘捲動
+    static let clipboardVisibleRows = 5
 
     private var showsAudio: Bool { settings.isInstalled(.audioSwitch) }
     private var showsMic: Bool { showsAudio && audio.micSupported }
@@ -229,14 +230,20 @@ struct QuickMenuPanel: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                 }
-                ForEach(Array(clipboard.prefix(Self.clipboardLimit).enumerated()), id: \.offset) { _, text in
-                    QuickRow(symbol: Self.clipboardSymbol(text), tint: .purple,
-                             title: ClipboardHistory.preview(text), selected: false) {
-                        ClipboardHistoryController.shared.restore(text)
-                        close()
+                // 全部 30 筆都能選：超過 5 列就捲動（一列 34、列距 4）
+                ScrollView {
+                    VStack(spacing: 4) {
+                        ForEach(Array(clipboard.enumerated()), id: \.offset) { _, text in
+                            QuickRow(symbol: Self.clipboardSymbol(text), tint: .purple,
+                                     title: ClipboardHistory.preview(text), selected: false) {
+                                ClipboardHistoryController.shared.restore(text)
+                                close()
+                            }
+                            .help(String(text.prefix(500)))
+                        }
                     }
-                    .help(String(text.prefix(500)))
                 }
+                .frame(height: clipboard.isEmpty ? 0 : CGFloat(min(clipboard.count, Self.clipboardVisibleRows)) * 38 - 4)
             }
         }
     }
