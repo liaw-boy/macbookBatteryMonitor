@@ -75,6 +75,7 @@ The app is named "電池與系統監控" (Battery & System Monitor on English sy
 - **Display styles** (Settings → Display items): icon and percentage, icon only, percentage only, icon and time remaining, or percentage inside the icon plus time remaining (the charge inside the battery icon, time remaining or time to full on the right). The last one shows "—" without time data and "已充飽" (full), "接電" (plugged in) or "已達上限" (limit reached) when full, plugged in without charging, or at the charge limit
 - A bolt while charging, a plug while plugged in without charging, red at low battery
 - **System monitors**: one menu bar icon each. Left click opens that monitor's panel, right click opens Settings or quits; hold ⌘ and drag to reorder the icons
+- **Plain labels** (「標籤不加底色」 in Settings → Monitoring & power saving, off by default): CPU, GPU, MEM and DISK show a small label above the value instead of a coloured badge, and the network shows coloured dots with units instead of arrows. The memory value still turns orange or red under memory pressure. CPU, GPU, memory and disk each get their own icon (memory and disk are never merged), and the GPU icon opens a GPU-only panel
 - **Memory and disk in one icon** (「記憶體與磁碟放在同一個圖示」 in Settings → Monitoring & power saving, off by default): two lines like CPU/GPU, memory on top and disk below; the memory value still turns orange or red under memory pressure. Its panel shows memory, then disk. Available only while both the memory and disk monitors are on
 - **Combine into one icon** (Settings → Monitoring & power saving): when the menu bar is full, macOS hides the icons that don't fit (MacBooks with a notch are hit hardest). You can then keep just the battery icon (power on desktops). Clicking it opens a second status bar right below the menu bar with the battery and monitor icons, updated live. Click an icon there to open its panel (click again to collapse it); click anywhere else or press Esc to close the bar. The monitors only sample while the second bar is open. No screen recording or Accessibility permission is needed
 - If you only see the battery icon and no CPU or other icons, check that the system monitor master switch is on in Settings → Monitoring & power saving
@@ -351,7 +352,7 @@ Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a
 Turn on "Finder 加強" (Finder shortcuts) in Settings → 功能管理 and:
 
 - **⌘X to cut, ⌘V to move**: select files in Finder, press ⌘X, then ⌘V in another folder to move them (Finder's ⌥⌘V "Move Item Here"). If something else is copied after cutting, ⌘V pastes the clipboard as usual and never moves the files by mistake
-- **F2 to rename**: press F2 on a selected file to rename it (same as Return)
+- **F2 to rename**: press F2 on a selected file to rename it (same as Return); on a MacBook keyboard press fn + F2, since F2 alone changes the brightness
 - **Only in Finder, never while typing**: when Finder is not frontmost, or while renaming or typing in the search field, ⌘X, ⌘V and F2 behave as usual; if Finder does not answer where the focus is, it counts as typing
 - **Keyboard layouts**: works on the US positions of X, C and V, and only when those keys really type X, C and V (ABC, US, Zhuyin, Pinyin, German and French layouts do); layouts such as Dvorak are left alone
 - **Permission**: needs Accessibility; nothing is intercepted while the feature is off
