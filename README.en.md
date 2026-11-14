@@ -75,6 +75,7 @@ The app is named "電池與系統監控" (Battery & System Monitor on English sy
 - **Display styles** (Settings → Display items): icon and percentage, icon only, percentage only, icon and time remaining, or percentage inside the icon plus time remaining (the charge inside the battery icon, time remaining or time to full on the right). The last one shows "—" without time data and "已充飽" (full), "接電" (plugged in) or "已達上限" (limit reached) when full, plugged in without charging, or at the charge limit
 - A bolt while charging, a plug while plugged in without charging, red at low battery
 - **System monitors**: one menu bar icon each. Left click opens that monitor's panel, right click opens Settings or quits; hold ⌘ and drag to reorder the icons
+- **Plain labels** (「標籤不加底色」 in Settings → Monitoring & power saving, off by default): CPU, GPU, MEM and DISK show a small label above the value instead of a coloured badge, and the network shows coloured dots with units instead of arrows. The memory value still turns orange or red under memory pressure. CPU, GPU, memory and disk each get their own icon (memory and disk are never merged), and the GPU icon opens a GPU-only panel
 - **Memory and disk in one icon** (「記憶體與磁碟放在同一個圖示」 in Settings → Monitoring & power saving, off by default): two lines like CPU/GPU, memory on top and disk below; the memory value still turns orange or red under memory pressure. Its panel shows memory, then disk. Available only while both the memory and disk monitors are on
 - **Combine into one icon** (Settings → Monitoring & power saving): when the menu bar is full, macOS hides the icons that don't fit (MacBooks with a notch are hit hardest). You can then keep just the battery icon (power on desktops). Clicking it opens a second status bar right below the menu bar with the battery and monitor icons, updated live. Click an icon there to open its panel (click again to collapse it); click anywhere else or press Esc to close the bar. The monitors only sample while the second bar is open. No screen recording or Accessibility permission is needed
 - If you only see the battery icon and no CPU or other icons, check that the system monitor master switch is on in Settings → Monitoring & power saving
@@ -297,7 +298,7 @@ The system integration uses private macOS functions, all loaded at run time and 
 
 Turn on "音訊切換" (audio switcher) in Settings → 功能管理 and a speaker button appears at the bottom right of the panel:
 
-- **Output device**: lists every device that can play audio (built-in speakers, headphones, Bluetooth headphones, displays and so on) with a check on the current one; click one to switch
+- **Output device**: lists every device that can play audio (built-in speakers, headphones, Bluetooth headphones, displays and so on) with a check on the current one; click one to switch. Virtual devices that cannot be the default output (for example Background Music's "UI Sounds" device for system alerts) are not listed, as in the system Sound menu
 - **Mute microphone**: uses the device's mute switch, or, if there is no switch, the menu says "輸入音量調到 0" (set input volume to 0) and the volume is restored when unmuted or when the app quits. A meeting app's automatic gain may turn it back up, so use the meeting app's own mute for such devices. The button shows a crossed-out microphone while muted
 - **Permission**: uses the public Core Audio API and needs no permission; devices are read only when the menu opens
 
@@ -324,7 +325,7 @@ Turn on "剪貼簿歷史" (clipboard history), together with the cat quick menu,
 - **Text only, memory only**: no images or files, nothing written to disk, cleared when the app quits, the feature is turned off, the screen locks or the Mac sleeps; nothing is recorded while the cat quick menu is off; up to 10,000 characters each
 - **Skips what password managers mark as concealed**: anything a password manager (Keychain, 1Password and so on) marks as concealed, transient or auto-generated is never recorded. A password copied from a browser, a terminal or any other ordinary app carries no such mark and is recorded
 - **Power**: macOS has no clipboard change notification, so while on it reads the clipboard's change count every 0.75 s and reads the content only when it changed; when off nothing is checked
-- The menu can clear the history; no permission needed
+- The panel can clear the history; it stays open and the list empties; no permission needed
 
 ## Ports and quitting processes
 
@@ -337,21 +338,23 @@ Turn on "Port 管理與結束程式" (ports and quitting processes) in Settings 
 
 ## Cat quick menu
 
-Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a cat icon appears in the menu bar with:
+Turn on "貓咪快捷選單" (cat quick menu) in Settings → 功能管理 and a cat icon appears in the menu bar. Clicking it opens a panel with:
 
-- **Keep awake**: pick a duration, stop, or keep the display on too; the title shows the time left while active
-- **Audio output** and **mute microphone**
-- **Start keyboard cleaning** (when keyboard cleaning mode is on)
-- **Extension features**: turn each one on or off directly
-- **Settings…** and **Quit**
-- The menu reads the current state only when it opens and does nothing otherwise; no permission needed
+- **Three large buttons**: keep awake (with the time left), mute microphone (with the audio switcher on) and start keyboard cleaning (with keyboard cleaning mode on)
+- **Keep-awake duration**: 30 min, 1 h, 2 h or until turned off, with the running one highlighted; the display can stay on too
+- **Audio output**: the same device list as the audio switcher; click one to switch
+- **Clipboard history** (when on): the last 5 items, click one to put it back on the clipboard; clearing keeps the panel open
+- **功能管理** (manage features): switches the panel to an extension features page where each feature has its own switch; "返回" (back) or Esc returns. A feature that needs Accessibility opens the permissions page if it is not allowed yet. The cat quick menu itself is turned off in Settings, since turning it off here would remove the panel
+- **Settings** and **Quit** at the bottom
+- Clicking outside closes the panel; the battery and system monitor panels also close when you click elsewhere or on another menu bar icon
+- The panel reads the current state only when it opens and does nothing otherwise; no permission needed
 
 ## Finder shortcuts
 
 Turn on "Finder 加強" (Finder shortcuts) in Settings → 功能管理 and:
 
 - **⌘X to cut, ⌘V to move**: select files in Finder, press ⌘X, then ⌘V in another folder to move them (Finder's ⌥⌘V "Move Item Here"). If something else is copied after cutting, ⌘V pastes the clipboard as usual and never moves the files by mistake
-- **F2 to rename**: press F2 on a selected file to rename it (same as Return)
+- **F2 to rename**: press F2 on a selected file to rename it (same as Return); on a MacBook keyboard press fn + F2, since F2 alone changes the brightness
 - **Only in Finder, never while typing**: when Finder is not frontmost, or while renaming or typing in the search field, ⌘X, ⌘V and F2 behave as usual; if Finder does not answer where the focus is, it counts as typing
 - **Keyboard layouts**: works on the US positions of X, C and V, and only when those keys really type X, C and V (ABC, US, Zhuyin, Pinyin, German and French layouts do); layouts such as Dvorak are left alone
 - **Permission**: needs Accessibility; nothing is intercepted while the feature is off
