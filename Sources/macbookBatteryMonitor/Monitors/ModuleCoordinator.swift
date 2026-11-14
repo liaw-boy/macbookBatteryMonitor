@@ -258,8 +258,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
     private func apply(_ image: NSImage, tooltip: String, to item: NSStatusItem) {
         guard let button = item.button else { return }
         button.image = image
-        // 滑鼠停在圖示上時不換提示文字：換了 macOS 會在游標目前的位置重新顯示提示框，看起來像跟著滑鼠跑
-        if button.toolTip != tooltip, !isMouseOver(button) { button.toolTip = tooltip }
+        button.toolTip = tooltip
         // 圖示寬度固定（依範本計算），第一次畫好後鎖住長度；
         // 否則每秒換圖都會觸發 _adjustLength，讓整條選單列重新排版
         if item.length == NSStatusItem.variableLength {
@@ -267,11 +266,6 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
                                                     : button.fittingSize.width
             if width > 0 { item.length = ceil(width) }
         }
-    }
-
-    private func isMouseOver(_ button: NSStatusBarButton) -> Bool {
-        guard let window = button.window else { return false }
-        return window.frame.contains(NSEvent.mouseLocation)
     }
 
     private func menuBarContent(_ kind: MonitorKind) -> (key: String, tooltip: String, image: () -> NSImage) {
@@ -364,7 +358,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         let isGPU = gpuItem?.button === sender
         guard let kind = isGPU ? .cpu : items.first(where: { $0.value.button === sender })?.key else { return }
         if NSApp.currentEvent?.type == .rightMouseUp {
-            showMenu(for: kind)
+            showMenu(on: isGPU ? gpuItem : items[kind])
             return
         }
         if let popover, popover.isShown {
@@ -438,6 +432,7 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
             topStream?.stop()
             topStream = nil
             openKind = nil
+            openGPU = false
             cpu.setThermalActive(false)
             disk.setHealthActive(false)
         }
@@ -447,8 +442,8 @@ final class ModuleCoordinator: NSObject, NSPopoverDelegate {
         }
     }
 
-    private func showMenu(for kind: MonitorKind) {
-        guard let item = items[kind] else { return }
+    private func showMenu(on item: NSStatusItem?) {
+        guard let item else { return }
         let menu = NSMenu()
         menu.addItem(withTitle: "設定…", action: #selector(openSettingsFromMenu), keyEquivalent: ",").target = self
         menu.addItem(.separator())
