@@ -381,3 +381,17 @@ print("3 caps lock delay tests passed")
 
 XDRBrightnessTests().run()
 print("XDR brightness policy tests passed")
+
+let keyQueue = KeyQueueTests()
+keyQueue.testQueuesInOrderUntilSent()
+keyQueue.testGivesUpWhenMainThreadIsStuck()
+keyQueue.testSlowButProgressingIsNotStuck()
+keyQueue.testDropsRepeatsOnlyWhileQueuing()
+print("4 key queue tests passed")
+
+let scrollSource = ScrollSourceTests()
+scrollSource.testWheelDoesNotBreakTrackpadMomentum()
+scrollSource.testGestureOnlyUpgradesToTrackpad()
+scrollSource.testNoPhaseStartsOverAndMomentumFollows()
+scrollSource.testReadsTouchesOnlyWhenNeeded()
+print("4 scroll source tests passed")
