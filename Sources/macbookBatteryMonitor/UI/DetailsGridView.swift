@@ -254,8 +254,12 @@ private struct ChargerSection: View {
         alert.addButton(withTitle: "儲存")
         alert.addButton(withTitle: "取消")
         alert.window.initialFirstResponder = field
+        let panel = NSApp.keyWindow
         NSApp.activate()
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let result = alert.runModal()
+        // 焦點交回面板，App 才不會被切回背景、讓面板之後點圖示時打開又馬上關
+        panel?.makeKey()
+        guard result == .alertFirstButtonReturn else { return }
         // 名稱是從另一筆（例如 MagSafe 那筆）借來的，就改那一筆，兩種線才會一直同名
         AppSettings.shared.setChargerName(field.stringValue, for: savedEntry?.key ?? fingerprint)
     }
