@@ -1005,8 +1005,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     private func closeForOutsideClick() {
-        // 管理員授權視窗是別的程序的視窗，點它不能把面板關掉
-        guard let popover, popover.isShown, !store.adminCPU.authorizing else { return }
+        // 管理員授權視窗是別的程序的視窗，點它不能把面板關掉；點面板開的對話框（例如充電器命名）也一樣
+        guard let popover, popover.isShown, !store.adminCPU.authorizing, NSApp.modalWindow == nil else { return }
         popover.closeNow()
     }
 
@@ -1037,6 +1037,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     // MARK: - NSPopoverDelegate
 
+    /// 面板開的對話框（例如充電器命名）出現時，transient 面板會被系統自動關掉；對話框關掉後 App 的前景狀態也交不回面板，
+    /// 下次點圖示會打開又馬上關。對話框開著時不關
+    func popoverShouldClose(_ popover: NSPopover) -> Bool {
+        NSApp.modalWindow == nil
+    }
     func popoverWillShow(_ notification: Notification) {
         scheduleRefresh(every: interval)
         scheduleProcessCheck()
