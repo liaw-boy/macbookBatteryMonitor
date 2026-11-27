@@ -2,6 +2,26 @@ import Foundation
 
 struct ExtensionFeatureTests {
     /// 會擋輸入的攔截一定要有輔助使用權限：清單裡的功能都標成需要；沒列進去的功能停用中不會定時試建
+    /// 每個功能都屬於固定順序清單裡的大項，每個大項至少一個功能
+    func testGroups() {
+        for feature in ExtensionFeature.allCases {
+            XCTAssertTrue(ExtensionFeature.groupOrder.contains(feature.group))
+        }
+        for group in ExtensionFeature.groupOrder {
+            XCTAssertTrue(!ExtensionFeature.members(of: group).isEmpty)
+        }
+        XCTAssertEqual(ExtensionFeature.members(of: "網路與螢幕"), [.portManager, .xdrBrightness, .speedTest].sorted { a, b in
+            ExtensionFeature.allCases.firstIndex(of: a)! < ExtensionFeature.allCases.firstIndex(of: b)! })
+    }
+
+    /// 打開的大項：從舊版更新（沒存過）用已加入功能的組；已加入功能的組一定打開；不認得的組名丟掉
+    func testEnabledGroups() {
+        XCTAssertEqual(ExtensionFeature.enabledGroups(stored: nil, installed: []), [])
+        XCTAssertEqual(ExtensionFeature.enabledGroups(stored: nil, installed: [.scrollDirection, .speedTest]), ["滑鼠與觸控板", "網路與螢幕"])
+        XCTAssertEqual(ExtensionFeature.enabledGroups(stored: ["鍵盤"], installed: []), ["鍵盤"])
+        XCTAssertEqual(ExtensionFeature.enabledGroups(stored: ["鍵盤", "不存在"], installed: [.startupItems]), ["鍵盤", "系統"])
+    }
+
     func testBlockingTapFeaturesNeedAccessibility() {
         XCTAssertTrue(ExtensionFeature.blockingTap.allSatisfy(\.needsAccessibility))
         XCTAssertTrue(!ExtensionFeature.blockingTap.contains(.quickMenu) && !ExtensionFeature.blockingTap.contains(.clipboardHistory))
